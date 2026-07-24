@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+// Cartera activa actual (hoja DATOS). Mezcla pólizas ya renovadas para el ciclo
+// (vencimiento en el año siguiente) con pólizas pendientes de renovar
+// (vencimiento pasado o próximo). DÍAS AL VENCE y EDAD no se almacenan: se
+// recalculan en cada consulta a partir de vencimiento / fechaNacimiento.
+model Policy {
+  id              Int       @id @default(autoincrement())
+  numero          String // PÓLIZA
+  ramo            String
+  asegurado       String
+  ccNit           String?
+  placa           String?
+  aseguradora     String?
+  tipoNegocio     String? // NUEVO, RENOVACION, COASEGURO, INCLUSIÓN, ...
+  asesor1         String?
+  asesor2         String?
+  primaNeta       Float     @default(0)
+  primaTotal      Float     @default(0)
+  formaPago       String?
+  fechaPago       DateTime?
+  fechaMaxPago    DateTime?
+  estadoPago      String? // OK PAGO / PENDIENTE
+  vencimiento     DateTime?
+  mesVencimiento  String? // derivado del vencimiento al importar
+  fechaNacimiento DateTime?
+  correo          String?
+  celular         String?
+  mensajeResumen  String?
+  vtoSoat         DateTime?
+  // Gestión interna de renovación (no viene del Excel)
+  gestionada      Boolean   @default(false)
+  notaGestion     String?
+  gestionadaEn    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([vencimiento])
+  @@index([ramo])
+  @@index([numero])
+  @@index([asegurado])
+}
+
+// Hoja OTRAS PÓLIZAS (pólizas fuera del seguimiento de vencimientos: viaje, etc.)
+model OtherPolicy {
+  id              Int       @id @default(autoincrement())
+  numero          String
+  ramo            String
+  asegurado       String
+  ccNit           String?
+  tipoNegocio     String?
+  asesor1         String?
+  asesor2         String?
+  primaNeta       Float     @default(0)
+  primaTotal      Float     @default(0)
+  formaPago       String?
+  fechaPago       DateTime?
+  fechaMaxPago    DateTime?
+  estadoPago      String?
+  vencimiento     DateTime?
+  fechaNacimiento DateTime?
+  correo          String?
+  celular         String?
+  createdAt       DateTime  @default(now())
+
+  @@index([numero])
+  @@index([asegurado])
+}
+
+// Hoja CANCELACIONES.
+// fechaRenovacion alimenta "PRODUCCIÓN CANCELADA" (agrupada por mes de renovación).
+// fechaCancelacion alimenta "CANCELACIONES" (agrupada por mes real de cancelación).
+// Son métricas distintas y no se mezclan.
+model Cancellation {
+  id               Int       @id @default(autoincrement())
+  numero           String
+  ramo             String
+  fechaRenovacion  DateTime?
+  fechaCancelacion DateTime?
+  tipoNegocio      String?
+  asegurado        String?
+  ccNit            String?
+  placa            String?
+  asesor           String?
+  aseguradora      String?
+  primaNeta        Float     @default(0)
+  primaTotal       Float     @default(0)
+  createdAt        DateTime  @default(now())
+
+  @@index([fechaRenovacion])
+  @@index([fechaCancelacion])
+  @@index([ramo])
+}
+
+// Hoja BASE 2025: histórico que define la BASE PARA RENOVAR del seguimiento 2026.
+model HistoricalPolicy2025 {
+  id          Int       @id @default(autoincrement())
+  numero      String
+  ramo        String
+  vencimiento DateTime?
+  mes         String? // columna MES de la hoja (coincide con el mes del vencimiento)
+  tipoNegocio String?
+  asegurado   String?
+  primaNeta   Float     @default(0)
+  primaTotal  Float     @default(0)
+
+  @@index([ramo])
+}
+
+// Hoja LISTAS: valores válidos para validación y dropdowns.
+// tipo ∈ RAMO | TIPO_NEGOCIO | ESTADO_PAGO | FORMA_PAGO | ASEGURADORA | ASESOR
+model ListValue {
+  id    Int    @id @default(autoincrement())
+  tipo  String
+  valor String
+
+  @@unique([tipo, valor])
+  @@index([tipo])
+}
