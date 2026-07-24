@@ -87,6 +87,41 @@ export function semaforoVencimiento(dias: number | null): Semaforo | null {
   return "VERDE";
 }
 
+// ---------------------------------------------------------------------------
+// Estado de cartera (cobranza) — basado en la fecha máxima de pago y el estado
+// de pago. Es independiente del semáforo de vencimiento (que mira la vigencia).
+// ---------------------------------------------------------------------------
+
+export type EstadoCartera =
+  | "PAGADA"
+  | "EN_MORA" // pendiente y ya pasó la fecha máxima de pago
+  | "POR_COBRAR" // pendiente, vence el pago en 0–15 días
+  | "PENDIENTE" // pendiente, con más de 15 días de plazo
+  | "SIN_FECHA" // pendiente sin fecha máxima de pago
+  | "SIN_ESTADO"; // no se registró estado de pago
+
+export interface EstadoCarteraResultado {
+  estado: EstadoCartera;
+  /** Días de mora (positivo) cuando está EN_MORA; días al vencimiento del pago
+   *  (positivo) cuando está POR_COBRAR / PENDIENTE; null en el resto. */
+  dias: number | null;
+}
+
+export function estadoCartera(
+  estadoPago: string | null,
+  fechaMaxPago: Date | null,
+  hoy: Date = hoyUTC()
+): EstadoCarteraResultado {
+  const estado = estadoPago?.trim().toUpperCase() ?? null;
+  if (estado === "OK PAGO") return { estado: "PAGADA", dias: null };
+  if (estado !== "PENDIENTE") return { estado: "SIN_ESTADO", dias: null };
+  if (!fechaMaxPago) return { estado: "SIN_FECHA", dias: null };
+  const dias = Math.round((fechaMaxPago.getTime() - hoy.getTime()) / 86400000);
+  if (dias < 0) return { estado: "EN_MORA", dias: -dias };
+  if (dias <= 15) return { estado: "POR_COBRAR", dias };
+  return { estado: "PENDIENTE", dias };
+}
+
 export type NivelCumplimiento = "VERDE" | "AMARILLO" | "ROJO";
 
 export function nivelCumplimiento(pct: number | null): NivelCumplimiento | null {

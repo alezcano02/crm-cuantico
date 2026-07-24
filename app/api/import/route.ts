@@ -56,7 +56,9 @@ export async function POST(req: NextRequest) {
         await tx.otherPolicy.createMany({ data: datos.otherPolicies });
       }
       if (datos.cancellations.length > 0) {
-        await tx.cancellation.deleteMany();
+        // Solo se reemplazan las cancelaciones provenientes del Excel; las
+        // creadas dentro de la app (manual = true) se conservan.
+        await tx.cancellation.deleteMany({ where: { manual: false } });
         await tx.cancellation.createMany({ data: datos.cancellations });
       }
       if (datos.historical.length > 0) {

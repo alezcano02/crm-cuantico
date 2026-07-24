@@ -7,8 +7,9 @@ import type { Semaforo } from "@/lib/calculos";
 import type { ListasFormulario } from "@/lib/queries";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import { EstadoPagoBadge, SemaforoBadge, Td, Th } from "@/components/ui";
-import { IconCheck, IconEditar, IconMas } from "@/components/icons";
+import { IconCancelar, IconCheck, IconEditar, IconMas, IconRenovar } from "@/components/icons";
 import { PolizaEditable, PolizaForm } from "@/components/poliza-form";
+import { DialogoCancelar, DialogoRenovar } from "@/components/acciones-poliza";
 
 export interface PolizaVista extends PolizaEditable {
   id: number;
@@ -53,6 +54,8 @@ export function VencimientosTabla({
   const [orden, setOrden] = useState<"dias" | "prima">("dias");
   const [gestionando, setGestionando] = useState<PolizaVista | null>(null);
   const [editando, setEditando] = useState<PolizaVista | null>(null);
+  const [renovando, setRenovando] = useState<PolizaVista | null>(null);
+  const [cancelando, setCancelando] = useState<PolizaVista | null>(null);
   const [creando, setCreando] = useState(false);
 
   const asesores = useMemo(
@@ -96,6 +99,8 @@ export function VencimientosTabla({
   const alGuardar = () => {
     setGestionando(null);
     setEditando(null);
+    setRenovando(null);
+    setCancelando(null);
     setCreando(false);
     router.refresh();
   };
@@ -267,13 +272,30 @@ export function VencimientosTabla({
                   )}
                 </Td>
                 <Td>
-                  <button
-                    onClick={() => setEditando(p)}
-                    title="Editar póliza"
-                    className="rounded p-1 text-ink-muted hover:bg-brand-light/40 hover:text-brand"
-                  >
-                    <IconEditar className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setRenovando(p)}
+                      title="Renovar (nuevo ciclo)"
+                      className="inline-flex items-center gap-1 rounded border border-status-good/50 px-1.5 py-0.5 text-xs font-medium text-status-good hover:bg-status-good/5"
+                    >
+                      <IconRenovar className="h-3.5 w-3.5" />
+                      Renovar
+                    </button>
+                    <button
+                      onClick={() => setCancelando(p)}
+                      title="Cancelar (mover a cancelaciones)"
+                      className="rounded p-1 text-ink-muted hover:bg-status-critical/10 hover:text-status-critical"
+                    >
+                      <IconCancelar className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditando(p)}
+                      title="Editar póliza"
+                      className="rounded p-1 text-ink-muted hover:bg-brand-light/40 hover:text-brand"
+                    >
+                      <IconEditar className="h-4 w-4" />
+                    </button>
+                  </div>
                 </Td>
               </tr>
             ))}
@@ -292,6 +314,20 @@ export function VencimientosTabla({
         <DialogoGestion
           poliza={gestionando}
           onCerrar={() => setGestionando(null)}
+          onGuardado={alGuardar}
+        />
+      )}
+      {renovando && (
+        <DialogoRenovar
+          poliza={renovando}
+          onCerrar={() => setRenovando(null)}
+          onGuardado={alGuardar}
+        />
+      )}
+      {cancelando && (
+        <DialogoCancelar
+          poliza={cancelando}
+          onCerrar={() => setCancelando(null)}
           onGuardado={alGuardar}
         />
       )}

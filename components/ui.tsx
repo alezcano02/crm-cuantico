@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import type { NivelCumplimiento, Semaforo } from "@/lib/calculos";
+import type { EstadoCartera, NivelCumplimiento, Semaforo } from "@/lib/calculos";
 
 export function Card({
   children,
@@ -126,6 +126,77 @@ export function PageHeader({
       </div>
       {children}
     </header>
+  );
+}
+
+const CARTERA_INFO: Record<
+  EstadoCartera,
+  { etiqueta: string; punto: string; texto: string; fondo: string }
+> = {
+  PAGADA: {
+    etiqueta: "Pagada",
+    punto: "bg-status-good",
+    texto: "text-status-good",
+    fondo: "bg-status-good/10",
+  },
+  EN_MORA: {
+    etiqueta: "En mora",
+    punto: "bg-status-critical",
+    texto: "text-status-critical",
+    fondo: "bg-status-critical/10",
+  },
+  POR_COBRAR: {
+    etiqueta: "Por cobrar",
+    punto: "bg-status-serious",
+    texto: "text-[#c05a2e]",
+    fondo: "bg-status-serious/10",
+  },
+  PENDIENTE: {
+    etiqueta: "Pendiente",
+    punto: "bg-status-warning",
+    texto: "text-[#8a6100]",
+    fondo: "bg-status-warning/15",
+  },
+  SIN_FECHA: {
+    etiqueta: "Sin fecha",
+    punto: "bg-ink-muted",
+    texto: "text-ink-secondary",
+    fondo: "bg-surface-page",
+  },
+  SIN_ESTADO: {
+    etiqueta: "Sin estado",
+    punto: "bg-ink-muted",
+    texto: "text-ink-muted",
+    fondo: "bg-surface-page",
+  },
+};
+
+export function CarteraBadge({
+  estado,
+  dias,
+}: {
+  estado: EstadoCartera;
+  dias: number | null;
+}) {
+  const c = CARTERA_INFO[estado];
+  const sufijo =
+    estado === "EN_MORA" && dias != null
+      ? ` · ${dias} d`
+      : (estado === "POR_COBRAR" || estado === "PENDIENTE") && dias != null
+        ? ` · ${dias} d`
+        : "";
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs font-semibold",
+        c.fondo,
+        c.texto
+      )}
+    >
+      <span className={clsx("h-1.5 w-1.5 rounded-full", c.punto)} aria-hidden />
+      {c.etiqueta}
+      {sufijo}
+    </span>
   );
 }
 

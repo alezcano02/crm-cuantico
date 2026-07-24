@@ -96,6 +96,10 @@ model Cancellation {
   aseguradora      String?
   primaNeta        Float     @default(0)
   primaTotal       Float     @default(0)
+  // true = creada dentro de la app (al cancelar una póliza desde la cartera).
+  // La reimportación del Excel solo reemplaza las cancelaciones NO manuales,
+  // así el trabajo de los asesores no se pierde al volver a cargar el archivo.
+  manual           Boolean   @default(false)
   createdAt        DateTime  @default(now())
 
   @@index([fechaRenovacion])

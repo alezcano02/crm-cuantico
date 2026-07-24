@@ -99,3 +99,47 @@ export const IconError = (p: IconProps) =>
 
 export const IconFiltro = (p: IconProps) =>
   base(p, <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />);
+
+export const IconRenovar = (p: IconProps) =>
+  base(p, (
+    <>
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+      <path d="M3 21v-5h5" />
+    </>
+  ));
+
+export const IconCancelar = (p: IconProps) =>
+  base(p, (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+    </>
+  ));
+
+export const IconDinero = (p: IconProps) =>
+  base(p, (
+    <>
+      <line x1="12" y1="2" x2="12" y2="22" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </>
+  ));
+
+export const IconCartera = (p: IconProps) =>
+  base(p, (
+    <>
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+      <line x1="2" y1="13" x2="22" y2="13" />
+    </>
+  ));
+
+export const IconHistorial = (p: IconProps) =>
+  base(p, (
+    <>
+      <path d="M3 3v5h5" />
+      <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+      <path d="M12 7v5l4 2" />
+    </>
+  ));

@@ -6,7 +6,9 @@ import clsx from "clsx";
 import {
   IconBuscar,
   IconCalendario,
+  IconCartera,
   IconDashboard,
+  IconHistorial,
   IconImportar,
   IconTendencia,
 } from "@/components/icons";
@@ -15,6 +17,8 @@ const enlaces = [
   { href: "/", etiqueta: "Dashboard", Icono: IconDashboard },
   { href: "/seguimiento", etiqueta: "Seguimiento", Icono: IconTendencia },
   { href: "/vencimientos", etiqueta: "Vencimientos", Icono: IconCalendario },
+  { href: "/cartera", etiqueta: "Cartera", Icono: IconCartera },
+  { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
   { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
   { href: "/importar", etiqueta: "Importar datos", Icono: IconImportar },
 ];

@@ -43,14 +43,19 @@ export async function seguimientoAnio(anio: number): Promise<Seguimiento> {
   return calcularSeguimiento(datos, anio);
 }
 
-/** Años disponibles para el selector: 2026 y todos los que se deriven de los
- *  vencimientos cargados (producción del año N = vencimientos en N+1). */
+/**
+ * Años disponibles para el selector. Siempre incluye 2026, 2027 y el año en
+ * curso + el siguiente, más todos los que se deriven de los vencimientos
+ * cargados (producción del año N = vencimientos en N+1). Así el informe queda
+ * disponible para 2027 aunque todavía no existan vencimientos en 2028.
+ */
 export async function aniosDisponibles(): Promise<number[]> {
   const polizas = await prisma.policy.findMany({
     select: { vencimiento: true },
     where: { vencimiento: { not: null } },
   });
-  const anios = new Set<number>([2026]);
+  const anioActual = new Date().getUTCFullYear();
+  const anios = new Set<number>([2026, 2027, anioActual, anioActual + 1]);
   for (const p of polizas) {
     if (p.vencimiento) anios.add(p.vencimiento.getUTCFullYear() - 1);
   }

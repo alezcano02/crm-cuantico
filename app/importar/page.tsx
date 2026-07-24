@@ -39,6 +39,13 @@ export default function ImportarPage() {
             hoja, pero conserva las marcas de «renovación gestionada» y sus
             notas (casadas por número de póliza y ramo).
           </li>
+          <li>
+            Las cancelaciones creadas dentro de la app (al cancelar una póliza
+            desde la cartera) <b>se conservan</b> al reimportar; solo se
+            reemplazan las que vienen del Excel. Si esa póliza sigue en la hoja
+            DATOS, volverá a la cartera activa: actualice el Excel maestro para
+            reflejar la cancelación.
+          </li>
           <li>Las filas duplicadas dentro del archivo se omiten y se reportan.</li>
         </ul>
       </Card>
