@@ -9,3 +9,38 @@ body {
 .tabla-num {
   font-variant-numeric: tabular-nums;
 }
+
+/* Encabezado de tabla que permanece visible al hacer scroll vertical dentro
+   del contenedor de la tabla. */
+.tabla-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  @apply bg-surface;
+}
+
+/* Barras de scroll discretas en los contenedores de tablas. */
+.scroll-fino {
+  scrollbar-width: thin;
+  scrollbar-color: #c8cfda transparent;
+}
+.scroll-fino::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.scroll-fino::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-line-axis;
+}
+.scroll-fino::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media print {
+  .no-imprimir {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}

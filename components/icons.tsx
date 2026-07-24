@@ -143,3 +143,54 @@ export const IconHistorial = (p: IconProps) =>
       <path d="M12 7v5l4 2" />
     </>
   ));
+
+export const IconPersonas = (p: IconProps) =>
+  base(p, (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ));
+
+export const IconDescargar = (p: IconProps) =>
+  base(p, (
+    <>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </>
+  ));
+
+export const IconOrden = (p: IconProps) =>
+  base(p, (
+    <>
+      <path d="m7 15 5 5 5-5" />
+      <path d="m7 9 5-5 5 5" />
+    </>
+  ));
+
+export const IconFlecha = (p: IconProps) =>
+  base(p, (
+    <>
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </>
+  ));
+
+export const IconArriba = (p: IconProps) =>
+  base(p, (
+    <>
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </>
+  ));
+
+export const IconAbajo = (p: IconProps) =>
+  base(p, (
+    <>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <polyline points="19 12 12 19 5 12" />
+    </>
+  ));

@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { fmtCOP, fmtCOPCompact, fmtFecha, fmtNum } from "@/lib/format";
 import { MESES } from "@/lib/constants";
 import { StatCard, Td, Th } from "@/components/ui";
+import { BotonExportar } from "@/components/boton-exportar";
 
 export interface CancelacionVista {
   id: number;
@@ -246,6 +247,30 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
           </button>
         )}
         <span className="ml-auto text-sm text-ink-muted">{filtradas.length} cancelaciones</span>
+        <BotonExportar
+          nombre="cancelaciones"
+          filas={filtradas}
+          columnas={[
+            { encabezado: "Póliza", valor: (c) => c.numero },
+            { encabezado: "Ramo", valor: (c) => c.ramo },
+            { encabezado: "Asegurado", valor: (c) => c.asegurado ?? "" },
+            { encabezado: "CC/NIT", valor: (c) => c.ccNit ?? "" },
+            { encabezado: "Aseguradora", valor: (c) => c.aseguradora ?? "" },
+            { encabezado: "Asesor", valor: (c) => c.asesor ?? "" },
+            { encabezado: "Tipo", valor: (c) => c.tipoNegocio ?? "" },
+            {
+              encabezado: "Fecha renovación",
+              valor: (c) => (c.fechaRenovacion ? new Date(c.fechaRenovacion) : null),
+            },
+            {
+              encabezado: "Fecha cancelación",
+              valor: (c) => (c.fechaCancelacion ? new Date(c.fechaCancelacion) : null),
+            },
+            { encabezado: "Prima neta", valor: (c) => c.primaNeta },
+            { encabezado: "Prima total", valor: (c) => c.primaTotal },
+            { encabezado: "Origen", valor: (c) => (c.manual ? "APP" : "EXCEL") },
+          ]}
+        />
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line-grid bg-surface">

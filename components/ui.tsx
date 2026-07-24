@@ -1,17 +1,21 @@
 import clsx from "clsx";
+import Link from "next/link";
 import type { EstadoCartera, NivelCumplimiento, Semaforo } from "@/lib/calculos";
 
 export function Card({
   children,
   className,
+  sinPadding,
 }: {
   children: React.ReactNode;
   className?: string;
+  sinPadding?: boolean;
 }) {
   return (
     <div
       className={clsx(
-        "rounded-lg border border-line-grid bg-surface p-5 shadow-sm",
+        "rounded-xl border border-line-grid bg-surface shadow-card",
+        !sinPadding && "p-5",
         className
       )}
     >
@@ -20,42 +24,145 @@ export function Card({
   );
 }
 
-export function CardTitle({ children }: { children: React.ReactNode }) {
+export function CardTitle({
+  children,
+  accion,
+}: {
+  children: React.ReactNode;
+  accion?: React.ReactNode;
+}) {
   return (
-    <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-secondary">
-      {children}
-    </h2>
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <h2 className="text-[13px] font-semibold tracking-wide text-ink-secondary">
+        {children}
+      </h2>
+      {accion}
+    </div>
   );
 }
+
+const ACENTO_TEXTO = {
+  verde: "text-status-good",
+  amarillo: "text-[#b07800]",
+  rojo: "text-status-critical",
+  marca: "text-brand",
+} as const;
 
 export function StatCard({
   etiqueta,
   valor,
   detalle,
   acento,
+  href,
+  Icono,
 }: {
   etiqueta: string;
   valor: string;
-  detalle?: string;
-  acento?: "verde" | "amarillo" | "rojo";
+  detalle?: React.ReactNode;
+  acento?: keyof typeof ACENTO_TEXTO;
+  /** Si se indica, la tarjeta completa se vuelve un enlace. */
+  href?: string;
+  Icono?: (p: { className?: string }) => JSX.Element;
 }) {
-  return (
-    <Card>
-      <div className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-        {etiqueta}
+  const contenido = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+          {etiqueta}
+        </div>
+        {Icono && <Icono className="h-4 w-4 shrink-0 text-ink-muted/70" />}
       </div>
       <div
         className={clsx(
-          "mt-1.5 text-2xl font-bold",
-          acento === "verde" && "text-status-good",
-          acento === "amarillo" && "text-[#b07800]",
-          acento === "rojo" && "text-status-critical"
+          "mt-2 text-[26px] font-bold leading-none tracking-tight tabla-num",
+          acento ? ACENTO_TEXTO[acento] : "text-ink"
         )}
       >
         {valor}
       </div>
-      {detalle && <div className="mt-1 text-xs text-ink-muted">{detalle}</div>}
-    </Card>
+      {detalle && <div className="mt-1.5 text-xs text-ink-muted">{detalle}</div>}
+    </>
+  );
+
+  const clases =
+    "block rounded-xl border border-line-grid bg-surface p-4 shadow-card transition-shadow";
+
+  if (href) {
+    return (
+      <Link href={href} className={clsx(clases, "hover:shadow-raised")}>
+        {contenido}
+      </Link>
+    );
+  }
+  return <div className={clases}>{contenido}</div>;
+}
+
+/** Barra de progreso para el % de cumplimiento. */
+export function Progreso({
+  valor,
+  nivel,
+}: {
+  /** 0–1 (puede superar 1; la barra se recorta al 100%). */
+  valor: number | null;
+  nivel?: NivelCumplimiento | null;
+}) {
+  const pct = valor == null ? 0 : Math.max(0, Math.min(valor, 1)) * 100;
+  const color =
+    nivel === "VERDE"
+      ? "bg-status-good"
+      : nivel === "AMARILLO"
+        ? "bg-status-warning"
+        : nivel === "ROJO"
+          ? "bg-status-critical"
+          : "bg-brand-400";
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">
+      <div className={clsx("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+/** Estado vacío con mensaje y acción opcional. */
+export function EstadoVacio({
+  titulo,
+  descripcion,
+  accion,
+}: {
+  titulo: string;
+  descripcion?: React.ReactNode;
+  accion?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+      <p className="text-sm font-semibold text-ink-secondary">{titulo}</p>
+      {descripcion && (
+        <p className="max-w-md text-sm text-ink-muted">{descripcion}</p>
+      )}
+      {accion && <div className="mt-2">{accion}</div>}
+    </div>
+  );
+}
+
+/** Contenedor con scroll y encabezado fijo para tablas largas. */
+export function TablaContenedor({
+  children,
+  className,
+  alto = "max-h-[70vh]",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  alto?: string;
+}) {
+  return (
+    <div
+      className={clsx(
+        "overflow-auto scroll-fino rounded-xl border border-line-grid bg-surface",
+        alto,
+        className
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -120,11 +227,15 @@ export function PageHeader({
 }) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line-grid pb-4">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">{titulo}</h1>
-        {descripcion && <p className="mt-0.5 text-sm text-ink-muted">{descripcion}</p>}
+      <div className="min-w-0">
+        <h1 className="text-[22px] font-bold leading-tight tracking-tight text-ink">
+          {titulo}
+        </h1>
+        {descripcion && (
+          <p className="mt-1 text-sm text-ink-muted">{descripcion}</p>
+        )}
       </div>
-      {children}
+      <div className="no-imprimir flex flex-wrap items-center gap-2">{children}</div>
     </header>
   );
 }

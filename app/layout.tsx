@@ -1,39 +1,46 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
-import { NavLinks } from "@/components/nav-links";
+import { AppShell, ContadoresNav } from "@/components/app-shell";
+import { prisma } from "@/lib/prisma";
+import { hoyUTC } from "@/lib/calculos";
 
 export const metadata: Metadata = {
-  title: "Cuántico CRM — Cartera y Producción",
+  title: "Cuántico Seguros — CRM de cartera y producción",
   description:
     "Seguimiento de cartera, vencimientos y cumplimiento de metas de producción — Cuántico Agencia de Seguros",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export const dynamic = "force-dynamic";
+
+/**
+ * Contadores de la barra lateral (pólizas vencidas y pagos en mora).
+ * Si la base no está disponible se devuelven ceros: la navegación debe
+ * renderizarse igual, sin tumbar la aplicación entera.
+ */
+async function contadores(): Promise<ContadoresNav> {
+  try {
+    const hoy = hoyUTC();
+    const [vencidas, mora] = await Promise.all([
+      prisma.policy.count({ where: { vencimiento: { lt: hoy } } }),
+      prisma.policy.count({
+        where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } },
+      }),
+    ]);
+    return { vencidas, mora };
+  } catch {
+    return { vencidas: 0, mora: 0 };
+  }
+}
+
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="es">
       <body>
-        <div className="flex min-h-screen">
-          <aside className="fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-slate-900">
-            <div className="border-b border-white/10 px-5 py-5">
-              <Link href="/" className="block">
-                <div className="text-lg font-bold tracking-widest text-white">
-                  CUÁNTICO
-                </div>
-                <div className="mt-0.5 text-[11px] uppercase tracking-wider text-slate-400">
-                  Agencia de Seguros
-                </div>
-              </Link>
-            </div>
-            <NavLinks />
-            <div className="mt-auto border-t border-white/10 px-5 py-4 text-[11px] leading-relaxed text-slate-500">
-              CRM de producción y cartera
-              <br />
-              Datos en tiempo real desde la base
-            </div>
-          </aside>
-          <main className="ml-60 min-w-0 flex-1 px-8 py-6">{children}</main>
-        </div>
+        <AppShell contadores={await contadores()}>{children}</AppShell>
       </body>
     </html>
   );

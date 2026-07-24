@@ -9,6 +9,12 @@ import { MESES } from "@/lib/constants";
 import { CarteraBadge, StatCard, Td, Th } from "@/components/ui";
 import { IconCancelar, IconDinero } from "@/components/icons";
 import { DialogoCancelar } from "@/components/acciones-poliza";
+import { BotonExportar } from "@/components/boton-exportar";
+
+/** Las fechas viajan como ISO; el CSV las quiere como Date para formatearlas. */
+function fechaCSV(iso: string | null): Date | null {
+  return iso ? new Date(iso) : null;
+}
 
 export interface CarteraVista {
   id: number;
@@ -290,6 +296,29 @@ export function CarteraTabla({ polizas }: { polizas: CarteraVista[] }) {
           </button>
         )}
         <span className="ml-auto text-sm text-ink-muted">{filtradas.length} pólizas</span>
+        <BotonExportar
+          nombre="cartera"
+          filas={filtradas}
+          columnas={[
+            { encabezado: "Estado", valor: (p) => p.estado },
+            { encabezado: "Días", valor: (p) => p.diasCartera ?? "" },
+            { encabezado: "Fecha máx. pago", valor: (p) => fechaCSV(p.fechaMaxPago) },
+            { encabezado: "Póliza", valor: (p) => p.numero },
+            { encabezado: "Ramo", valor: (p) => p.ramo },
+            { encabezado: "Asegurado", valor: (p) => p.asegurado },
+            { encabezado: "CC/NIT", valor: (p) => p.ccNit ?? "" },
+            { encabezado: "Aseguradora", valor: (p) => p.aseguradora ?? "" },
+            { encabezado: "Asesor 1", valor: (p) => p.asesor1 ?? "" },
+            { encabezado: "Asesor 2", valor: (p) => p.asesor2 ?? "" },
+            { encabezado: "Forma de pago", valor: (p) => p.formaPago ?? "" },
+            { encabezado: "Estado de pago", valor: (p) => p.estadoPago ?? "" },
+            { encabezado: "Prima neta", valor: (p) => p.primaNeta },
+            { encabezado: "Prima total", valor: (p) => p.primaTotal },
+            { encabezado: "Vencimiento", valor: (p) => fechaCSV(p.vencimiento) },
+            { encabezado: "Celular", valor: (p) => p.celular ?? "" },
+            { encabezado: "Correo", valor: (p) => p.correo ?? "" },
+          ]}
+        />
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line-grid bg-surface">

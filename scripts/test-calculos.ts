@@ -25,11 +25,18 @@ const seg = calcularSeguimiento(
   2026
 );
 
-// Valores esperados tomados de la hoja "SEGUIMIENTO 2026" del informe
-// original. Nota: el libro está en cálculo manual, por lo que las celdas de
-// NUEVOS y RENOVACIONES guardaban valores obsoletos; para esas dos columnas
-// los valores esperados se recalcularon de forma independiente aplicando las
-// mismas fórmulas SUMIFS de la hoja sobre los datos crudos de DATOS.
+// Valores esperados tomados de la hoja "SEGUIMIENTO 2026" del informe.
+//
+// IMPORTANTE: son una foto de un archivo concreto. El informe es un documento
+// vivo; cuando se agregan pólizas hay que refrescar estos números (última
+// actualización: archivo del 2026-07-24, que sumó producción en AUTOS).
+// Si el test falla, primero compruebe si el .xlsx cambió antes de sospechar
+// del motor de cálculo.
+//
+// Nota: el libro está en cálculo manual, por lo que las celdas de NUEVOS y
+// RENOVACIONES pueden guardar valores obsoletos; para esas dos columnas los
+// valores esperados se recalculan de forma independiente aplicando las mismas
+// fórmulas SUMIFS de la hoja sobre los datos crudos de DATOS.
 const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Record<keyof FilaSeguimiento, number>> }[] = [
   {
     nombre: "CONSOLIDADO TOTAL",
@@ -37,13 +44,13 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
     valores: {
       base: 6091314245.951177,
       meta: 7375220160.1568775,
-      real: 4687067971.780336,
-      nuevos: 1667911327.4105883,
+      real: 4691676407.780336,
+      nuevos: 1672519763.4105883,
       renovaciones: 2969268444.369748,
       produccionCancelada: 321920675.9243697,
       cancelaciones: 6054016.806722689,
-      neta: 4681013954.973614,
-      cumplimiento: 0.6346948095545455,
+      neta: 4685622390.973614,
+      cumplimiento: 0.6353196635792289,
     },
   },
   {
@@ -89,7 +96,7 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
   {
     nombre: "RAMO AUTOS (producción real)",
     fila: seg.porRamo.get("AUTOS")![12],
-    valores: { real: 419680505.8307563 },
+    valores: { real: 424288941.8307563 },
   },
 ];
 

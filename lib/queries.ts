@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import {
   calcularSeguimiento,
+  hoyUTC,
   Seguimiento,
   CancelacionRow,
   HistoricaRow,
@@ -62,6 +63,125 @@ export async function aniosDisponibles(): Promise<number[]> {
   return Array.from(anios)
     .filter((a) => a >= 2026)
     .sort();
+}
+
+/**
+ * Indicadores operativos para el panel "requiere atención" del dashboard:
+ * lo que un asesor debe mirar hoy.
+ */
+export async function resumenOperativo() {
+  const hoy = hoyUTC();
+  const en30 = new Date(hoy.getTime() + 30 * 86400000);
+  const inicioMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));
+  const inicioMesSiguiente = new Date(
+    Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() + 1, 1)
+  );
+
+  const [vencidas, sinGestionar, proximas, mora, canceladasMes, primaMora] =
+    await Promise.all([
+      prisma.policy.count({ where: { vencimiento: { lt: hoy } } }),
+      prisma.policy.count({ where: { vencimiento: { lt: hoy }, gestionada: false } }),
+      prisma.policy.count({ where: { vencimiento: { gte: hoy, lte: en30 } } }),
+      prisma.policy.count({
+        where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } },
+      }),
+      prisma.cancellation.count({
+        where: { fechaCancelacion: { gte: inicioMes, lt: inicioMesSiguiente } },
+      }),
+      prisma.policy.aggregate({
+        _sum: { primaTotal: true },
+        where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } },
+      }),
+    ]);
+
+  return {
+    vencidas,
+    sinGestionar,
+    proximas,
+    mora,
+    canceladasMes,
+    primaMora: primaMora._sum.primaTotal ?? 0,
+  };
+}
+
+/**
+ * Producción y cartera agrupadas por asesor.
+ *
+ * En el archivo original ASESOR 1 suele ser el canal/oficina (CUANTICO,
+ * MAGENTA…) y ASESOR 2 la persona que atiende, pero no siempre: por eso el
+ * campo de agrupación se elige desde la pantalla en vez de asumirlo aquí.
+ */
+export async function produccionPorAsesor(anio: number, campo: "asesor1" | "asesor2") {
+  const hoy = hoyUTC();
+  const polizas = await prisma.policy.findMany({
+    select: {
+      asesor1: true,
+      asesor2: true,
+      primaNeta: true,
+      primaTotal: true,
+      vencimiento: true,
+      estadoPago: true,
+      fechaMaxPago: true,
+    },
+  });
+  const cancelaciones = await prisma.cancellation.findMany({
+    select: { asesor: true, primaNeta: true, fechaCancelacion: true },
+  });
+
+  type Fila = {
+    asesor: string;
+    polizas: number;
+    produccion: number; // prima neta del ciclo (vencimiento en anio+1)
+    cartera: number; // prima neta total administrada
+    vencidas: number;
+    mora: number;
+    canceladas: number;
+    primaCancelada: number;
+  };
+  const mapa = new Map<string, Fila>();
+  const obtener = (nombre: string): Fila => {
+    let f = mapa.get(nombre);
+    if (!f) {
+      f = {
+        asesor: nombre,
+        polizas: 0,
+        produccion: 0,
+        cartera: 0,
+        vencidas: 0,
+        mora: 0,
+        canceladas: 0,
+        primaCancelada: 0,
+      };
+      mapa.set(nombre, f);
+    }
+    return f;
+  };
+
+  for (const p of polizas) {
+    const nombre = (p[campo] ?? "").trim().replace(/\s+/g, " ");
+    if (!nombre) continue;
+    const f = obtener(nombre);
+    f.polizas++;
+    f.cartera += p.primaNeta || 0;
+    if (p.vencimiento && p.vencimiento.getUTCFullYear() === anio + 1) {
+      f.produccion += p.primaNeta || 0;
+    }
+    if (p.vencimiento && p.vencimiento < hoy) f.vencidas++;
+    if (p.estadoPago === "PENDIENTE" && p.fechaMaxPago && p.fechaMaxPago < hoy) f.mora++;
+  }
+
+  // Las cancelaciones solo guardan un asesor; se cruzan por nombre.
+  for (const c of cancelaciones) {
+    const nombre = (c.asesor ?? "").trim().replace(/\s+/g, " ");
+    if (!nombre || !c.fechaCancelacion) continue;
+    if (c.fechaCancelacion.getUTCFullYear() !== anio) continue;
+    const f = mapa.get(nombre);
+    if (!f) continue;
+    f.canceladas++;
+    f.primaCancelada += c.primaNeta || 0;
+  }
+
+  return Array.from(mapa.values()).sort((a, b) => b.produccion - a.produccion);
 }
 
 export async function listaValores(tipo: string): Promise<string[]> {

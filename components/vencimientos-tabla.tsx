@@ -9,6 +9,7 @@ import { fmtCOP, fmtFecha } from "@/lib/format";
 import { EstadoPagoBadge, SemaforoBadge, Td, Th } from "@/components/ui";
 import { IconCancelar, IconCheck, IconEditar, IconMas, IconRenovar } from "@/components/icons";
 import { PolizaEditable, PolizaForm } from "@/components/poliza-form";
+import { BotonExportar } from "@/components/boton-exportar";
 import { DialogoCancelar, DialogoRenovar } from "@/components/acciones-poliza";
 
 export interface PolizaVista extends PolizaEditable {
@@ -192,6 +193,33 @@ export function VencimientosTabla({
             </span>
           )}
         </span>
+        <BotonExportar
+          nombre="vencimientos"
+          filas={filtradas}
+          columnas={[
+            { encabezado: "Días al vence", valor: (p) => p.dias ?? "" },
+            { encabezado: "Estado", valor: (p) => p.semaforo ?? "" },
+            {
+              encabezado: "Vencimiento",
+              valor: (p) => (p.vencimiento ? new Date(p.vencimiento) : null),
+            },
+            { encabezado: "Póliza", valor: (p) => p.numero },
+            { encabezado: "Ramo", valor: (p) => p.ramo },
+            { encabezado: "Asegurado", valor: (p) => p.asegurado },
+            { encabezado: "CC/NIT", valor: (p) => p.ccNit ?? "" },
+            { encabezado: "Aseguradora", valor: (p) => p.aseguradora ?? "" },
+            { encabezado: "Tipo negocio", valor: (p) => p.tipoNegocio ?? "" },
+            { encabezado: "Asesor 1", valor: (p) => p.asesor1 ?? "" },
+            { encabezado: "Asesor 2", valor: (p) => p.asesor2 ?? "" },
+            { encabezado: "Prima neta", valor: (p) => p.primaNeta },
+            { encabezado: "Prima total", valor: (p) => p.primaTotal },
+            { encabezado: "Estado de pago", valor: (p) => p.estadoPago ?? "" },
+            { encabezado: "Celular", valor: (p) => p.celular ?? "" },
+            { encabezado: "Correo", valor: (p) => p.correo ?? "" },
+            { encabezado: "Gestionada", valor: (p) => (p.gestionada ? "SÍ" : "NO") },
+            { encabezado: "Nota de gestión", valor: (p) => p.notaGestion ?? "" },
+          ]}
+        />
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line-grid bg-surface">
