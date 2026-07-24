@@ -76,9 +76,14 @@ npm run dev                   # http://localhost:3000
 1. Suba el repositorio a GitHub e impórtelo en [vercel.com/new](https://vercel.com/new)
    (framework autodetectado: Next.js; no requiere configuración extra).
 2. En el proyecto de Vercel: **Storage → Create Database → Postgres** (Neon).
-   Al conectarla al proyecto, Vercel crea automáticamente las variables
-   `POSTGRES_PRISMA_URL` y `POSTGRES_URL_NON_POOLING`, que son exactamente las
-   que usa `prisma/schema.prisma`.
+   Al conectarla al proyecto, Vercel crea automáticamente las variables de
+   conexión. **Si conecta la base desde el marketplace de Neon** (en vez del
+   flujo nativo de Vercel Postgres), los nombres vienen prefijados con el
+   nombre del proyecto — por ejemplo `CRM_CUANTICO_POSTGRES_PRISMA_URL` en vez
+   de `POSTGRES_PRISMA_URL` — para evitar colisiones si se conecta más de una
+   base. Verifique los nombres exactos en **Settings → Environment
+   Variables** y ajústelos en `prisma/schema.prisma` si difieren de los que
+   ya están configurados ahí.
 3. Cree las tablas contra la base de producción. Desde su máquina, con las
    variables de la base (cópielas de **Storage → .env.local** o use
    `vercel env pull .env`):
