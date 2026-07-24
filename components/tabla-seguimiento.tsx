@@ -3,7 +3,7 @@ import { fmtCOP, fmtPct } from "@/lib/format";
 import { CumplimientoBadge, Td, Th } from "@/components/ui";
 import clsx from "clsx";
 
-const MES_TITULO: Record<string, string> = {
+export const MES_TITULO: Record<string, string> = {
   ENERO: "Enero",
   FEBRERO: "Febrero",
   MARZO: "Marzo",
@@ -23,10 +23,14 @@ export function TablaSeguimiento({
   filas,
   anioBase,
   anio,
+  mostrarBase = true,
 }: {
   filas: FilaSeguimiento[];
   anioBase: number;
   anio: number;
+  /** false cuando la base del año anterior no puede desglosarse con el filtro
+   *  activo (p. ej. aseguradora en 2026: la BASE 2025 no la registra). */
+  mostrarBase?: boolean;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -57,8 +61,8 @@ export function TablaSeguimiento({
                 )}
               >
                 <Td className={clsx(esTotal && "font-bold")}>{MES_TITULO[f.mes] ?? f.mes}</Td>
-                <Td derecha>{fmtCOP(f.base)}</Td>
-                <Td derecha>{fmtCOP(f.meta)}</Td>
+                <Td derecha>{mostrarBase ? fmtCOP(f.base) : "—"}</Td>
+                <Td derecha>{mostrarBase ? fmtCOP(f.meta) : "—"}</Td>
                 <Td derecha>{fmtCOP(f.real)}</Td>
                 <Td derecha>{fmtCOP(f.nuevos)}</Td>
                 <Td derecha>{fmtCOP(f.renovaciones)}</Td>
@@ -70,10 +74,14 @@ export function TablaSeguimiento({
                   {fmtCOP(f.neta)}
                 </Td>
                 <Td derecha>
-                  <CumplimientoBadge
-                    nivel={nivelCumplimiento(f.cumplimiento)}
-                    texto={f.cumplimiento == null ? "—" : fmtPct(f.cumplimiento)}
-                  />
+                  {mostrarBase ? (
+                    <CumplimientoBadge
+                      nivel={nivelCumplimiento(f.cumplimiento)}
+                      texto={f.cumplimiento == null ? "—" : fmtPct(f.cumplimiento)}
+                    />
+                  ) : (
+                    "—"
+                  )}
                 </Td>
               </tr>
             );

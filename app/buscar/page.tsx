@@ -1,7 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { diasAlVence, semaforoVencimiento } from "@/lib/calculos";
 import { fmtCOP, fmtFecha } from "@/lib/format";
-import { Card, CardTitle, EstadoPagoBadge, SemaforoBadge, Td, Th } from "@/components/ui";
+import {
+  Card,
+  CardTitle,
+  EstadoPagoBadge,
+  PageHeader,
+  SemaforoBadge,
+  Td,
+  Th,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +42,10 @@ export default async function BuscarPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-bold">Búsqueda de pólizas</h1>
-        <p className="text-sm text-ink-muted">
-          Por número de póliza, nombre de asegurado o CC/NIT
-        </p>
-      </header>
+      <PageHeader
+        titulo="Búsqueda de pólizas"
+        descripcion="Por número de póliza, nombre de asegurado o CC/NIT"
+      />
 
       <form method="get" className="flex max-w-xl gap-2">
         <input

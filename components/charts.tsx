@@ -167,6 +167,46 @@ export function MetaRealChart({
 }
 
 // ---------------------------------------------------------------------------
+// Producción real mensual (barras) — se usa cuando el filtro activo no permite
+// calcular meta/cumplimiento (p. ej. aseguradora sobre la base 2026)
+// ---------------------------------------------------------------------------
+
+export function ProduccionMensualChart({
+  data,
+}: {
+  data: { mes: string; real: number }[];
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <BarChart data={data} margin={{ left: 4, right: 12, top: 8 }}>
+        <CartesianGrid vertical={false} stroke={GRID} />
+        <XAxis dataKey="mes" tick={ejes} axisLine={{ stroke: "#c3c2b7" }} tickLine={false} />
+        <YAxis
+          tick={ejes}
+          tickFormatter={(v) => fmtCOPCompact(v)}
+          axisLine={false}
+          tickLine={false}
+          width={70}
+        />
+        <Tooltip
+          cursor={{ fill: "rgba(11,11,11,0.04)" }}
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            return (
+              <TooltipCaja>
+                <div className="font-semibold">{label}</div>
+                <div className="tabla-num">{fmtCOP(payload[0].value as number)}</div>
+              </TooltipCaja>
+            );
+          }}
+        />
+        <Bar dataKey="real" fill={AZUL} radius={[4, 4, 0, 0]} barSize={26} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // % de cumplimiento mensual (barras) con línea de referencia en 100%
 // ---------------------------------------------------------------------------
 

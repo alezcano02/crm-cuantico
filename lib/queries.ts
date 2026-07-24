@@ -14,7 +14,13 @@ export async function datosSeguimiento(): Promise<{
 }> {
   const [polizas, cancelaciones, historicas2025] = await Promise.all([
     prisma.policy.findMany({
-      select: { ramo: true, tipoNegocio: true, primaNeta: true, vencimiento: true },
+      select: {
+        ramo: true,
+        tipoNegocio: true,
+        primaNeta: true,
+        vencimiento: true,
+        aseguradora: true,
+      },
     }),
     prisma.cancellation.findMany({
       select: {
@@ -22,6 +28,7 @@ export async function datosSeguimiento(): Promise<{
         primaNeta: true,
         fechaRenovacion: true,
         fechaCancelacion: true,
+        aseguradora: true,
       },
     }),
     prisma.historicalPolicy2025.findMany({
@@ -59,3 +66,29 @@ export async function listaValores(tipo: string): Promise<string[]> {
   });
   return filas.map((f) => f.valor);
 }
+
+/** Listas para los formularios de edición: valores de LISTAS unidos con los
+ *  que existan en la cartera (el archivo real trae valores fuera de lista). */
+export async function listasParaFormularios() {
+  const [listas, polizas] = await Promise.all([
+    prisma.listValue.findMany({ orderBy: { valor: "asc" } }),
+    prisma.policy.findMany({
+      select: { ramo: true, aseguradora: true, asesor1: true, asesor2: true, formaPago: true },
+    }),
+  ]);
+  const de = (tipo: string) => listas.filter((l) => l.tipo === tipo).map((l) => l.valor);
+  const unir = (base: string[], extras: (string | null)[]) =>
+    Array.from(new Set([...base, ...extras.filter((v): v is string => !!v).map((v) => v.trim())]))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "es"));
+  return {
+    ramos: unir(de("RAMO"), polizas.map((p) => p.ramo)),
+    tiposNegocio: de("TIPO_NEGOCIO"),
+    estadosPago: de("ESTADO_PAGO"),
+    formasPago: unir(de("FORMA_PAGO"), polizas.map((p) => p.formaPago)),
+    aseguradoras: unir(de("ASEGURADORA"), polizas.map((p) => p.aseguradora)),
+    asesores: unir(de("ASESOR"), polizas.flatMap((p) => [p.asesor1, p.asesor2])),
+  };
+}
+
+export type ListasFormulario = Awaited<ReturnType<typeof listasParaFormularios>>;

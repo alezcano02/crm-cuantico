@@ -91,21 +91,41 @@ export function CumplimientoBadge({
     AMARILLO: "bg-status-warning/15 text-[#8a6100]",
     ROJO: "bg-status-critical/10 text-status-critical",
   };
-  const icono: Record<NivelCumplimiento, string> = {
-    VERDE: "●",
-    AMARILLO: "◐",
-    ROJO: "○",
+  const punto: Record<NivelCumplimiento, string> = {
+    VERDE: "bg-status-good",
+    AMARILLO: "bg-status-warning",
+    ROJO: "bg-status-critical",
   };
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-bold tabla-num",
+        "inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs font-bold tabla-num",
         clases[nivel]
       )}
     >
-      <span aria-hidden>{icono[nivel]}</span>
+      <span className={clsx("h-1.5 w-1.5 rounded-full", punto[nivel])} aria-hidden />
       {texto}
     </span>
+  );
+}
+
+export function PageHeader({
+  titulo,
+  descripcion,
+  children,
+}: {
+  titulo: string;
+  descripcion?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line-grid pb-4">
+      <div>
+        <h1 className="text-xl font-bold tracking-tight">{titulo}</h1>
+        {descripcion && <p className="mt-0.5 text-sm text-ink-muted">{descripcion}</p>}
+      </div>
+      {children}
+    </header>
   );
 }
 

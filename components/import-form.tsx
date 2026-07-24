@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ResumenHoja } from "@/lib/excel";
 import { Td, Th } from "@/components/ui";
+import { IconAlerta, IconError } from "@/components/icons";
 
 export function ImportForm() {
   const router = useRouter();
@@ -108,15 +109,23 @@ export function ImportForm() {
             <div className="max-h-72 space-y-2 overflow-y-auto rounded-md border border-line-grid bg-surface-page p-3 text-xs">
               {resumen.flatMap((r) =>
                 r.errores.map((e, i) => (
-                  <p key={`${r.hoja}-e-${i}`} className="text-status-critical">
-                    ⛔ {e}
+                  <p
+                    key={`${r.hoja}-e-${i}`}
+                    className="flex items-start gap-1.5 text-status-critical"
+                  >
+                    <IconError className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    {e}
                   </p>
                 ))
               )}
               {resumen.flatMap((r) =>
                 r.advertencias.map((a, i) => (
-                  <p key={`${r.hoja}-a-${i}`} className="text-[#8a6100]">
-                    ⚠️ {a}
+                  <p
+                    key={`${r.hoja}-a-${i}`}
+                    className="flex items-start gap-1.5 text-[#8a6100]"
+                  >
+                    <IconAlerta className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    {a}
                   </p>
                 ))
               )}

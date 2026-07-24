@@ -1,18 +1,15 @@
 import { ImportForm } from "@/components/import-form";
-import { Card, CardTitle } from "@/components/ui";
+import { Card, CardTitle, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default function ImportarPage() {
   return (
     <div className="max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-xl font-bold">Importar datos</h1>
-        <p className="text-sm text-ink-muted">
-          Cargue el informe de producción (.xlsx) con las hojas DATOS, OTRAS
-          PÓLIZAS, CANCELACIONES, BASE 2025 y LISTAS.
-        </p>
-      </header>
+      <PageHeader
+        titulo="Importar datos"
+        descripcion="Cargue el informe de producción (.xlsx) con las hojas DATOS, OTRAS PÓLIZAS, CANCELACIONES, BASE 2025 y LISTAS."
+      />
 
       <Card>
         <ImportForm />

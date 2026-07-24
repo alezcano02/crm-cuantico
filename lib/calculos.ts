@@ -17,6 +17,7 @@ export interface PolizaRow {
   tipoNegocio: string | null;
   primaNeta: number;
   vencimiento: Date | null;
+  aseguradora?: string | null;
 }
 
 export interface CancelacionRow {
@@ -24,6 +25,7 @@ export interface CancelacionRow {
   primaNeta: number;
   fechaRenovacion: Date | null;
   fechaCancelacion: Date | null;
+  aseguradora?: string | null;
 }
 
 export interface HistoricaRow {

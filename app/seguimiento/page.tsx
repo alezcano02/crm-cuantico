@@ -1,88 +1,164 @@
-import { aniosDisponibles, datosSeguimiento } from "@/lib/queries";
-import { calcularSeguimiento, hoyUTC, nivelCumplimiento } from "@/lib/calculos";
+import { aniosDisponibles, datosSeguimiento, listaValores } from "@/lib/queries";
+import { calcularSeguimiento, hoyUTC, indiceMes, nivelCumplimiento } from "@/lib/calculos";
 import { MESES_CORTO } from "@/lib/constants";
 import { fmtCOPCompact, fmtPct } from "@/lib/format";
-import { Card, CardTitle, StatCard } from "@/components/ui";
-import { CumplimientoChart } from "@/components/charts";
+import { Card, CardTitle, PageHeader, StatCard } from "@/components/ui";
+import { CumplimientoChart, ProduccionMensualChart } from "@/components/charts";
 import { SeguimientoSelector } from "@/components/seguimiento-selector";
-import { TablaSeguimiento } from "@/components/tabla-seguimiento";
+import { MES_TITULO, TablaSeguimiento } from "@/components/tabla-seguimiento";
 
 export const dynamic = "force-dynamic";
 
 export default async function SeguimientoPage({
   searchParams,
 }: {
-  searchParams: { anio?: string; ramo?: string };
+  searchParams: { anio?: string; ramo?: string; aseguradora?: string; mes?: string };
 }) {
   const anios = await aniosDisponibles();
   const anioDefecto = hoyUTC().getUTCFullYear();
-  const anio = Number(searchParams.anio) || (anios.includes(anioDefecto) ? anioDefecto : anios[0] ?? anioDefecto);
+  const anio =
+    Number(searchParams.anio) ||
+    (anios.includes(anioDefecto) ? anioDefecto : anios[0] ?? anioDefecto);
+
   const datos = await datosSeguimiento();
-  const seguimiento = calcularSeguimiento(datos, anio);
+
+  // Aseguradoras disponibles: LISTAS + las presentes en la cartera
+  const aseguradoras = Array.from(
+    new Set([
+      ...(await listaValores("ASEGURADORA")),
+      ...datos.polizas.map((p) => p.aseguradora).filter((a): a is string => !!a),
+    ])
+  ).sort((a, b) => a.localeCompare(b, "es"));
+
+  // --- Filtro por aseguradora: se aplica sobre los datos fuente ---
+  const aseguradora = (searchParams.aseguradora ?? "").trim();
+  const datosFiltrados = aseguradora
+    ? {
+        polizas: datos.polizas.filter((p) => (p.aseguradora ?? "") === aseguradora),
+        cancelaciones: datos.cancelaciones.filter(
+          (c) => (c.aseguradora ?? "") === aseguradora
+        ),
+        historicas2025: datos.historicas2025,
+      }
+    : datos;
+
+  // La hoja BASE 2025 no registra aseguradora: con ese filtro activo, la base
+  // (y por tanto meta y % cumplimiento) solo es calculable para años cuya base
+  // proviene de la propia cartera (anio > 2026).
+  const mostrarBase = !aseguradora || anio > 2026;
+
+  const seguimiento = calcularSeguimiento(datosFiltrados, anio);
 
   const ramoParam = (searchParams.ramo ?? "CONSOLIDADO").toUpperCase();
   const esConsolidado = ramoParam === "CONSOLIDADO" || !seguimiento.porRamo.has(ramoParam);
-  const filas = esConsolidado
+  const filas12 = esConsolidado
     ? seguimiento.consolidado
     : seguimiento.porRamo.get(ramoParam)!;
 
-  const total = filas[12];
-  const nivel = nivelCumplimiento(total.cumplimiento);
+  // --- Filtro por mes: restringe tabla y tarjetas a ese mes ---
+  const mesParam = (searchParams.mes ?? "").toUpperCase();
+  const idxMes = indiceMes(mesParam);
+  const hayMes = idxMes >= 0;
+  const filasVista = hayMes ? [filas12[idxMes]] : filas12;
+  const resumen = hayMes ? filas12[idxMes] : filas12[12];
+  const nivel = nivelCumplimiento(resumen.cumplimiento);
 
-  const serieCumplimiento = filas.slice(0, 12).map((f, i) => ({
+  const serieCumplimiento = filas12.slice(0, 12).map((f, i) => ({
     mes: MESES_CORTO[i],
     cumplimiento: f.cumplimiento,
   }));
+  const serieReal = filas12.slice(0, 12).map((f, i) => ({
+    mes: MESES_CORTO[i],
+    real: f.real,
+  }));
+
+  // El mes no se incluye: los títulos de gráfico y tabla ya lo indican.
+  const etiquetaVista = [esConsolidado ? "Consolidado" : ramoParam, aseguradora || null]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold">Seguimiento de producción</h1>
-          <p className="text-sm text-ink-muted">
-            Meta: crecer 15% por ramo y mes vs base del año anterior · Producción{" "}
-            {anio} = vencimientos {anio + 1}
-          </p>
+      <PageHeader
+        titulo="Seguimiento de producción"
+        descripcion={`Meta: crecer 15% por ramo y mes vs base del año anterior · Producción ${anio} = vencimientos ${anio + 1}`}
+      />
+
+      <SeguimientoSelector
+        anios={anios}
+        ramos={seguimiento.ramos}
+        aseguradoras={aseguradoras}
+        anio={anio}
+        ramo={esConsolidado ? "CONSOLIDADO" : ramoParam}
+        aseguradora={aseguradora}
+        mes={hayMes ? mesParam : ""}
+      />
+
+      {!mostrarBase && (
+        <div className="rounded-md border border-status-warning/40 bg-status-warning/5 px-4 py-2.5 text-sm text-ink-secondary">
+          La base {anio - 1} (hoja BASE 2025) no registra aseguradora, por lo que
+          la meta y el % de cumplimiento no pueden desglosarse con este filtro.
+          Se muestran la producción real, nuevos, renovaciones y cancelaciones de{" "}
+          <b>{aseguradora}</b>.
         </div>
-        <SeguimientoSelector
-          anios={anios}
-          ramos={seguimiento.ramos}
-          anio={anio}
-          ramo={esConsolidado ? "CONSOLIDADO" : ramoParam}
-        />
-      </header>
+      )}
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard
-          etiqueta={`Meta ${anio}`}
-          valor={fmtCOPCompact(total.meta)}
-          detalle={`Base ${fmtCOPCompact(total.base)} + prod. cancelada, ×1,15`}
+          etiqueta={`Meta ${hayMes ? MES_TITULO[mesParam] : anio}`}
+          valor={mostrarBase ? fmtCOPCompact(resumen.meta) : "—"}
+          detalle={
+            mostrarBase
+              ? `Base ${fmtCOPCompact(resumen.base)} + prod. cancelada, ×1,15`
+              : "No disponible con filtro de aseguradora"
+          }
         />
-        <StatCard etiqueta={`Real ${anio}`} valor={fmtCOPCompact(total.real)} />
+        <StatCard
+          etiqueta={`Real ${hayMes ? MES_TITULO[mesParam] : anio}`}
+          valor={fmtCOPCompact(resumen.real)}
+          detalle={`Nuevos ${fmtCOPCompact(resumen.nuevos)} · Renov. ${fmtCOPCompact(resumen.renovaciones)}`}
+        />
         <StatCard
           etiqueta="Producción neta"
-          valor={fmtCOPCompact(total.neta)}
-          detalle={`Cancelaciones ${fmtCOPCompact(total.cancelaciones)}`}
+          valor={fmtCOPCompact(resumen.neta)}
+          detalle={`Cancelaciones ${fmtCOPCompact(resumen.cancelaciones)}`}
         />
         <StatCard
           etiqueta="% Cumplimiento"
-          valor={fmtPct(total.cumplimiento)}
-          acento={nivel === "VERDE" ? "verde" : nivel === "AMARILLO" ? "amarillo" : "rojo"}
+          valor={mostrarBase ? fmtPct(resumen.cumplimiento) : "—"}
+          acento={
+            !mostrarBase
+              ? undefined
+              : nivel === "VERDE"
+                ? "verde"
+                : nivel === "AMARILLO"
+                  ? "amarillo"
+                  : "rojo"
+          }
         />
       </div>
 
       <Card>
         <CardTitle>
-          Cumplimiento mensual · {esConsolidado ? "Consolidado" : ramoParam} · {anio}
+          {mostrarBase ? "Cumplimiento mensual" : "Producción real mensual"} · {etiquetaVista} · {anio}
         </CardTitle>
-        <CumplimientoChart data={serieCumplimiento} />
+        {mostrarBase ? (
+          <CumplimientoChart data={serieCumplimiento} />
+        ) : (
+          <ProduccionMensualChart data={serieReal} />
+        )}
       </Card>
 
       <Card>
         <CardTitle>
-          {esConsolidado ? "Seguimiento mensual consolidado" : `Detalle mensual · ${ramoParam}`}
+          {hayMes ? `Detalle de ${MES_TITULO[mesParam]}` : "Detalle mensual"} · {etiquetaVista}
         </CardTitle>
-        <TablaSeguimiento filas={filas} anioBase={anio - 1} anio={anio} />
+        <TablaSeguimiento
+          filas={filasVista}
+          anioBase={anio - 1}
+          anio={anio}
+          mostrarBase={mostrarBase}
+        />
       </Card>
     </div>
   );

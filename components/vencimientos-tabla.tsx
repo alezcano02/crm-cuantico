@@ -4,27 +4,16 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import type { Semaforo } from "@/lib/calculos";
+import type { ListasFormulario } from "@/lib/queries";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import { EstadoPagoBadge, SemaforoBadge, Td, Th } from "@/components/ui";
+import { IconCheck, IconEditar, IconMas } from "@/components/icons";
+import { PolizaEditable, PolizaForm } from "@/components/poliza-form";
 
-export interface PolizaVista {
+export interface PolizaVista extends PolizaEditable {
   id: number;
-  numero: string;
-  ramo: string;
-  asegurado: string;
-  ccNit: string | null;
-  aseguradora: string | null;
-  tipoNegocio: string | null;
-  asesor1: string | null;
-  asesor2: string | null;
-  primaNeta: number;
-  primaTotal: number;
-  estadoPago: string | null;
-  vencimiento: string | null;
   dias: number | null;
   semaforo: Semaforo | null;
-  correo: string | null;
-  celular: string | null;
   gestionada: boolean;
   notaGestion: string | null;
 }
@@ -37,13 +26,23 @@ const PESTANIAS: { id: Pestania; etiqueta: string }[] = [
   { id: "todas", etiqueta: "Toda la cartera" },
 ];
 
-function opciones(valores: (string | null)[]): string[] {
-  return Array.from(new Set(valores.filter((v): v is string => !!v))).sort((a, b) =>
-    a.localeCompare(b, "es")
-  );
+function normalizar(v: string): string {
+  return v.trim().replace(/\s+/g, " ");
 }
 
-export function VencimientosTabla({ polizas }: { polizas: PolizaVista[] }) {
+function opciones(valores: (string | null)[]): string[] {
+  return Array.from(
+    new Set(valores.filter((v): v is string => !!v).map(normalizar).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, "es"));
+}
+
+export function VencimientosTabla({
+  polizas,
+  listas,
+}: {
+  polizas: PolizaVista[];
+  listas: ListasFormulario;
+}) {
   const router = useRouter();
   const [pestania, setPestania] = useState<Pestania>("pendientes");
   const [asesor, setAsesor] = useState("");
@@ -52,7 +51,9 @@ export function VencimientosTabla({ polizas }: { polizas: PolizaVista[] }) {
   const [estadoPago, setEstadoPago] = useState("");
   const [soloSinGestionar, setSoloSinGestionar] = useState(false);
   const [orden, setOrden] = useState<"dias" | "prima">("dias");
+  const [gestionando, setGestionando] = useState<PolizaVista | null>(null);
   const [editando, setEditando] = useState<PolizaVista | null>(null);
+  const [creando, setCreando] = useState(false);
 
   const asesores = useMemo(
     () => opciones(polizas.flatMap((p) => [p.asesor1, p.asesor2])),
@@ -68,9 +69,15 @@ export function VencimientosTabla({ polizas }: { polizas: PolizaVista[] }) {
     } else if (pestania === "proximos") {
       lista = lista.filter((p) => p.dias != null && p.dias >= 0 && p.dias <= 30);
     }
-    if (asesor) lista = lista.filter((p) => p.asesor1 === asesor || p.asesor2 === asesor);
-    if (ramo) lista = lista.filter((p) => p.ramo === ramo);
-    if (aseguradora) lista = lista.filter((p) => p.aseguradora === aseguradora);
+    if (asesor)
+      lista = lista.filter(
+        (p) =>
+          (p.asesor1 && normalizar(p.asesor1) === asesor) ||
+          (p.asesor2 && normalizar(p.asesor2) === asesor)
+      );
+    if (ramo) lista = lista.filter((p) => normalizar(p.ramo) === ramo);
+    if (aseguradora)
+      lista = lista.filter((p) => p.aseguradora && normalizar(p.aseguradora) === aseguradora);
     if (estadoPago) lista = lista.filter((p) => (p.estadoPago ?? "") === estadoPago);
     if (soloSinGestionar) lista = lista.filter((p) => !p.gestionada);
     return [...lista].sort((a, b) => {
@@ -86,26 +93,42 @@ export function VencimientosTabla({ polizas }: { polizas: PolizaVista[] }) {
     (p) => p.estadoPago === "PENDIENTE" && p.dias != null && p.dias <= 30
   ).length;
 
+  const alGuardar = () => {
+    setGestionando(null);
+    setEditando(null);
+    setCreando(false);
+    router.refresh();
+  };
+
   const claseSelect =
     "rounded-md border border-line-axis bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-1 rounded-lg border border-line-grid bg-white p-1">
-        {PESTANIAS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setPestania(t.id)}
-            className={clsx(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              pestania === t.id
-                ? "bg-brand text-white"
-                : "text-ink-secondary hover:bg-surface-page"
-            )}
-          >
-            {t.etiqueta}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1 rounded-lg border border-line-grid bg-white p-1">
+          {PESTANIAS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setPestania(t.id)}
+              className={clsx(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                pestania === t.id
+                  ? "bg-brand text-white"
+                  : "text-ink-secondary hover:bg-surface-page"
+              )}
+            >
+              {t.etiqueta}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setCreando(true)}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark"
+        >
+          <IconMas className="h-4 w-4" />
+          Nueva póliza
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -181,6 +204,7 @@ export function VencimientosTabla({ polizas }: { polizas: PolizaVista[] }) {
               <Th derecha>Prima neta</Th>
               <Th>Pago</Th>
               <Th>Gestión</Th>
+              <Th />
             </tr>
           </thead>
           <tbody>
@@ -226,26 +250,36 @@ export function VencimientosTabla({ polizas }: { polizas: PolizaVista[] }) {
                 <Td>
                   {p.gestionada ? (
                     <button
-                      onClick={() => setEditando(p)}
+                      onClick={() => setGestionando(p)}
                       title={p.notaGestion ?? undefined}
-                      className="text-xs font-semibold text-status-good hover:underline"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-status-good hover:underline"
                     >
-                      ✓ Gestionada
+                      <IconCheck className="h-3.5 w-3.5" />
+                      Gestionada
                     </button>
                   ) : (
                     <button
-                      onClick={() => setEditando(p)}
+                      onClick={() => setGestionando(p)}
                       className="rounded border border-brand px-2 py-0.5 text-xs font-medium text-brand hover:bg-brand-light/40"
                     >
                       Marcar gestión
                     </button>
                   )}
                 </Td>
+                <Td>
+                  <button
+                    onClick={() => setEditando(p)}
+                    title="Editar póliza"
+                    className="rounded p-1 text-ink-muted hover:bg-brand-light/40 hover:text-brand"
+                  >
+                    <IconEditar className="h-4 w-4" />
+                  </button>
+                </Td>
               </tr>
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={11}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={12}>
                   No hay pólizas que cumplan los filtros.
                 </Td>
               </tr>
@@ -254,14 +288,22 @@ export function VencimientosTabla({ polizas }: { polizas: PolizaVista[] }) {
         </table>
       </div>
 
-      {editando && (
+      {gestionando && (
         <DialogoGestion
+          poliza={gestionando}
+          onCerrar={() => setGestionando(null)}
+          onGuardado={alGuardar}
+        />
+      )}
+      {(editando || creando) && (
+        <PolizaForm
           poliza={editando}
-          onCerrar={() => setEditando(null)}
-          onGuardado={() => {
+          listas={listas}
+          onCerrar={() => {
             setEditando(null);
-            router.refresh();
+            setCreando(false);
           }}
+          onGuardado={alGuardar}
         />
       )}
     </div>

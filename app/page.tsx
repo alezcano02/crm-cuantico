@@ -8,7 +8,7 @@ import {
 } from "@/lib/calculos";
 import { MESES, MESES_CORTO } from "@/lib/constants";
 import { fmtCOP, fmtCOPCompact, fmtFecha, fmtNum, fmtPct } from "@/lib/format";
-import { Card, CardTitle, StatCard, Td, Th } from "@/components/ui";
+import { Card, CardTitle, PageHeader, StatCard, Td, Th } from "@/components/ui";
 import { MetaRealChart, RamoBarChart } from "@/components/charts";
 import Link from "next/link";
 
@@ -51,20 +51,17 @@ export default async function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Dashboard</h1>
-          <p className="text-sm text-ink-muted">
-            Producción {anio} · corte {fmtFecha(hoy)}
-          </p>
-        </div>
+      <PageHeader
+        titulo="Dashboard"
+        descripcion={`Producción ${anio} · corte ${fmtFecha(hoy)}`}
+      >
         <Link
           href="/seguimiento"
           className="text-sm font-medium text-brand hover:underline"
         >
-          Ver seguimiento completo →
+          Ver seguimiento completo
         </Link>
-      </header>
+      </PageHeader>
 
       {sinDatos && (
         <Card className="border-status-warning/40 bg-status-warning/5">
