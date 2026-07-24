@@ -41,14 +41,30 @@ export async function POST(
     return NextResponse.json({ error: "Póliza no encontrada." }, { status: 404 });
   }
 
-  const fechaCancelacion = fecha(body.fechaCancelacion) ?? null;
-  if (!fechaCancelacion) {
-    return NextResponse.json(
-      { error: "Indique la fecha de cancelación (AAAA-MM-DD)." },
-      { status: 400 }
-    );
-  }
+  const noRenovada = body.noRenovada === true;
   const fechaRenovacion = fecha(body.fechaRenovacion) ?? poliza.vencimiento ?? null;
+
+  // Modo "no renovada": la póliza llegó a su renovación y no se renovó. No hay
+  // fecha de cancelación (no cuenta como cancelación del mes), solo la de
+  // renovación (producción cancelada por mes de renovación).
+  let fechaCancelacion: Date | null;
+  if (noRenovada) {
+    if (!fechaRenovacion) {
+      return NextResponse.json(
+        { error: "Indique la fecha de renovación (AAAA-MM-DD)." },
+        { status: 400 }
+      );
+    }
+    fechaCancelacion = null;
+  } else {
+    fechaCancelacion = fecha(body.fechaCancelacion);
+    if (!fechaCancelacion) {
+      return NextResponse.json(
+        { error: "Indique la fecha de cancelación (AAAA-MM-DD)." },
+        { status: 400 }
+      );
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.cancellation.create({
@@ -57,7 +73,7 @@ export async function POST(
         ramo: poliza.ramo,
         fechaRenovacion,
         fechaCancelacion,
-        tipoNegocio: "CANCELACION",
+        tipoNegocio: noRenovada ? "NO RENOVADA" : "CANCELACION",
         asegurado: poliza.asegurado,
         ccNit: poliza.ccNit,
         placa: poliza.placa,

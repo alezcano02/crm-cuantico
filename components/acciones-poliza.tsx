@@ -193,12 +193,23 @@ export function DialogoCancelar({
   onCerrar: () => void;
   onGuardado: () => void;
 }) {
+  const vencISO = poliza.vencimiento ? poliza.vencimiento.slice(0, 10) : "";
+  // modo "cancelacion": cancelación real con fecha propia.
+  // modo "no_renovada": la póliza llegó a su renovación y no se renovó; no hay
+  // fecha de cancelación, solo la de renovación (su vencimiento).
+  const [modo, setModo] = useState<"cancelacion" | "no_renovada">("cancelacion");
   const [fechaCancelacion, setFechaCancelacion] = useState(hoyISO());
-  const [fechaRenovacion, setFechaRenovacion] = useState(
-    poliza.vencimiento ? poliza.vencimiento.slice(0, 10) : ""
-  );
+  const [fechaRenovacion, setFechaRenovacion] = useState(vencISO);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const noRenovada = modo === "no_renovada";
+
+  const elegirNoRenovada = () => {
+    setModo("no_renovada");
+    // Trae automáticamente la fecha de renovación (el vencimiento vigente).
+    setFechaRenovacion(vencISO);
+  };
 
   const guardar = async () => {
     setGuardando(true);
@@ -207,7 +218,11 @@ export function DialogoCancelar({
       const res = await fetch(`/api/policies/${poliza.id}/cancelar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fechaCancelacion, fechaRenovacion }),
+        body: JSON.stringify({
+          noRenovada,
+          fechaCancelacion: noRenovada ? null : fechaCancelacion,
+          fechaRenovacion,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error al cancelar.");
@@ -218,25 +233,60 @@ export function DialogoCancelar({
     }
   };
 
+  const claseTab = (activo: boolean) =>
+    `flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+      activo ? "bg-status-critical text-white" : "text-ink-secondary hover:bg-surface-page"
+    }`;
+
   return (
-    <Modal titulo="Cancelar póliza" poliza={poliza} onCerrar={onCerrar}>
+    <Modal titulo="Cancelar / No renovar póliza" poliza={poliza} onCerrar={onCerrar}>
+      <div className="mt-3 flex gap-1 rounded-lg border border-line-grid bg-surface-page p-1">
+        <button
+          type="button"
+          onClick={() => setModo("cancelacion")}
+          className={claseTab(modo === "cancelacion")}
+        >
+          Cancelación
+        </button>
+        <button type="button" onClick={elegirNoRenovada} className={claseTab(noRenovada)}>
+          No renovada
+        </button>
+      </div>
+
       <p className="mt-3 rounded-md bg-status-critical/5 px-3 py-2 text-xs text-ink-secondary">
-        La póliza se moverá al histórico de <b>cancelaciones</b> (prima{" "}
-        {fmtCOP(poliza.primaNeta)}) y saldrá de la cartera activa. Este registro
-        se conserva aunque se reimporte el Excel.
+        {noRenovada ? (
+          <>
+            La póliza no se renueva: se registra su <b>fecha de renovación</b> (su
+            vencimiento) sin fecha de cancelación. Cuenta como producción
+            cancelada, no como cancelación del mes.
+          </>
+        ) : (
+          <>
+            La póliza se moverá al histórico de <b>cancelaciones</b> (prima{" "}
+            {fmtCOP(poliza.primaNeta)}) y saldrá de la cartera activa.
+          </>
+        )}{" "}
+        Este registro se conserva aunque se reimporte el Excel.
       </p>
+
       <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
         <div>
-          <label className={claseLabel}>Fecha de cancelación *</label>
+          <label className={claseLabel}>
+            Fecha de cancelación {noRenovada ? "" : "*"}
+          </label>
           <input
             type="date"
-            className={claseInput}
-            value={fechaCancelacion}
+            className={`${claseInput} disabled:cursor-not-allowed disabled:bg-surface-page disabled:text-ink-muted`}
+            value={noRenovada ? "" : fechaCancelacion}
             onChange={(e) => setFechaCancelacion(e.target.value)}
+            disabled={noRenovada}
+            placeholder={noRenovada ? "No aplica" : undefined}
           />
         </div>
         <div>
-          <label className={claseLabel}>Fecha de renovación</label>
+          <label className={claseLabel}>
+            Fecha de renovación {noRenovada ? "*" : ""}
+          </label>
           <input
             type="date"
             className={claseInput}
@@ -246,9 +296,11 @@ export function DialogoCancelar({
         </div>
       </div>
       <p className="mt-1.5 text-[11px] text-ink-muted">
-        La fecha de cancelación alimenta la métrica de cancelaciones; la de
-        renovación, la producción cancelada.
+        {noRenovada
+          ? "Sin fecha de cancelación: no suma a las cancelaciones del mes, solo a la producción cancelada por mes de renovación."
+          : "La fecha de cancelación alimenta la métrica de cancelaciones; la de renovación, la producción cancelada."}
       </p>
+
       {error && <p className="mt-3 text-sm text-status-critical">{error}</p>}
       <div className="mt-5 flex justify-end gap-2">
         <button
@@ -264,7 +316,11 @@ export function DialogoCancelar({
           className="inline-flex items-center gap-1.5 rounded-md bg-status-critical px-4 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
         >
           <IconCancelar className="h-4 w-4" />
-          {guardando ? "Cancelando…" : "Confirmar cancelación"}
+          {guardando
+            ? "Guardando…"
+            : noRenovada
+              ? "Marcar como no renovada"
+              : "Confirmar cancelación"}
         </button>
       </div>
     </Modal>

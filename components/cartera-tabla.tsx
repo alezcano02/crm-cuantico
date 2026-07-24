@@ -7,7 +7,8 @@ import type { EstadoCartera } from "@/lib/calculos";
 import { fmtCOP, fmtCOPCompact, fmtFecha } from "@/lib/format";
 import { MESES } from "@/lib/constants";
 import { CarteraBadge, StatCard, Td, Th } from "@/components/ui";
-import { IconDinero } from "@/components/icons";
+import { IconCancelar, IconDinero } from "@/components/icons";
+import { DialogoCancelar } from "@/components/acciones-poliza";
 
 export interface CarteraVista {
   id: number;
@@ -63,6 +64,7 @@ export function CarteraTabla({ polizas }: { polizas: CarteraVista[] }) {
   const [q, setQ] = useState("");
   const [orden, setOrden] = useState<"mora" | "prima" | "fecha">("mora");
   const [ocupada, setOcupada] = useState<number | null>(null);
+  const [cancelando, setCancelando] = useState<CarteraVista | null>(null);
 
   const ramos = useMemo(() => opciones(polizas.map((p) => p.ramo)), [polizas]);
   const aseguradoras = useMemo(() => opciones(polizas.map((p) => p.aseguradora)), [polizas]);
@@ -303,7 +305,6 @@ export function CarteraTabla({ polizas }: { polizas: CarteraVista[] }) {
               <Th>Asesor</Th>
               <Th>Forma pago</Th>
               <Th derecha>Prima total</Th>
-              <Th>Fecha pago</Th>
               <Th />
             </tr>
           </thead>
@@ -332,32 +333,41 @@ export function CarteraTabla({ polizas }: { polizas: CarteraVista[] }) {
                 <Td derecha className="font-semibold">
                   {fmtCOP(p.primaTotal)}
                 </Td>
-                <Td>{fmtFecha(p.fechaPago)}</Td>
                 <Td>
-                  {p.estado === "PAGADA" ? (
+                  <div className="flex items-center gap-1.5">
+                    {p.estado === "PAGADA" ? (
+                      <button
+                        onClick={() => registrarPago(p, false)}
+                        disabled={ocupada === p.id}
+                        className="text-xs text-ink-muted hover:text-status-critical hover:underline disabled:opacity-50"
+                      >
+                        Revertir
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => registrarPago(p, true)}
+                        disabled={ocupada === p.id}
+                        className="inline-flex items-center gap-1 rounded border border-status-good/50 px-2 py-0.5 text-xs font-medium text-status-good hover:bg-status-good/5 disabled:opacity-50"
+                      >
+                        <IconDinero className="h-3.5 w-3.5" />
+                        {ocupada === p.id ? "…" : "Registrar pago"}
+                      </button>
+                    )}
                     <button
-                      onClick={() => registrarPago(p, false)}
-                      disabled={ocupada === p.id}
-                      className="text-xs text-ink-muted hover:text-status-critical hover:underline disabled:opacity-50"
+                      onClick={() => setCancelando(p)}
+                      title="Cancelar / no renovar"
+                      className="inline-flex items-center gap-1 rounded border border-status-critical/40 px-2 py-0.5 text-xs font-medium text-status-critical hover:bg-status-critical/5"
                     >
-                      Revertir
+                      <IconCancelar className="h-3.5 w-3.5" />
+                      Cancelar
                     </button>
-                  ) : (
-                    <button
-                      onClick={() => registrarPago(p, true)}
-                      disabled={ocupada === p.id}
-                      className="inline-flex items-center gap-1 rounded border border-status-good/50 px-2 py-0.5 text-xs font-medium text-status-good hover:bg-status-good/5 disabled:opacity-50"
-                    >
-                      <IconDinero className="h-3.5 w-3.5" />
-                      {ocupada === p.id ? "…" : "Registrar pago"}
-                    </button>
-                  )}
+                  </div>
                 </Td>
               </tr>
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={11}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={10}>
                   No hay pólizas que cumplan los filtros.
                 </Td>
               </tr>
@@ -365,6 +375,17 @@ export function CarteraTabla({ polizas }: { polizas: CarteraVista[] }) {
           </tbody>
         </table>
       </div>
+
+      {cancelando && (
+        <DialogoCancelar
+          poliza={cancelando}
+          onCerrar={() => setCancelando(null)}
+          onGuardado={() => {
+            setCancelando(null);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
