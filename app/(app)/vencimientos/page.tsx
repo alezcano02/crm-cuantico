@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { diasAlVence, semaforoVencimiento } from "@/lib/calculos";
-import { listasParaFormularios, mapaCarpetas } from "@/lib/queries";
-import { claveCliente } from "@/lib/carpetas";
+import { listasParaFormularios } from "@/lib/queries";
 import { Card, PageHeader } from "@/components/ui";
 import { VencimientosTabla, PolizaVista } from "@/components/vencimientos-tabla";
 import Link from "next/link";
@@ -9,10 +8,9 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function VencimientosPage() {
-  const [polizas, listas, carpetas] = await Promise.all([
+  const [polizas, listas] = await Promise.all([
     prisma.policy.findMany({ orderBy: { vencimiento: "asc" } }),
     listasParaFormularios(),
-    mapaCarpetas(),
   ]);
 
   const vista: PolizaVista[] = polizas.map((p) => {
@@ -40,7 +38,6 @@ export default async function VencimientosPage() {
       celular: p.celular,
       valorCuota: p.valorCuota,
       notaCartera: p.notaCartera,
-      carpetaUrl: carpetas.get(claveCliente(p.asegurado)) ?? null,
       dias,
       semaforo: semaforoVencimiento(dias),
       gestionada: p.gestionada,

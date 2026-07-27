@@ -128,23 +128,6 @@ model HistoricalPolicy2025 {
   @@index([ramo])
 }
 
-// Carpeta de documentos de cada cliente en la unidad compartida de SharePoint.
-// Se llena con scripts/indexar-carpetas.ts (que recorre la carpeta
-// sincronizada) o a mano desde el modal de gestión de la póliza.
-model CarpetaCliente {
-  id       Int      @id @default(autoincrement())
-  // Nombre del asegurado normalizado (sin tildes, espacios ni signos), que es
-  // lo que permite casar "FARUM APARTAMENTOS P.H" con "FARUM APARTAMENTOS PH".
-  clave    String   @unique
-  nombre   String // nombre de la carpeta tal como está en SharePoint
-  asesor   String? // carpeta del asesor donde vive
-  ruta     String // ruta relativa dentro de la biblioteca
-  url      String // enlace directo para abrirla en el navegador
-  // "auto" = detectada por el indexador · "manual" = asignada por un usuario
-  origen   String   @default("auto")
-  creadoEn DateTime @default(now())
-}
-
 // Empleados con acceso al CRM. La clave nunca se guarda en claro: se almacena
 // como "scrypt$<sal>$<hash>" (ver lib/auth.ts).
 model Usuario {

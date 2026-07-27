@@ -41,7 +41,6 @@ export interface CarteraVista {
   celular: string | null;
   valorCuota: number | null;
   notaCartera: string | null;
-  carpetaUrl: string | null;
   estado: EstadoCartera;
   diasCartera: number | null;
 }
