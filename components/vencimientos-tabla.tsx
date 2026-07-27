@@ -18,6 +18,7 @@ export interface PolizaVista extends PolizaEditable {
   semaforo: Semaforo | null;
   gestionada: boolean;
   notaGestion: string | null;
+  carpetaUrl: string | null;
 }
 
 type Pestania = "pendientes" | "proximos" | "todas";

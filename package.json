@@ -10,7 +10,8 @@
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "crear-usuario": "tsx scripts/crear-usuario.ts"
+    "crear-usuario": "tsx scripts/crear-usuario.ts",
+    "indexar-carpetas": "tsx scripts/indexar-carpetas.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

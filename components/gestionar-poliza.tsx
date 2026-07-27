@@ -6,11 +6,13 @@ import type { ListasFormulario } from "@/lib/queries";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import {
   IconCancelar,
+  IconCarpeta,
   IconCheck,
   IconDinero,
   IconEditar,
   IconRenovar,
 } from "@/components/icons";
+import { urlBusqueda } from "@/lib/carpetas";
 import { PolizaEditable, CamposPoliza } from "@/components/poliza-form";
 
 export interface PolizaGestionable extends PolizaEditable {
@@ -19,12 +21,15 @@ export interface PolizaGestionable extends PolizaEditable {
   notaCartera?: string | null;
   gestionada?: boolean;
   notaGestion?: string | null;
+  /** Enlace a la carpeta del cliente en SharePoint, si está enlazada. */
+  carpetaUrl?: string | null;
 }
 
-type Pestania = "pago" | "editar" | "renovar" | "cancelar" | "gestion";
+type Pestania = "pago" | "documentos" | "editar" | "renovar" | "cancelar" | "gestion";
 
 const PESTANIAS: { id: Pestania; etiqueta: string; Icono: (p: { className?: string }) => JSX.Element }[] = [
   { id: "pago", etiqueta: "Registrar pago", Icono: IconDinero },
+  { id: "documentos", etiqueta: "Documentos", Icono: IconCarpeta },
   { id: "editar", etiqueta: "Editar datos", Icono: IconEditar },
   { id: "renovar", etiqueta: "Renovar", Icono: IconRenovar },
   { id: "cancelar", etiqueta: "Cancelar", Icono: IconCancelar },
@@ -122,6 +127,9 @@ export function GestionarPoliza({
           )}
           {pestania === "cancelar" && (
             <PanelCancelar poliza={poliza} onCerrar={onCerrar} onGuardado={onGuardado} />
+          )}
+          {pestania === "documentos" && (
+            <PanelDocumentos poliza={poliza} onCerrar={onCerrar} onGuardado={onGuardado} />
           )}
           {pestania === "gestion" && (
             <PanelGestion poliza={poliza} onCerrar={onCerrar} onGuardado={onGuardado} />
@@ -547,6 +555,124 @@ function PanelRenovar({
         guardando={guardando}
         etiqueta="Renovar póliza"
       />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Documentos: carpeta del cliente en la unidad compartida (SharePoint)
+// ---------------------------------------------------------------------------
+
+function PanelDocumentos({
+  poliza,
+  onCerrar,
+  onGuardado,
+}: {
+  poliza: PolizaGestionable;
+  onCerrar: () => void;
+  onGuardado: () => void;
+}) {
+  const [url, setUrl] = useState(poliza.carpetaUrl ?? "");
+  const [editando, setEditando] = useState(!poliza.carpetaUrl);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const guardar = async (nueva: string) => {
+    setGuardando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/carpetas", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asegurado: poliza.asegurado, url: nueva }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "No se pudo guardar.");
+      onGuardado();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div>
+      {poliza.carpetaUrl && !editando ? (
+        <>
+          <p className="rounded-lg bg-status-good/5 px-3 py-2 text-xs text-ink-secondary">
+            Carpeta de <b>{poliza.asegurado}</b> en la unidad compartida.
+          </p>
+          <a
+            href={poliza.carpetaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
+          >
+            <IconCarpeta className="h-4 w-4" />
+            Abrir carpeta del cliente
+          </a>
+          <div className="mt-4 flex flex-wrap gap-3 text-xs">
+            <a
+              href={urlBusqueda(poliza.asegurado)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand hover:underline"
+            >
+              Buscar en SharePoint
+            </a>
+            <button
+              onClick={() => setEditando(true)}
+              className="text-ink-muted hover:text-brand hover:underline"
+            >
+              Cambiar la carpeta enlazada
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="rounded-lg bg-status-warning/5 px-3 py-2 text-xs text-ink-secondary">
+            {poliza.carpetaUrl
+              ? "Pegue la nueva dirección de la carpeta."
+              : "Este cliente todavía no tiene carpeta enlazada. Búsquelo en SharePoint, abra su carpeta y pegue aquí la dirección de la barra del navegador: queda guardada para todas sus pólizas."}
+          </p>
+          <a
+            href={urlBusqueda(poliza.asegurado)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-line-axis px-3 py-2 text-sm font-medium text-ink-secondary hover:border-brand-300 hover:text-brand"
+          >
+            <IconCarpeta className="h-4 w-4" />
+            Buscar “{poliza.asegurado}” en SharePoint
+          </a>
+          <label className="mt-4 block">
+            <span className={claseLabel}>Dirección de la carpeta</span>
+            <input
+              className={`${claseInput} mt-1`}
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://cuanticoseguros.sharepoint.com/sites/…"
+            />
+          </label>
+          {error && <p className="mt-3 text-sm text-status-critical">{error}</p>}
+          <Acciones
+            onCerrar={onCerrar}
+            onGuardar={() => guardar(url)}
+            guardando={guardando}
+            etiqueta="Guardar carpeta"
+            extra={
+              poliza.carpetaUrl ? (
+                <button
+                  onClick={() => guardar("")}
+                  disabled={guardando}
+                  className="rounded-lg border border-status-critical/40 px-3 py-1.5 text-sm font-medium text-status-critical hover:bg-status-critical/5"
+                >
+                  Quitar enlace
+                </button>
+              ) : undefined
+            }
+          />
+        </>
+      )}
     </div>
   );
 }

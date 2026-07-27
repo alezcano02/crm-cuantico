@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { estadoCartera } from "@/lib/calculos";
-import { listasParaFormularios } from "@/lib/queries";
+import { listasParaFormularios, mapaCarpetas } from "@/lib/queries";
+import { claveCliente } from "@/lib/carpetas";
 import { Card, EstadoVacio, PageHeader } from "@/components/ui";
 import { CarteraTabla, CarteraVista } from "@/components/cartera-tabla";
 
 export const dynamic = "force-dynamic";
 
 export default async function CarteraPage() {
-  const [polizas, listas] = await Promise.all([
+  const [polizas, listas, carpetas] = await Promise.all([
     prisma.policy.findMany({ orderBy: { fechaMaxPago: "asc" } }),
     listasParaFormularios(),
+    mapaCarpetas(),
   ]);
 
   const vista: CarteraVista[] = polizas.map((p) => {
@@ -38,6 +40,7 @@ export default async function CarteraPage() {
       celular: p.celular,
       valorCuota: p.valorCuota,
       notaCartera: p.notaCartera,
+      carpetaUrl: carpetas.get(claveCliente(p.asegurado)) ?? null,
       estado: ec.estado,
       diasCartera: ec.dias,
     };

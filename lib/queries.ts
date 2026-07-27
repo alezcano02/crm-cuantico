@@ -217,3 +217,15 @@ export async function listasParaFormularios() {
 }
 
 export type ListasFormulario = Awaited<ReturnType<typeof listasParaFormularios>>;
+
+/**
+ * Mapa "clave del cliente" → URL de su carpeta en SharePoint, para adjuntar el
+ * enlace a cada póliza. Son pocos cientos de filas, así que se traen de una
+ * vez en lugar de consultar por póliza.
+ */
+export async function mapaCarpetas(): Promise<Map<string, string>> {
+  const filas = await prisma.carpetaCliente.findMany({
+    select: { clave: true, url: true },
+  });
+  return new Map(filas.map((f) => [f.clave, f.url]));
+}
