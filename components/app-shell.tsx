@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
   IconBuscar,
@@ -62,16 +62,36 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
   },
 ];
 
+export interface SesionVista {
+  usuario: string;
+  nombre: string | null;
+}
+
 export function AppShell({
   contadores,
+  sesion,
   children,
 }: {
   contadores: ContadoresNav;
+  sesion?: SesionVista;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const pathname = usePathname();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [buscando, setBuscando] = useState(false);
+  const [saliendo, setSaliendo] = useState(false);
+
+  const salir = async () => {
+    setSaliendo(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.replace("/login");
+      router.refresh();
+    } finally {
+      setSaliendo(false);
+    }
+  };
 
   // Ctrl/⌘ + K abre la búsqueda rápida desde cualquier pantalla.
   useEffect(() => {
@@ -156,11 +176,34 @@ export function AppShell({
         ))}
       </nav>
 
-      <div className="border-t border-white/10 px-5 py-3.5 text-[11px] leading-relaxed text-white/35">
-        CRM de producción y cartera
-        <br />
-        Datos en tiempo real desde la base
-      </div>
+      {sesion ? (
+        <div className="border-t border-white/10 px-3 py-3">
+          <div className="flex items-center gap-2.5 px-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">
+              {(sesion.nombre ?? sesion.usuario).slice(0, 2).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-white">
+                {sesion.nombre ?? sesion.usuario}
+              </div>
+              <div className="truncate text-[11px] text-white/40">{sesion.usuario}</div>
+            </div>
+          </div>
+          <button
+            onClick={salir}
+            disabled={saliendo}
+            className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-xs font-medium text-white/50 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
+          >
+            {saliendo ? "Saliendo…" : "Cerrar sesión"}
+          </button>
+        </div>
+      ) : (
+        <div className="border-t border-white/10 px-5 py-3.5 text-[11px] leading-relaxed text-white/35">
+          CRM de producción y cartera
+          <br />
+          Datos en tiempo real desde la base
+        </div>
+      )}
     </>
   );
 

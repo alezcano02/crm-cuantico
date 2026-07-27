@@ -24,6 +24,8 @@ export interface PolizaEditable {
   fechaNacimiento: string | null;
   correo: string | null;
   celular: string | null;
+  valorCuota?: number | null;
+  notaCartera?: string | null;
 }
 
 const VACIA: PolizaEditable = {
@@ -46,12 +48,167 @@ const VACIA: PolizaEditable = {
   fechaNacimiento: null,
   correo: null,
   celular: null,
+  valorCuota: null,
+  notaCartera: null,
 };
 
 function soloFecha(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "";
 }
 
+const claseInput =
+  "w-full rounded-md border border-line-axis bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
+const claseLabel = "block text-xs font-semibold uppercase tracking-wide text-ink-muted";
+
+/**
+ * Rejilla de campos de una póliza. Se usa tanto para crear una póliza nueva
+ * como dentro del modal "Gestionar póliza" (pestaña Editar datos).
+ */
+export function CamposPoliza({
+  f,
+  setF,
+  listas,
+}: {
+  f: PolizaEditable;
+  setF: (p: PolizaEditable) => void;
+  listas: ListasFormulario;
+}) {
+  const campo = (clave: keyof PolizaEditable) => ({
+    value: (f[clave] as string | number | null) ?? "",
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setF({ ...f, [clave]: e.target.value }),
+  });
+
+  const Select = ({
+    clave,
+    opciones,
+    requerido,
+  }: {
+    clave: keyof PolizaEditable;
+    opciones: string[];
+    requerido?: boolean;
+  }) => {
+    const actual = (f[clave] as string | null) ?? "";
+    // Si el valor guardado no está en LISTAS (el archivo real trae valores
+    // fuera de lista) se antepone para no perderlo al editar.
+    const lista = actual && !opciones.includes(actual) ? [actual, ...opciones] : opciones;
+    return (
+      <select className={claseInput} {...campo(clave)}>
+        {!requerido && <option value="">—</option>}
+        {requerido && !actual && <option value="">Seleccione…</option>}
+        {lista.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    );
+  };
+
+  const fecha = (clave: keyof PolizaEditable) => (
+    <input
+      type="date"
+      className={claseInput}
+      value={soloFecha(f[clave] as string | null)}
+      onChange={(e) => setF({ ...f, [clave]: e.target.value })}
+    />
+  );
+
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3">
+      <div>
+        <label className={claseLabel}>Póliza *</label>
+        <input className={claseInput} {...campo("numero")} />
+      </div>
+      <div>
+        <label className={claseLabel}>Ramo *</label>
+        <Select clave="ramo" opciones={listas.ramos} requerido />
+      </div>
+      <div>
+        <label className={claseLabel}>Tipo negocio</label>
+        <Select clave="tipoNegocio" opciones={listas.tiposNegocio} />
+      </div>
+      <div className="col-span-2">
+        <label className={claseLabel}>Asegurado *</label>
+        <input className={claseInput} {...campo("asegurado")} />
+      </div>
+      <div>
+        <label className={claseLabel}>CC / NIT</label>
+        <input className={claseInput} {...campo("ccNit")} />
+      </div>
+      <div>
+        <label className={claseLabel}>Aseguradora</label>
+        <Select clave="aseguradora" opciones={listas.aseguradoras} />
+      </div>
+      <div>
+        <label className={claseLabel}>Placa</label>
+        <input className={claseInput} {...campo("placa")} />
+      </div>
+      <div>
+        <label className={claseLabel}>Vencimiento</label>
+        {fecha("vencimiento")}
+      </div>
+      <div>
+        <label className={claseLabel}>Asesor 1</label>
+        <Select clave="asesor1" opciones={listas.asesores} />
+      </div>
+      <div>
+        <label className={claseLabel}>Asesor 2</label>
+        <Select clave="asesor2" opciones={listas.asesores} />
+      </div>
+      <div>
+        <label className={claseLabel}>Prima neta</label>
+        <input type="number" className={claseInput} {...campo("primaNeta")} />
+      </div>
+      <div>
+        <label className={claseLabel}>Prima total</label>
+        <input type="number" className={claseInput} {...campo("primaTotal")} />
+      </div>
+      <div>
+        <label className={claseLabel}>Forma de pago</label>
+        <Select clave="formaPago" opciones={listas.formasPago} />
+      </div>
+      <div>
+        <label className={claseLabel}>Estado de pago</label>
+        <Select clave="estadoPago" opciones={listas.estadosPago} />
+      </div>
+      <div>
+        <label className={claseLabel}>Valor cuota</label>
+        <input type="number" className={claseInput} {...campo("valorCuota")} />
+      </div>
+      <div>
+        <label className={claseLabel}>Fecha pago</label>
+        {fecha("fechaPago")}
+      </div>
+      <div>
+        <label className={claseLabel}>Fecha máx. pago</label>
+        {fecha("fechaMaxPago")}
+      </div>
+      <div>
+        <label className={claseLabel}>Fecha nacimiento</label>
+        {fecha("fechaNacimiento")}
+      </div>
+      <div>
+        <label className={claseLabel}>Celular</label>
+        <input className={claseInput} {...campo("celular")} />
+      </div>
+      <div className="col-span-2">
+        <label className={claseLabel}>Correo</label>
+        <input type="email" className={claseInput} {...campo("correo")} />
+      </div>
+      <div className="col-span-2 md:col-span-3">
+        <label className={claseLabel}>Observación de cartera</label>
+        <input
+          className={claseInput}
+          {...campo("notaCartera")}
+          placeholder="Aparece en el informe de cartera"
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Formulario para crear una póliza nueva. */
 export function PolizaForm({
   poliza,
   listas,
@@ -66,15 +223,7 @@ export function PolizaForm({
   const esNueva = !poliza?.id;
   const [f, setF] = useState<PolizaEditable>(poliza ?? VACIA);
   const [guardando, setGuardando] = useState(false);
-  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const campo = (clave: keyof PolizaEditable) => ({
-    value: (f[clave] as string | number | null) ?? "",
-    onChange: (
-      e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-    ) => setF({ ...f, [clave]: e.target.value }),
-  });
 
   const guardar = async () => {
     setGuardando(true);
@@ -100,54 +249,13 @@ export function PolizaForm({
     }
   };
 
-  const eliminar = async () => {
-    setGuardando(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/policies/${poliza!.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Error al eliminar.");
-      onGuardado();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setGuardando(false);
-    }
-  };
-
-  const claseInput =
-    "w-full rounded-md border border-line-axis bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
-  const claseLabel = "block text-xs font-semibold uppercase tracking-wide text-ink-muted";
-
-  const Select = ({
-    clave,
-    opciones,
-    requerido,
-  }: {
-    clave: keyof PolizaEditable;
-    opciones: string[];
-    requerido?: boolean;
-  }) => {
-    const actual = (f[clave] as string | null) ?? "";
-    const lista = actual && !opciones.includes(actual) ? [actual, ...opciones] : opciones;
-    return (
-      <select className={claseInput} {...campo(clave)}>
-        {!requerido && <option value="">—</option>}
-        {requerido && !actual && <option value="">Seleccione…</option>}
-        {lista.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    );
-  };
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/45 p-4 py-[6vh]"
       onClick={onCerrar}
     >
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+        className="w-full max-w-2xl rounded-xl bg-surface p-6 shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-base font-bold">
@@ -158,151 +266,27 @@ export function PolizaForm({
           recalculan automáticamente al guardar.
         </p>
 
-        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3">
-          <div>
-            <label className={claseLabel}>Póliza *</label>
-            <input className={claseInput} {...campo("numero")} />
-          </div>
-          <div>
-            <label className={claseLabel}>Ramo *</label>
-            <Select clave="ramo" opciones={listas.ramos} requerido />
-          </div>
-          <div>
-            <label className={claseLabel}>Tipo negocio</label>
-            <Select clave="tipoNegocio" opciones={listas.tiposNegocio} />
-          </div>
-          <div className="col-span-2">
-            <label className={claseLabel}>Asegurado *</label>
-            <input className={claseInput} {...campo("asegurado")} />
-          </div>
-          <div>
-            <label className={claseLabel}>CC / NIT</label>
-            <input className={claseInput} {...campo("ccNit")} />
-          </div>
-          <div>
-            <label className={claseLabel}>Aseguradora</label>
-            <Select clave="aseguradora" opciones={listas.aseguradoras} />
-          </div>
-          <div>
-            <label className={claseLabel}>Placa</label>
-            <input className={claseInput} {...campo("placa")} />
-          </div>
-          <div>
-            <label className={claseLabel}>Vencimiento</label>
-            <input
-              type="date"
-              className={claseInput}
-              value={soloFecha(f.vencimiento)}
-              onChange={(e) => setF({ ...f, vencimiento: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className={claseLabel}>Asesor 1</label>
-            <Select clave="asesor1" opciones={listas.asesores} />
-          </div>
-          <div>
-            <label className={claseLabel}>Asesor 2</label>
-            <Select clave="asesor2" opciones={listas.asesores} />
-          </div>
-          <div>
-            <label className={claseLabel}>Prima neta</label>
-            <input type="number" className={claseInput} {...campo("primaNeta")} />
-          </div>
-          <div>
-            <label className={claseLabel}>Prima total</label>
-            <input type="number" className={claseInput} {...campo("primaTotal")} />
-          </div>
-          <div>
-            <label className={claseLabel}>Forma de pago</label>
-            <Select clave="formaPago" opciones={listas.formasPago} />
-          </div>
-          <div>
-            <label className={claseLabel}>Estado de pago</label>
-            <Select clave="estadoPago" opciones={listas.estadosPago} />
-          </div>
-          <div>
-            <label className={claseLabel}>Fecha pago</label>
-            <input
-              type="date"
-              className={claseInput}
-              value={soloFecha(f.fechaPago)}
-              onChange={(e) => setF({ ...f, fechaPago: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className={claseLabel}>Fecha máx. pago</label>
-            <input
-              type="date"
-              className={claseInput}
-              value={soloFecha(f.fechaMaxPago)}
-              onChange={(e) => setF({ ...f, fechaMaxPago: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className={claseLabel}>Fecha nacimiento</label>
-            <input
-              type="date"
-              className={claseInput}
-              value={soloFecha(f.fechaNacimiento)}
-              onChange={(e) => setF({ ...f, fechaNacimiento: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className={claseLabel}>Celular</label>
-            <input className={claseInput} {...campo("celular")} />
-          </div>
-          <div className="col-span-2">
-            <label className={claseLabel}>Correo</label>
-            <input type="email" className={claseInput} {...campo("correo")} />
-          </div>
+        <div className="mt-4">
+          <CamposPoliza f={f} setF={setF} listas={listas} />
         </div>
 
         {error && <p className="mt-3 text-sm text-status-critical">{error}</p>}
 
-        <div className="mt-5 flex items-center gap-2">
-          {!esNueva &&
-            (confirmandoBorrado ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-status-critical">¿Eliminar definitivamente?</span>
-                <button
-                  onClick={eliminar}
-                  disabled={guardando}
-                  className="rounded-md bg-status-critical px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  Sí, eliminar
-                </button>
-                <button
-                  onClick={() => setConfirmandoBorrado(false)}
-                  className="rounded-md px-2 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
-                >
-                  No
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmandoBorrado(true)}
-                disabled={guardando}
-                className="rounded-md border border-status-critical/40 px-3 py-1.5 text-sm font-medium text-status-critical hover:bg-status-critical/5"
-              >
-                Eliminar póliza
-              </button>
-            ))}
-          <div className="ml-auto flex gap-2">
-            <button
-              onClick={onCerrar}
-              disabled={guardando}
-              className="rounded-md px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={guardar}
-              disabled={guardando}
-              className="rounded-md bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
-            >
-              {guardando ? "Guardando…" : esNueva ? "Crear póliza" : "Guardar cambios"}
-            </button>
-          </div>
+        <div className="mt-5 flex justify-end gap-2 border-t border-line-grid pt-4">
+          <button
+            onClick={onCerrar}
+            disabled={guardando}
+            className="rounded-lg px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={guardar}
+            disabled={guardando}
+            className="rounded-lg bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+          >
+            {guardando ? "Guardando…" : esNueva ? "Crear póliza" : "Guardar cambios"}
+          </button>
         </div>
       </div>
     </div>

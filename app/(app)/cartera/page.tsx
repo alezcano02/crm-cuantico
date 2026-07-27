@@ -1,15 +1,17 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { estadoCartera } from "@/lib/calculos";
-import { Card, PageHeader } from "@/components/ui";
+import { listasParaFormularios } from "@/lib/queries";
+import { Card, EstadoVacio, PageHeader } from "@/components/ui";
 import { CarteraTabla, CarteraVista } from "@/components/cartera-tabla";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function CarteraPage() {
-  const polizas = await prisma.policy.findMany({
-    orderBy: { fechaMaxPago: "asc" },
-  });
+  const [polizas, listas] = await Promise.all([
+    prisma.policy.findMany({ orderBy: { fechaMaxPago: "asc" } }),
+    listasParaFormularios(),
+  ]);
 
   const vista: CarteraVista[] = polizas.map((p) => {
     const ec = estadoCartera(p.estadoPago, p.fechaMaxPago);
@@ -19,7 +21,9 @@ export default async function CarteraPage() {
       ramo: p.ramo,
       asegurado: p.asegurado,
       ccNit: p.ccNit,
+      placa: p.placa,
       aseguradora: p.aseguradora,
+      tipoNegocio: p.tipoNegocio,
       asesor1: p.asesor1,
       asesor2: p.asesor2,
       primaNeta: p.primaNeta,
@@ -29,8 +33,11 @@ export default async function CarteraPage() {
       fechaPago: p.fechaPago?.toISOString() ?? null,
       fechaMaxPago: p.fechaMaxPago?.toISOString() ?? null,
       vencimiento: p.vencimiento?.toISOString() ?? null,
+      fechaNacimiento: p.fechaNacimiento?.toISOString() ?? null,
       correo: p.correo,
       celular: p.celular,
+      valorCuota: p.valorCuota,
+      notaCartera: p.notaCartera,
       estado: ec.estado,
       diasCartera: ec.dias,
     };
@@ -47,15 +54,21 @@ export default async function CarteraPage() {
 
       {vista.length === 0 ? (
         <Card>
-          <p className="text-sm text-ink-muted">
-            No hay pólizas cargadas.{" "}
-            <Link href="/importar" className="font-medium text-brand hover:underline">
-              Importar datos
-            </Link>
-          </p>
+          <EstadoVacio
+            titulo="No hay pólizas cargadas"
+            descripcion="Importe el informe de producción para hacer seguimiento de la cartera."
+            accion={
+              <Link
+                href="/importar"
+                className="inline-flex items-center rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark"
+              >
+                Importar datos
+              </Link>
+            }
+          />
         </Card>
       ) : (
-        <CarteraTabla polizas={vista} />
+        <CarteraTabla polizas={vista} listas={listas} />
       )}
     </div>
   );

@@ -66,6 +66,8 @@ export function datosPolizaDesdeBody(
     fechaPago: fecha(b.fechaPago),
     fechaMaxPago: fecha(b.fechaMaxPago),
     estadoPago: texto(b.estadoPago)?.toUpperCase() ?? null,
+    valorCuota: b.valorCuota === "" || b.valorCuota == null ? null : numero(b.valorCuota),
+    notaCartera: texto(b.notaCartera),
     vencimiento,
     mesVencimiento: mesDeFecha(vencimiento),
     fechaNacimiento: fecha(b.fechaNacimiento),

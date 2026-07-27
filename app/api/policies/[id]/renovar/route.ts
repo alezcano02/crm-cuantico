@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { mesDeFecha } from "@/lib/calculos";
 import { TIPO_RENOVACION } from "@/lib/constants";
+import { exigirSesion } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const noAutorizado = await exigirSesion();
+  if (noAutorizado) return noAutorizado;
   const id = Number(params.id);
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: "id inválido" }, { status: 400 });

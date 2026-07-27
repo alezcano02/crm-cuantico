@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { diasAlVence } from "@/lib/calculos";
+import { exigirSesion } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,8 @@ export const runtime = "nodejs";
  * `mode: "insensitive"`, para que funcione igual en Postgres y en SQLite.
  */
 export async function GET(req: NextRequest) {
+  const noAutorizado = await exigirSesion();
+  if (noAutorizado) return noAutorizado;
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   if (q.length < 2) return NextResponse.json({ resultados: [] });
 

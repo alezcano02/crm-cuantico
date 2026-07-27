@@ -29,9 +29,15 @@ model Policy {
   primaNeta       Float     @default(0)
   primaTotal      Float     @default(0)
   formaPago       String?
-  fechaPago       DateTime?
-  fechaMaxPago    DateTime?
+  fechaPago       DateTime? // fecha del último pago recibido
+  fechaMaxPago    DateTime? // fecha límite del próximo pago (o de la próxima cuota)
   estadoPago      String? // OK PAGO / PENDIENTE
+  // Pagos fraccionados (MENSUAL, ACUERDO DE PAGO, FINANCIADO…): valor de la
+  // cuota pactada. El informe de cartera lo muestra como "Cuota: $…".
+  valorCuota      Float?
+  // Observación de cobranza que aparece en el informe de cartera
+  // (p. ej. "PENDIENTE AMPLIACIÓN", "BLIN SE ENCARGA DE LOS RECAUDOS").
+  notaCartera     String?
   vencimiento     DateTime?
   mesVencimiento  String? // derivado del vencimiento al importar
   fechaNacimiento DateTime?
@@ -120,6 +126,31 @@ model HistoricalPolicy2025 {
   primaTotal  Float     @default(0)
 
   @@index([ramo])
+}
+
+// Empleados con acceso al CRM. La clave nunca se guarda en claro: se almacena
+// como "scrypt$<sal>$<hash>" (ver lib/auth.ts).
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  usuario   String   @unique
+  nombre    String?
+  claveHash String
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+  sesiones  Sesion[]
+}
+
+// Sesiones activas. El token vive en una cookie httpOnly y se valida contra
+// esta tabla en cada petición, de modo que se puede revocar el acceso
+// borrando la fila.
+model Sesion {
+  token     String   @id
+  usuarioId Int
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expira    DateTime
+  creadoEn  DateTime @default(now())
+
+  @@index([usuarioId])
 }
 
 // Hoja LISTAS: valores válidos para validación y dropdowns.

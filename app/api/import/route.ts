@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parsearLibro } from "@/lib/excel";
+import { exigirSesion } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  const noAutorizado = await exigirSesion();
+  if (noAutorizado) return noAutorizado;
   const formData = await req.formData();
   const archivo = formData.get("archivo");
   if (!(archivo instanceof File)) {

@@ -1,0 +1,109 @@
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { prisma } from "./prisma";
+
+export const COOKIE_SESION = "cuantico_sesion";
+const DIAS_SESION = 7;
+
+// ---------------------------------------------------------------------------
+// Claves
+// ---------------------------------------------------------------------------
+
+/**
+ * Deriva la clave con scrypt y una sal aleatoria por usuario.
+ * Formato guardado: "scrypt$<sal hex>$<hash hex>".
+ * No se usa ninguna dependencia externa: scrypt viene en Node.
+ */
+export function hashClave(clave: string): string {
+  const sal = randomBytes(16);
+  const hash = scryptSync(clave, sal, 64);
+  return `scrypt$${sal.toString("hex")}$${hash.toString("hex")}`;
+}
+
+export function verificarClave(clave: string, almacenado: string): boolean {
+  const partes = almacenado.split("$");
+  if (partes.length !== 3 || partes[0] !== "scrypt") return false;
+  try {
+    const sal = Buffer.from(partes[1], "hex");
+    const esperado = Buffer.from(partes[2], "hex");
+    const calculado = scryptSync(clave, sal, esperado.length);
+    // Comparación en tiempo constante para no filtrar información por el
+    // tiempo de respuesta.
+    return timingSafeEqual(esperado, calculado);
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sesiones
+// ---------------------------------------------------------------------------
+
+export async function crearSesion(usuarioId: number) {
+  const token = randomBytes(32).toString("base64url");
+  const expira = new Date(Date.now() + DIAS_SESION * 24 * 60 * 60 * 1000);
+  await prisma.sesion.create({ data: { token, usuarioId, expira } });
+  cookies().set(COOKIE_SESION, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: expira,
+  });
+  // Limpieza oportunista de sesiones ya vencidas
+  await prisma.sesion.deleteMany({ where: { expira: { lt: new Date() } } });
+  return token;
+}
+
+export interface SesionActiva {
+  usuarioId: number;
+  usuario: string;
+  nombre: string | null;
+}
+
+/** Devuelve la sesión válida de la petición actual, o null. */
+export async function sesionActual(): Promise<SesionActiva | null> {
+  const token = cookies().get(COOKIE_SESION)?.value;
+  if (!token) return null;
+  try {
+    const sesion = await prisma.sesion.findUnique({
+      where: { token },
+      include: { usuario: true },
+    });
+    if (!sesion || sesion.expira < new Date() || !sesion.usuario.activo) return null;
+    return {
+      usuarioId: sesion.usuarioId,
+      usuario: sesion.usuario.usuario,
+      nombre: sesion.usuario.nombre,
+    };
+  } catch {
+    // Si la base no responde no se concede acceso.
+    return null;
+  }
+}
+
+export async function cerrarSesion() {
+  const token = cookies().get(COOKIE_SESION)?.value;
+  if (token) {
+    await prisma.sesion.deleteMany({ where: { token } });
+  }
+  cookies().delete(COOKIE_SESION);
+}
+
+/**
+ * Guardia para las rutas de API: devuelve una respuesta 401 si no hay sesión
+ * válida, o null si puede continuar. El middleware solo comprueba que exista
+ * la cookie, así que esta validación contra la base es la que realmente
+ * protege los datos.
+ *
+ *   const noAutorizado = await exigirSesion();
+ *   if (noAutorizado) return noAutorizado;
+ */
+export async function exigirSesion(): Promise<NextResponse | null> {
+  const sesion = await sesionActual();
+  if (!sesion) {
+    return NextResponse.json({ error: "Sesión requerida." }, { status: 401 });
+  }
+  return null;
+}

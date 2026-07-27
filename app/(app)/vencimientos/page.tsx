@@ -36,6 +36,8 @@ export default async function VencimientosPage() {
       fechaNacimiento: p.fechaNacimiento?.toISOString() ?? null,
       correo: p.correo,
       celular: p.celular,
+      valorCuota: p.valorCuota,
+      notaCartera: p.notaCartera,
       dias,
       semaforo: semaforoVencimiento(dias),
       gestionada: p.gestionada,

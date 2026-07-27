@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { exigirSesion } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -11,14 +12,35 @@ function fecha(v: unknown): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+function numero(v: unknown): number | null {
+  if (typeof v === "number" && isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v.replace(/[$.\s]/g, "").replace(",", "."));
+    if (isFinite(n)) return n;
+  }
+  return null;
+}
+
+function hoyISO(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
 /**
- * Registra el pago de una póliza (o lo revierte): marca el estado de pago y la
- * fecha de pago. Es la acción rápida de cobranza desde la vista de cartera.
+ * Registro de pagos de cartera. Tres modos:
+ *
+ *  - "total"    la póliza queda paga (OK PAGO).
+ *  - "cuota"    se recibió una cuota: la póliza sigue PENDIENTE y la fecha
+ *               límite pasa a ser la de la próxima cuota. Es el caso de las
+ *               formas de pago MENSUAL, ACUERDO DE PAGO o FINANCIADO.
+ *  - "revertir" deshace el pago y la deja PENDIENTE.
  */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const noAutorizado = await exigirSesion();
+  if (noAutorizado) return noAutorizado;
   const id = Number(params.id);
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: "id inválido" }, { status: 400 });
@@ -31,19 +53,62 @@ export async function PATCH(
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
 
-  const pagada = body.pagada === true;
-  const hoy = new Date();
-  const hoyISO = `${hoy.getUTCFullYear()}-${String(hoy.getUTCMonth() + 1).padStart(2, "0")}-${String(hoy.getUTCDate()).padStart(2, "0")}`;
+  // Compatibilidad con la acción rápida anterior ({ pagada: true/false }).
+  const modo =
+    typeof body.modo === "string"
+      ? body.modo
+      : body.pagada === true
+        ? "total"
+        : "revertir";
+
+  const notaCartera =
+    typeof body.notaCartera === "string"
+      ? body.notaCartera.trim() || null
+      : undefined;
 
   try {
+    if (modo === "cuota") {
+      const proxima = fecha(body.proximaFecha);
+      if (!proxima) {
+        return NextResponse.json(
+          { error: "Indique la fecha de la próxima cuota (AAAA-MM-DD)." },
+          { status: 400 }
+        );
+      }
+      const valorCuota = numero(body.valorCuota);
+      await prisma.policy.update({
+        where: { id },
+        data: {
+          estadoPago: "PENDIENTE",
+          fechaPago: fecha(body.fechaPago) ?? fecha(hoyISO()),
+          fechaMaxPago: proxima,
+          ...(valorCuota != null ? { valorCuota } : {}),
+          ...(notaCartera !== undefined ? { notaCartera } : {}),
+        },
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (modo === "total") {
+      await prisma.policy.update({
+        where: { id },
+        data: {
+          estadoPago: "OK PAGO",
+          fechaPago: fecha(body.fechaPago) ?? fecha(hoyISO()),
+          ...(notaCartera !== undefined ? { notaCartera } : {}),
+        },
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    // revertir
     await prisma.policy.update({
       where: { id },
-      data: pagada
-        ? {
-            estadoPago: "OK PAGO",
-            fechaPago: fecha(body.fechaPago) ?? fecha(hoyISO),
-          }
-        : { estadoPago: "PENDIENTE", fechaPago: null },
+      data: {
+        estadoPago: "PENDIENTE",
+        fechaPago: null,
+        ...(notaCartera !== undefined ? { notaCartera } : {}),
+      },
     });
     return NextResponse.json({ ok: true });
   } catch {

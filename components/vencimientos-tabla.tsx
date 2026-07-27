@@ -7,10 +7,10 @@ import type { Semaforo } from "@/lib/calculos";
 import type { ListasFormulario } from "@/lib/queries";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import { EstadoPagoBadge, SemaforoBadge, Td, Th } from "@/components/ui";
-import { IconCancelar, IconCheck, IconEditar, IconMas, IconRenovar } from "@/components/icons";
+import { IconCheck, IconMas } from "@/components/icons";
 import { PolizaEditable, PolizaForm } from "@/components/poliza-form";
 import { BotonExportar } from "@/components/boton-exportar";
-import { DialogoCancelar, DialogoRenovar } from "@/components/acciones-poliza";
+import { GestionarPoliza } from "@/components/gestionar-poliza";
 
 export interface PolizaVista extends PolizaEditable {
   id: number;
@@ -47,16 +47,15 @@ export function VencimientosTabla({
 }) {
   const router = useRouter();
   const [pestania, setPestania] = useState<Pestania>("pendientes");
+  const [q, setQ] = useState("");
   const [asesor, setAsesor] = useState("");
   const [ramo, setRamo] = useState("");
   const [aseguradora, setAseguradora] = useState("");
+  const [tipoNegocio, setTipoNegocio] = useState("");
   const [estadoPago, setEstadoPago] = useState("");
   const [soloSinGestionar, setSoloSinGestionar] = useState(false);
   const [orden, setOrden] = useState<"dias" | "prima">("dias");
   const [gestionando, setGestionando] = useState<PolizaVista | null>(null);
-  const [editando, setEditando] = useState<PolizaVista | null>(null);
-  const [renovando, setRenovando] = useState<PolizaVista | null>(null);
-  const [cancelando, setCancelando] = useState<PolizaVista | null>(null);
   const [creando, setCreando] = useState(false);
 
   const asesores = useMemo(
@@ -65,6 +64,7 @@ export function VencimientosTabla({
   );
   const ramos = useMemo(() => opciones(polizas.map((p) => p.ramo)), [polizas]);
   const aseguradoras = useMemo(() => opciones(polizas.map((p) => p.aseguradora)), [polizas]);
+  const tiposNegocio = useMemo(() => opciones(polizas.map((p) => p.tipoNegocio)), [polizas]);
 
   const filtradas = useMemo(() => {
     let lista = polizas;
@@ -72,6 +72,17 @@ export function VencimientosTabla({
       lista = lista.filter((p) => p.dias != null && p.dias < 0);
     } else if (pestania === "proximos") {
       lista = lista.filter((p) => p.dias != null && p.dias >= 0 && p.dias <= 30);
+    }
+    // Buscador libre: mismo criterio que la pantalla de Búsqueda
+    // (número de póliza, nombre del asegurado o CC/NIT).
+    if (q.trim()) {
+      const t = q.trim().toLowerCase();
+      lista = lista.filter(
+        (p) =>
+          p.numero.toLowerCase().includes(t) ||
+          p.asegurado.toLowerCase().includes(t) ||
+          (p.ccNit ?? "").toLowerCase().includes(t)
+      );
     }
     if (asesor)
       lista = lista.filter(
@@ -82,6 +93,8 @@ export function VencimientosTabla({
     if (ramo) lista = lista.filter((p) => normalizar(p.ramo) === ramo);
     if (aseguradora)
       lista = lista.filter((p) => p.aseguradora && normalizar(p.aseguradora) === aseguradora);
+    if (tipoNegocio)
+      lista = lista.filter((p) => p.tipoNegocio && normalizar(p.tipoNegocio) === tipoNegocio);
     if (estadoPago) lista = lista.filter((p) => (p.estadoPago ?? "") === estadoPago);
     if (soloSinGestionar) lista = lista.filter((p) => !p.gestionada);
     return [...lista].sort((a, b) => {
@@ -91,7 +104,10 @@ export function VencimientosTabla({
       const db = b.dias ?? Number.MAX_SAFE_INTEGER;
       return da - db;
     });
-  }, [polizas, pestania, asesor, ramo, aseguradora, estadoPago, soloSinGestionar, orden]);
+  }, [
+    polizas, pestania, q, asesor, ramo, aseguradora, tipoNegocio,
+    estadoPago, soloSinGestionar, orden,
+  ]);
 
   const enRiesgo = filtradas.filter(
     (p) => p.estadoPago === "PENDIENTE" && p.dias != null && p.dias <= 30
@@ -99,20 +115,30 @@ export function VencimientosTabla({
 
   const alGuardar = () => {
     setGestionando(null);
-    setEditando(null);
-    setRenovando(null);
-    setCancelando(null);
     setCreando(false);
     router.refresh();
   };
 
+  const limpiar = () => {
+    setQ("");
+    setAsesor("");
+    setRamo("");
+    setAseguradora("");
+    setTipoNegocio("");
+    setEstadoPago("");
+    setSoloSinGestionar(false);
+  };
+
+  const hayFiltros =
+    q || asesor || ramo || aseguradora || tipoNegocio || estadoPago || soloSinGestionar;
+
   const claseSelect =
-    "rounded-md border border-line-axis bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
+    "rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap gap-1 rounded-lg border border-line-grid bg-white p-1">
+        <div className="flex flex-wrap gap-1 rounded-lg border border-line-grid bg-surface p-1">
           {PESTANIAS.map((t) => (
             <button
               key={t.id}
@@ -130,7 +156,7 @@ export function VencimientosTabla({
         </div>
         <button
           onClick={() => setCreando(true)}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark"
         >
           <IconMas className="h-4 w-4" />
           Nueva póliza
@@ -138,10 +164,27 @@ export function VencimientosTabla({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar póliza / asegurado / NIT"
+          className={clsx(claseSelect, "min-w-[220px]")}
+        />
         <select className={claseSelect} value={ramo} onChange={(e) => setRamo(e.target.value)}>
           <option value="">Ramo: todos</option>
           {ramos.map((r) => (
             <option key={r}>{r}</option>
+          ))}
+        </select>
+        <select
+          className={claseSelect}
+          value={tipoNegocio}
+          onChange={(e) => setTipoNegocio(e.target.value)}
+        >
+          <option value="">Tipo negocio: todos</option>
+          {tiposNegocio.map((t) => (
+            <option key={t}>{t}</option>
           ))}
         </select>
         <select className={claseSelect} value={asesor} onChange={(e) => setAsesor(e.target.value)}>
@@ -185,6 +228,14 @@ export function VencimientosTabla({
           />
           Solo sin gestionar
         </label>
+        {hayFiltros && (
+          <button
+            onClick={limpiar}
+            className="rounded-lg border border-line-axis px-2.5 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
+          >
+            Limpiar
+          </button>
+        )}
         <span className="ml-auto text-sm text-ink-muted">
           {filtradas.length} pólizas
           {enRiesgo > 0 && (
@@ -205,10 +256,10 @@ export function VencimientosTabla({
             },
             { encabezado: "Póliza", valor: (p) => p.numero },
             { encabezado: "Ramo", valor: (p) => p.ramo },
+            { encabezado: "Tipo negocio", valor: (p) => p.tipoNegocio ?? "" },
             { encabezado: "Asegurado", valor: (p) => p.asegurado },
             { encabezado: "CC/NIT", valor: (p) => p.ccNit ?? "" },
             { encabezado: "Aseguradora", valor: (p) => p.aseguradora ?? "" },
-            { encabezado: "Tipo negocio", valor: (p) => p.tipoNegocio ?? "" },
             { encabezado: "Asesor 1", valor: (p) => p.asesor1 ?? "" },
             { encabezado: "Asesor 2", valor: (p) => p.asesor2 ?? "" },
             { encabezado: "Prima neta", valor: (p) => p.primaNeta },
@@ -222,7 +273,7 @@ export function VencimientosTabla({
         />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-line-grid bg-surface">
+      <div className="overflow-x-auto scroll-fino rounded-xl border border-line-grid bg-surface">
         <table className="w-full border-collapse whitespace-nowrap">
           <thead>
             <tr>
@@ -230,13 +281,13 @@ export function VencimientosTabla({
               <Th>Vencimiento</Th>
               <Th>Póliza</Th>
               <Th>Ramo</Th>
+              <Th>Tipo negocio</Th>
               <Th>Asegurado</Th>
               <Th>Contacto</Th>
               <Th>Aseguradora</Th>
               <Th>Asesor</Th>
               <Th derecha>Prima neta</Th>
               <Th>Pago</Th>
-              <Th>Gestión</Th>
               <Th />
             </tr>
           </thead>
@@ -252,6 +303,15 @@ export function VencimientosTabla({
                 <Td>{fmtFecha(p.vencimiento)}</Td>
                 <Td className="font-medium">{p.numero}</Td>
                 <Td>{p.ramo}</Td>
+                <Td>
+                  {p.tipoNegocio ? (
+                    <span className="rounded bg-surface-sunken px-1.5 py-0.5 text-[11px] font-medium text-ink-secondary">
+                      {p.tipoNegocio}
+                    </span>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
+                </Td>
                 <Td>
                   <div className="max-w-[220px] truncate" title={p.asegurado}>
                     {p.asegurado}
@@ -281,47 +341,21 @@ export function VencimientosTabla({
                   <EstadoPagoBadge estado={p.estadoPago} />
                 </Td>
                 <Td>
-                  {p.gestionada ? (
+                  <div className="flex items-center gap-2">
+                    {p.gestionada && (
+                      <span
+                        title={p.notaGestion ?? "Gestionada"}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-status-good"
+                      >
+                        <IconCheck className="h-3.5 w-3.5" />
+                        Gestionada
+                      </span>
+                    )}
                     <button
                       onClick={() => setGestionando(p)}
-                      title={p.notaGestion ?? undefined}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-status-good hover:underline"
+                      className="inline-flex items-center gap-1 rounded-lg border border-brand/40 px-2.5 py-1 text-xs font-semibold text-brand hover:bg-brand-light/40"
                     >
-                      <IconCheck className="h-3.5 w-3.5" />
-                      Gestionada
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setGestionando(p)}
-                      className="rounded border border-brand px-2 py-0.5 text-xs font-medium text-brand hover:bg-brand-light/40"
-                    >
-                      Marcar gestión
-                    </button>
-                  )}
-                </Td>
-                <Td>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setRenovando(p)}
-                      title="Renovar (nuevo ciclo)"
-                      className="inline-flex items-center gap-1 rounded border border-status-good/50 px-1.5 py-0.5 text-xs font-medium text-status-good hover:bg-status-good/5"
-                    >
-                      <IconRenovar className="h-3.5 w-3.5" />
-                      Renovar
-                    </button>
-                    <button
-                      onClick={() => setCancelando(p)}
-                      title="Cancelar (mover a cancelaciones)"
-                      className="rounded p-1 text-ink-muted hover:bg-status-critical/10 hover:text-status-critical"
-                    >
-                      <IconCancelar className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setEditando(p)}
-                      title="Editar póliza"
-                      className="rounded p-1 text-ink-muted hover:bg-brand-light/40 hover:text-brand"
-                    >
-                      <IconEditar className="h-4 w-4" />
+                      Gestionar
                     </button>
                   </div>
                 </Td>
@@ -339,122 +373,22 @@ export function VencimientosTabla({
       </div>
 
       {gestionando && (
-        <DialogoGestion
+        <GestionarPoliza
           poliza={gestionando}
+          listas={listas}
+          pestaniaInicial="gestion"
           onCerrar={() => setGestionando(null)}
           onGuardado={alGuardar}
         />
       )}
-      {renovando && (
-        <DialogoRenovar
-          poliza={renovando}
-          onCerrar={() => setRenovando(null)}
-          onGuardado={alGuardar}
-        />
-      )}
-      {cancelando && (
-        <DialogoCancelar
-          poliza={cancelando}
-          onCerrar={() => setCancelando(null)}
-          onGuardado={alGuardar}
-        />
-      )}
-      {(editando || creando) && (
+      {creando && (
         <PolizaForm
-          poliza={editando}
+          poliza={null}
           listas={listas}
-          onCerrar={() => {
-            setEditando(null);
-            setCreando(false);
-          }}
+          onCerrar={() => setCreando(false)}
           onGuardado={alGuardar}
         />
       )}
-    </div>
-  );
-}
-
-function DialogoGestion({
-  poliza,
-  onCerrar,
-  onGuardado,
-}: {
-  poliza: PolizaVista;
-  onCerrar: () => void;
-  onGuardado: () => void;
-}) {
-  const [nota, setNota] = useState(poliza.notaGestion ?? "");
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const guardar = async (gestionada: boolean) => {
-    setGuardando(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/policies/${poliza.id}/gestion`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gestionada, nota }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      onGuardado();
-    } catch (e) {
-      setError("No se pudo guardar. Intente de nuevo.");
-      setGuardando(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onCerrar}
-    >
-      <div
-        className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-base font-bold">Gestión de renovación</h3>
-        <p className="mt-1 text-sm text-ink-secondary">
-          Póliza <span className="font-semibold">{poliza.numero}</span> · {poliza.ramo} ·{" "}
-          {poliza.asegurado}
-        </p>
-        <label className="mt-4 block text-sm font-medium text-ink-secondary">
-          Nota interna
-          <textarea
-            className="mt-1 w-full rounded-md border border-line-axis p-2 text-sm focus:border-brand focus:outline-none"
-            rows={3}
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            placeholder="Ej: cliente contactado 20/07, espera cotización de renovación…"
-          />
-        </label>
-        {error && <p className="mt-2 text-sm text-status-critical">{error}</p>}
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onCerrar}
-            disabled={guardando}
-            className="rounded-md px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
-          >
-            Cancelar
-          </button>
-          {poliza.gestionada && (
-            <button
-              onClick={() => guardar(false)}
-              disabled={guardando}
-              className="rounded-md border border-line-axis px-3 py-1.5 text-sm font-medium hover:bg-surface-page"
-            >
-              Reabrir gestión
-            </button>
-          )}
-          <button
-            onClick={() => guardar(true)}
-            disabled={guardando}
-            className="rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
-          >
-            {guardando ? "Guardando…" : "Marcar como gestionada"}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { datosPolizaDesdeBody, ErrorValidacion } from "./validacion";
+import { exigirSesion } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const noAutorizado = await exigirSesion();
+  if (noAutorizado) return noAutorizado;
   let body: unknown;
   try {
     body = await req.json();
