@@ -1,4 +1,5 @@
 import { ImportForm } from "@/components/import-form";
+import { ImportSiniestrosForm } from "@/components/import-siniestros-form";
 import { Card, CardTitle, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -8,11 +9,26 @@ export default function ImportarPage() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         titulo="Importar datos"
-        descripcion="Cargue el informe de producción (.xlsx) con las hojas DATOS, OTRAS PÓLIZAS, CANCELACIONES, BASE 2025 y LISTAS."
+        descripcion="Cargue el informe de producción y, aparte, los archivos de siniestros."
       />
 
       <Card>
+        <CardTitle>Informe de producción</CardTitle>
+        <p className="mb-3 text-sm text-ink-muted">
+          El .xlsx con las hojas DATOS, OTRAS PÓLIZAS, CANCELACIONES, BASE 2025 y
+          LISTAS.
+        </p>
         <ImportForm />
+      </Card>
+
+      <Card>
+        <CardTitle>Siniestros</CardTitle>
+        <p className="mb-3 text-sm text-ink-muted">
+          Los dos archivos de siniestros se unen en una sola lista. Si envía
+          ambos, el resumen completa el responsable y las cifras de los casos
+          que ya trajo el seguimiento.
+        </p>
+        <ImportSiniestrosForm />
       </Card>
 
       <Card>

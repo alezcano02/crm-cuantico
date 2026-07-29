@@ -27,6 +27,7 @@ const ATAJOS: { etiqueta: string; href: string }[] = [
   { etiqueta: "Ir a cartera", href: "/cartera" },
   { etiqueta: "Ir a cancelaciones", href: "/cancelaciones" },
   { etiqueta: "Ir a asesores", href: "/asesores" },
+  { etiqueta: "Ir a siniestros", href: "/siniestros" },
   { etiqueta: "Ir a cumpleaños de clientes", href: "/cumpleanos" },
   { etiqueta: "Importar el Excel de producción", href: "/importar" },
 ];

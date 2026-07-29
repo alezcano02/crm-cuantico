@@ -144,6 +144,13 @@ export const IconHistorial = (p: IconProps) =>
     </>
   ));
 
+export const IconSiniestro = (p: IconProps) =>
+  base(p, (
+    <>
+      <path d="m13 2-9 12h7l-1 8 9-12h-7l1-8Z" />
+    </>
+  ));
+
 export const IconRegalo = (p: IconProps) =>
   base(p, (
     <>

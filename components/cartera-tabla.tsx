@@ -380,6 +380,7 @@ export function CarteraTabla({
               <Th>Ramo</Th>
               <Th>Tipo negocio</Th>
               <Th>Asegurado</Th>
+              <Th>Teléfono</Th>
               <Th>Aseguradora</Th>
               <Th>Asesor</Th>
               <Th>Forma pago</Th>
@@ -409,12 +410,15 @@ export function CarteraTabla({
                   <div className="max-w-[220px] truncate" title={p.asegurado}>
                     {p.asegurado}
                   </div>
-                  {p.celular && <div className="text-[11px] text-ink-muted">{p.celular}</div>}
+                  <div className="text-[11px] text-ink-muted">{p.ccNit ?? "—"}</div>
                   {p.notaCartera && (
                     <div className="text-[11px] italic text-[#8a6100]" title={p.notaCartera}>
                       {p.notaCartera}
                     </div>
                   )}
+                </Td>
+                <Td>
+                  <div className="text-xs">{p.celular ?? "—"}</div>
                 </Td>
                 <Td>{p.aseguradora ?? "—"}</Td>
                 <Td>
@@ -444,7 +448,7 @@ export function CarteraTabla({
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={11}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={12}>
                   No hay pólizas que cumplan los filtros.
                 </Td>
               </tr>

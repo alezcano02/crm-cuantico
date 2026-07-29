@@ -13,6 +13,7 @@ import {
   IconImportar,
   IconPersonas,
   IconRegalo,
+  IconSiniestro,
   IconTendencia,
 } from "@/components/icons";
 import { LogoCompleto, LogoMarca } from "@/components/logo";
@@ -52,6 +53,7 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
       },
       { href: "/cartera", etiqueta: "Cartera", Icono: IconCartera, contador: "mora" },
       { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
+      { href: "/siniestros", etiqueta: "Siniestros", Icono: IconSiniestro },
       { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconRegalo },
     ],
   },

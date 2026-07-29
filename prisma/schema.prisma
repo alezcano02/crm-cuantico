@@ -132,6 +132,61 @@ model HistoricalPolicy2025 {
   @@index([ramo])
 }
 
+// Siniestros. Vienen de dos archivos que la agencia mantenía por separado:
+//  · "20260617 SEGUIMIENTO SINIESTROS.xlsx", con UNA HOJA POR CLIENTE (46) y
+//    el detalle del caso (fechas, radicado, observaciones, valores).
+//  · "SINIESTROS.xlsx", un resumen con el responsable y las cifras.
+// Aquí quedan todos en una sola lista.
+model Siniestro {
+  id                     Int       @id @default(autoincrement())
+  asegurado              String
+  nit                    String?
+  firmaAdministracion    String?
+  administrador          String?
+  celular                String?
+  email                  String?
+  aseguradora            String?
+  poliza                 String?
+  vigenciaPoliza         DateTime?
+  cobertura              String? // evento avisado
+  resumen                String?
+  fechaOcurrencia        DateTime?
+  fechaAvisoAsesor       DateTime?
+  fechaAvisoCompania     DateTime?
+  radicado               String? // número de siniestro
+  // Texto original del estado, tal como lo escribieron.
+  estadoTexto            String?
+  // Estado normalizado para poder filtrar y contar: el original trae decenas
+  // de variantes y erratas ("COPROPEIDAD", "PAGOSO", "PAGODO").
+  estado                 String    @default("SIN_ESTADO")
+  observaciones          String?
+  valorSiniestro         Float? // pretensión
+  valorLiquidar          Float? // establecido por la aseguradora
+  valorPagado            Float?
+  deducible              Float?
+  fechaPago              DateTime?
+  otrosDatos             String?
+  empleadoCompania       String?
+  telefonoCompania       String?
+  correoCompania         String?
+  responsable            String? // asesor a cargo (del resumen)
+  fechaUltimoSeguimiento DateTime?
+  // Gestión dentro de la aplicación
+  notaInterna            String?
+  cerrado                Boolean   @default(false)
+  /// Hoja o archivo de procedencia, para poder auditar de dónde salió.
+  origen                 String?
+  /// true = creado o editado en la app; la reimportación no lo sobrescribe.
+  manual                 Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([asegurado])
+  @@index([estado])
+  @@index([aseguradora])
+  @@index([responsable])
+}
+
 // Empleados con acceso al CRM. La clave nunca se guarda en claro: se almacena
 // como "scrypt$<sal>$<hash>" (ver lib/auth.ts).
 model Usuario {
