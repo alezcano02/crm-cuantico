@@ -45,6 +45,8 @@ export interface PolicyInput {
   placa: string | null;
   aseguradora: string | null;
   tipoNegocio: string | null;
+  /** Columna OBSERVACION, añadida al informe en julio de 2026. */
+  observacion: string | null;
   asesor1: string | null;
   asesor2: string | null;
   primaNeta: number;
@@ -182,26 +184,117 @@ function filasDesde(ws: XLSX.WorkSheet, filaInicio: number): Fila[] {
   });
 }
 
-function verificarEncabezado(
-  ws: XLSX.WorkSheet,
-  filaEncabezado: number,
-  esperados: { col: number; nombre: string }[],
-  hoja: string
-): string | null {
+// ---------------------------------------------------------------------------
+// Mapeo de columnas POR NOMBRE
+//
+// Antes se leían las columnas por su posición, pero el informe es un documento
+// vivo: en julio de 2026 se insertó "OBSERVACION" y se eliminó "FECHA PAGO",
+// con lo que todo lo que venía después quedó corrido y la importación habría
+// leído la prima neta de la columna del asesor (producción = $0).
+//
+// Ahora cada campo se busca por el texto de su encabezado, con alias para las
+// variantes que ha tenido, y solo se cae a una posición fija cuando el
+// encabezado viene vacío (así era la columna de la aseguradora en las
+// versiones viejas). Añadir o mover columnas ya no rompe nada.
+// ---------------------------------------------------------------------------
+
+/** Normaliza un encabezado para compararlo: sin tildes, espacios ni signos. */
+function claveEncabezado(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+export interface DefColumna {
+  /** Nombre lógico del campo, para los mensajes de error. */
+  campo: string;
+  /** Encabezados aceptados (se comparan normalizados). */
+  alias: string[];
+  /** Posición de reserva si ningún encabezado coincide. */
+  posicion?: number;
+  /** Si falta, la hoja no se puede importar. */
+  obligatoria?: boolean;
+}
+
+export type Columnas = Record<string, number>;
+
+function leerEncabezado(ws: XLSX.WorkSheet, filaEncabezado: number): Fila {
   const filas = XLSX.utils.sheet_to_json<Fila>(ws, {
     header: 1,
     range: filaEncabezado - 1,
     defval: null,
     blankrows: false,
   });
-  const encabezado = filas[0] ?? [];
-  for (const { col, nombre } of esperados) {
-    const celda = texto(encabezado[col])?.toUpperCase() ?? "";
-    if (!celda.includes(nombre.toUpperCase())) {
-      return `La hoja "${hoja}" no tiene el encabezado esperado "${nombre}" en la fila ${filaEncabezado} (columna ${col + 1}). Verifique que el archivo tenga la estructura del informe de producción.`;
+  return filas[0] ?? [];
+}
+
+/**
+ * Devuelve el índice de cada campo, o un error si falta alguno obligatorio.
+ */
+function mapearColumnas(
+  ws: XLSX.WorkSheet,
+  filaEncabezado: number,
+  definiciones: DefColumna[],
+  hoja: string
+): { columnas: Columnas; error: string | null; avisos: string[] } {
+  const encabezado = leerEncabezado(ws, filaEncabezado);
+  const porClave = new Map<string, number>();
+  encabezado.forEach((celda, i) => {
+    const t = texto(celda);
+    if (!t) return;
+    const k = claveEncabezado(t);
+    // Se conserva la primera aparición: si un encabezado se repite, manda el
+    // de más a la izquierda.
+    if (k && !porClave.has(k)) porClave.set(k, i);
+  });
+
+  const columnas: Columnas = {};
+  const faltantes: string[] = [];
+  const avisos: string[] = [];
+
+  for (const def of definiciones) {
+    let idx = -1;
+    for (const alias of def.alias) {
+      const encontrado = porClave.get(claveEncabezado(alias));
+      if (encontrado !== undefined) {
+        idx = encontrado;
+        break;
+      }
     }
+    if (idx === -1 && def.posicion !== undefined) {
+      // Sin encabezado: se usa la posición histórica (p. ej. la aseguradora,
+      // que en los archivos viejos venía sin título).
+      const t = texto(encabezado[def.posicion]);
+      if (!t) {
+        idx = def.posicion;
+        avisos.push(
+          `${hoja}: la columna "${def.campo}" no tiene encabezado; se tomó la columna ${def.posicion + 1}.`
+        );
+      }
+    }
+    if (idx === -1) {
+      if (def.obligatoria) faltantes.push(def.campo);
+      continue;
+    }
+    columnas[def.campo] = idx;
   }
-  return null;
+
+  if (faltantes.length > 0) {
+    return {
+      columnas,
+      avisos,
+      error: `La hoja "${hoja}" no tiene las columnas: ${faltantes.join(", ")}. Verifique que el archivo sea el informe de producción y que los encabezados estén en la fila ${filaEncabezado}.`,
+    };
+  }
+  return { columnas, avisos, error: null };
+}
+
+/** Lee una celda de la fila usando el mapa de columnas (null si no existe). */
+function celda(fila: Fila, columnas: Columnas, campo: string): Celda {
+  const i = columnas[campo];
+  return i === undefined ? null : (fila[i] ?? null);
 }
 
 // ------------------------------ parseo por hoja ----------------------------
@@ -271,35 +364,49 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
     if (!ws) {
       res.errores.push('No se encontró la hoja "DATOS".');
     } else {
-      const errorEnc = verificarEncabezado(
+      const { columnas: col, error: errorEnc, avisos } = mapearColumnas(
         ws,
         2,
         [
-          { col: 0, nombre: "N°" },
-          { col: 1, nombre: "PÓLIZA" },
-          { col: 2, nombre: "RAMO" },
-          { col: 16, nombre: "VENCIMIENTO" },
+          { campo: "poliza", alias: ["PÓLIZA", "POLIZA"], obligatoria: true },
+          { campo: "ramo", alias: ["RAMO"], obligatoria: true },
+          { campo: "asegurado", alias: ["ASEGURADO"], obligatoria: true },
+          { campo: "ccNit", alias: ["CC / NIT", "CC/NIT", "CEDULA", "NIT"] },
+          { campo: "placa", alias: ["PLACA"] },
+          // En los archivos viejos esta columna venía sin encabezado.
+          { campo: "aseguradora", alias: ["COMPAÑÍA", "COMPANIA", "ASEGURADORA"], posicion: 6 },
+          { campo: "tipoNegocio", alias: ["TIPO NEGOCIO"] },
+          { campo: "observacion", alias: ["OBSERVACION", "OBSERVACIÓN"] },
+          { campo: "asesor1", alias: ["ASESOR 1"] },
+          { campo: "asesor2", alias: ["ASESOR 2"] },
+          { campo: "primaNeta", alias: ["PRIMA NETA"], obligatoria: true },
+          { campo: "primaTotal", alias: ["PRIMA TOTAL"] },
+          { campo: "formaPago", alias: ["FORMA DE PAGO"] },
+          // "FECHA PAGO" desapareció en la versión de julio de 2026.
+          { campo: "fechaPago", alias: ["FECHA PAGO"] },
+          { campo: "fechaMaxPago", alias: ["FECHA MÁX. PAGO", "FECHA MAX PAGO"] },
+          { campo: "estadoPago", alias: ["ESTADO DE PAGO"] },
+          { campo: "vencimiento", alias: ["VENCIMIENTO"], obligatoria: true },
+          { campo: "fechaNacimiento", alias: ["FECHA NACIMIENTO"] },
+          { campo: "correo", alias: ["CORREO"] },
+          { campo: "celular", alias: ["CELULAR"] },
+          { campo: "mensajeResumen", alias: ["MENSAJE RESUMEN"] },
+          { campo: "vtoSoat", alias: ["VTO. SOAT", "VTO SOAT"] },
         ],
         "DATOS"
       );
+      res.advertencias.push(...avisos);
       if (errorEnc) {
         res.errores.push(errorEnc);
       } else {
+        const v = (f: Fila, campo: string) => celda(f, col, campo);
         const vistos = new Set<string>();
         const filas = filasDesde(ws, 3);
         filas.forEach((f, i) => {
           const filaExcel = i + 3;
-          // Columnas (posicionales, fila 2 del Excel):
-          // 0 N° · 1 PÓLIZA · 2 RAMO · 3 ASEGURADO · 4 CC/NIT · 5 PLACA ·
-          // 6 ASEGURADORA (encabezado en blanco) · 7 TIPO NEGOCIO · 8 ASESOR 1 ·
-          // 9 ASESOR 2 · 10 PRIMA NETA · 11 PRIMA TOTAL · 12 FORMA DE PAGO ·
-          // 13 FECHA PAGO · 14 FECHA MÁX. PAGO · 15 ESTADO DE PAGO ·
-          // 16 VENCIMIENTO · 17 MES VENCIMIENTO · 18 DÍAS AL VENCE ·
-          // 19 FECHA NACIMIENTO · 20 EDAD · 21 CORREO · 22 CELULAR ·
-          // 23 MENSAJE RESUMEN · 24 VTO. SOAT (25-26 derivados, se recalculan)
-          let poliza = texto(f[1]);
-          const ramo = texto(f[2]);
-          const asegurado = texto(f[3]);
+          let poliza = texto(v(f, "poliza"));
+          const ramo = texto(v(f, "ramo"));
+          const asegurado = texto(v(f, "asegurado"));
           if (!poliza && !ramo && !asegurado) return; // fila vacía
           res.leidos++;
           if (!ramo || !asegurado) {
@@ -312,12 +419,12 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             poliza = "S/N";
             res.advertencias.push(`DATOS fila ${filaExcel}: sin número de PÓLIZA; se importó como "S/N".`);
           }
-          const vencimiento = fecha(f[16]);
+          const vencimiento = fecha(v(f, "vencimiento"));
           // Las filas idénticas se REPORTAN como duplicados pero se importan
           // igualmente: el informe original las suma (un mismo número de
           // póliza puede repetirse legítimamente en colectivas, flotas o
           // certificados por asegurado) y omitirlas descuadraría la producción.
-          const clave = `${poliza}|${ramo}|${vencimiento?.toISOString() ?? ""}|${asegurado}|${numero(f[10])}`;
+          const clave = `${poliza}|${ramo}|${vencimiento?.toISOString() ?? ""}|${asegurado}|${numero(v(f, "primaNeta"))}`;
           if (vistos.has(clave)) {
             res.duplicados++;
             res.advertencias.push(
@@ -328,11 +435,11 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
           const ctx = `DATOS fila ${filaExcel} (póliza ${poliza})`;
           for (const adv of [
             validador.advertir("RAMO", ramo, ctx),
-            validador.advertir("TIPO_NEGOCIO", texto(f[7]), ctx),
-            validador.advertir("ASEGURADORA", texto(f[6]), ctx),
-            validador.advertir("ESTADO_PAGO", texto(f[15]), ctx),
-            validador.advertir("FORMA_PAGO", texto(f[12]), ctx),
-            validador.advertir("ASESOR", texto(f[8]), ctx),
+            validador.advertir("TIPO_NEGOCIO", texto(v(f, "tipoNegocio")), ctx),
+            validador.advertir("ASEGURADORA", texto(v(f, "aseguradora")), ctx),
+            validador.advertir("ESTADO_PAGO", texto(v(f, "estadoPago")), ctx),
+            validador.advertir("FORMA_PAGO", texto(v(f, "formaPago")), ctx),
+            validador.advertir("ASESOR", texto(v(f, "asesor1")), ctx),
           ]) {
             if (adv) res.advertencias.push(adv);
           }
@@ -343,25 +450,26 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             numero: poliza,
             ramo,
             asegurado,
-            ccNit: texto(f[4]),
-            placa: texto(f[5]),
-            aseguradora: texto(f[6]),
-            tipoNegocio: texto(f[7])?.toUpperCase() ?? null,
-            asesor1: texto(f[8]),
-            asesor2: texto(f[9]),
-            primaNeta: numero(f[10]),
-            primaTotal: numero(f[11]),
-            formaPago: texto(f[12]),
-            fechaPago: fecha(f[13]),
-            fechaMaxPago: fecha(f[14]),
-            estadoPago: texto(f[15])?.toUpperCase() ?? null,
+            ccNit: texto(v(f, "ccNit")),
+            placa: texto(v(f, "placa")),
+            aseguradora: texto(v(f, "aseguradora")),
+            tipoNegocio: texto(v(f, "tipoNegocio"))?.toUpperCase() ?? null,
+            observacion: texto(v(f, "observacion")),
+            asesor1: texto(v(f, "asesor1")),
+            asesor2: texto(v(f, "asesor2")),
+            primaNeta: numero(v(f, "primaNeta")),
+            primaTotal: numero(v(f, "primaTotal")),
+            formaPago: texto(v(f, "formaPago")),
+            fechaPago: fecha(v(f, "fechaPago")),
+            fechaMaxPago: fecha(v(f, "fechaMaxPago")),
+            estadoPago: texto(v(f, "estadoPago"))?.toUpperCase() ?? null,
             vencimiento,
             mesVencimiento: mesDeFecha(vencimiento),
-            fechaNacimiento: fecha(f[19]),
-            correo: texto(f[21]),
-            celular: texto(f[22]),
-            mensajeResumen: texto(f[23]),
-            vtoSoat: fecha(f[24]),
+            fechaNacimiento: fecha(v(f, "fechaNacimiento")),
+            correo: texto(v(f, "correo")),
+            celular: texto(v(f, "celular")),
+            mensajeResumen: texto(v(f, "mensajeResumen")),
+            vtoSoat: fecha(v(f, "vtoSoat")),
           });
           res.importables++;
         });
@@ -380,31 +488,42 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
     if (!ws) {
       res.errores.push('No se encontró la hoja "OTRAS PÓLIZAS".');
     } else {
-      const errorEnc = verificarEncabezado(
+      const { columnas: col, error: errorEnc, avisos } = mapearColumnas(
         ws,
         2,
         [
-          { col: 1, nombre: "PÓLIZA" },
-          { col: 2, nombre: "RAMO" },
-          { col: 8, nombre: "PRIMA NETA" },
+          { campo: "poliza", alias: ["PÓLIZA", "POLIZA"], obligatoria: true },
+          { campo: "ramo", alias: ["RAMO"], obligatoria: true },
+          { campo: "asegurado", alias: ["ASEGURADO"], obligatoria: true },
+          { campo: "ccNit", alias: ["CC / NIT", "CC/NIT"] },
+          { campo: "tipoNegocio", alias: ["TIPO NEGOCIO"] },
+          { campo: "asesor1", alias: ["ASESOR 1"] },
+          { campo: "asesor2", alias: ["ASESOR 2"] },
+          { campo: "primaNeta", alias: ["PRIMA NETA"], obligatoria: true },
+          { campo: "primaTotal", alias: ["PRIMA TOTAL"] },
+          { campo: "formaPago", alias: ["FORMA DE PAGO"] },
+          { campo: "fechaPago", alias: ["FECHA PAGO"] },
+          { campo: "fechaMaxPago", alias: ["FECHA MÁX. PAGO", "FECHA MAX PAGO"] },
+          { campo: "estadoPago", alias: ["ESTADO DE PAGO"] },
+          { campo: "vencimiento", alias: ["VENCIMIENTO"] },
+          { campo: "fechaNacimiento", alias: ["FECHA NACIMIENTO"] },
+          { campo: "correo", alias: ["CORREO"] },
+          { campo: "celular", alias: ["CELULAR"] },
         ],
         "OTRAS PÓLIZAS"
       );
+      res.advertencias.push(...avisos);
       if (errorEnc) {
         res.errores.push(errorEnc);
       } else {
+        const v = (f: Fila, campo: string) => celda(f, col, campo);
         const vistos = new Set<string>();
         const filas = filasDesde(ws, 3);
         filas.forEach((f, i) => {
           const filaExcel = i + 3;
-          // 0 N° · 1 PÓLIZA · 2 RAMO · 3 ASEGURADO · 4 CC/NIT · 5 TIPO NEGOCIO ·
-          // 6 ASESOR 1 · 7 ASESOR 2 · 8 PRIMA NETA · 9 PRIMA TOTAL ·
-          // 10 FORMA DE PAGO · 11 FECHA PAGO · 12 FECHA MÁX. PAGO ·
-          // 13 ESTADO DE PAGO · 14 VENCIMIENTO · … · 17 FECHA NACIMIENTO ·
-          // 19 CORREO · 20 CELULAR (columnas 14+ presentes en el archivo real)
-          let poliza = texto(f[1]);
-          const ramo = texto(f[2]);
-          const asegurado = texto(f[3]);
+          let poliza = texto(v(f, "poliza"));
+          const ramo = texto(v(f, "ramo"));
+          const asegurado = texto(v(f, "asegurado"));
           if (!poliza && !ramo && !asegurado) return;
           res.leidos++;
           if (!ramo || !asegurado) {
@@ -415,7 +534,7 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             poliza = "S/N";
             res.advertencias.push(`OTRAS PÓLIZAS fila ${filaExcel}: sin número de PÓLIZA; se importó como "S/N".`);
           }
-          const clave = `${poliza}|${ramo}|${asegurado}|${numero(f[8])}`;
+          const clave = `${poliza}|${ramo}|${asegurado}|${numero(v(f, "primaNeta"))}`;
           if (vistos.has(clave)) {
             res.duplicados++;
             res.advertencias.push(
@@ -427,20 +546,20 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             numero: poliza,
             ramo,
             asegurado,
-            ccNit: texto(f[4]),
-            tipoNegocio: texto(f[5])?.toUpperCase() ?? null,
-            asesor1: texto(f[6]),
-            asesor2: texto(f[7]),
-            primaNeta: numero(f[8]),
-            primaTotal: numero(f[9]),
-            formaPago: texto(f[10]),
-            fechaPago: fecha(f[11]),
-            fechaMaxPago: fecha(f[12]),
-            estadoPago: texto(f[13])?.toUpperCase() ?? null,
-            vencimiento: fecha(f[14]),
-            fechaNacimiento: fecha(f[17]),
-            correo: texto(f[19]),
-            celular: texto(f[20]),
+            ccNit: texto(v(f, "ccNit")),
+            tipoNegocio: texto(v(f, "tipoNegocio"))?.toUpperCase() ?? null,
+            asesor1: texto(v(f, "asesor1")),
+            asesor2: texto(v(f, "asesor2")),
+            primaNeta: numero(v(f, "primaNeta")),
+            primaTotal: numero(v(f, "primaTotal")),
+            formaPago: texto(v(f, "formaPago")),
+            fechaPago: fecha(v(f, "fechaPago")),
+            fechaMaxPago: fecha(v(f, "fechaMaxPago")),
+            estadoPago: texto(v(f, "estadoPago"))?.toUpperCase() ?? null,
+            vencimiento: fecha(v(f, "vencimiento")),
+            fechaNacimiento: fecha(v(f, "fechaNacimiento")),
+            correo: texto(v(f, "correo")),
+            celular: texto(v(f, "celular")),
           });
           res.importables++;
         });
@@ -459,29 +578,44 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
     if (!ws) {
       res.errores.push('No se encontró la hoja "CANCELACIONES".');
     } else {
-      const errorEnc = verificarEncabezado(
+      const { columnas: col, error: errorEnc, avisos } = mapearColumnas(
         ws,
         2,
         [
-          { col: 0, nombre: "PÓLIZA" },
-          { col: 2, nombre: "FECHA RENOVACION" },
-          { col: 4, nombre: "FECHA CANCELACIÓN" },
+          { campo: "poliza", alias: ["PÓLIZA", "POLIZA"], obligatoria: true },
+          { campo: "ramo", alias: ["RAMO"], obligatoria: true },
+          {
+            campo: "fechaRenovacion",
+            alias: ["FECHA RENOVACION", "FECHA RENOVACIÓN"],
+            obligatoria: true,
+          },
+          {
+            campo: "fechaCancelacion",
+            alias: ["FECHA CANCELACIÓN", "FECHA CANCELACION"],
+            obligatoria: true,
+          },
+          { campo: "tipoNegocio", alias: ["TIPO NEGOCIO"] },
+          { campo: "asegurado", alias: ["ASEGURADO"] },
+          { campo: "ccNit", alias: ["CC / NIT", "CC/NIT"] },
+          { campo: "placa", alias: ["PLACA"] },
+          { campo: "asesor", alias: ["ASESOR"] },
+          { campo: "aseguradora", alias: ["ASEGURADORA", "COMPAÑÍA", "COMPANIA"] },
+          { campo: "primaNeta", alias: ["PRIMA NETA"], obligatoria: true },
+          { campo: "primaTotal", alias: ["PRIMA TOTAL"] },
         ],
         "CANCELACIONES"
       );
+      res.advertencias.push(...avisos);
       if (errorEnc) {
         res.errores.push(errorEnc);
       } else {
+        const v = (f: Fila, campo: string) => celda(f, col, campo);
         const vistos = new Set<string>();
         const filas = filasDesde(ws, 3);
         filas.forEach((f, i) => {
           const filaExcel = i + 3;
-          // 0 PÓLIZA · 1 RAMO · 2 FECHA RENOVACION · 3 MES RENOVACIÓN ·
-          // 4 FECHA CANCELACIÓN · 5 MES CANCELACIÓN · 6 TIPO NEGOCIO ·
-          // 7 ASEGURADO · 8 CC/NIT · 9 PLACA · 10 ASESOR · 11 ASEGURADORA ·
-          // 12 PRIMA NETA · 13 PRIMA TOTAL
-          let poliza = texto(f[0]);
-          const ramo = texto(f[1]);
+          let poliza = texto(v(f, "poliza"));
+          const ramo = texto(v(f, "ramo"));
           if (!poliza && !ramo) return;
           res.leidos++;
           if (!ramo) {
@@ -492,9 +626,9 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             poliza = "S/N";
             res.advertencias.push(`CANCELACIONES fila ${filaExcel}: sin número de PÓLIZA; se importó como "S/N".`);
           }
-          const fechaRen = fecha(f[2]);
-          const fechaCan = fecha(f[4]);
-          const clave = `${poliza}|${ramo}|${fechaRen?.toISOString() ?? ""}|${fechaCan?.toISOString() ?? ""}|${texto(f[7]) ?? ""}|${numero(f[12])}`;
+          const fechaRen = fecha(v(f, "fechaRenovacion"));
+          const fechaCan = fecha(v(f, "fechaCancelacion"));
+          const clave = `${poliza}|${ramo}|${fechaRen?.toISOString() ?? ""}|${fechaCan?.toISOString() ?? ""}|${texto(v(f, "asegurado")) ?? ""}|${numero(v(f, "primaNeta"))}`;
           if (vistos.has(clave)) {
             res.duplicados++;
             res.advertencias.push(
@@ -507,14 +641,14 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             ramo,
             fechaRenovacion: fechaRen,
             fechaCancelacion: fechaCan,
-            tipoNegocio: texto(f[6])?.toUpperCase() ?? null,
-            asegurado: texto(f[7]),
-            ccNit: texto(f[8]),
-            placa: texto(f[9]),
-            asesor: texto(f[10]),
-            aseguradora: texto(f[11]),
-            primaNeta: numero(f[12]),
-            primaTotal: numero(f[13]),
+            tipoNegocio: texto(v(f, "tipoNegocio"))?.toUpperCase() ?? null,
+            asegurado: texto(v(f, "asegurado")),
+            ccNit: texto(v(f, "ccNit")),
+            placa: texto(v(f, "placa")),
+            asesor: texto(v(f, "asesor")),
+            aseguradora: texto(v(f, "aseguradora")),
+            primaNeta: numero(v(f, "primaNeta")),
+            primaTotal: numero(v(f, "primaTotal")),
           });
           res.importables++;
         });
@@ -533,27 +667,32 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
     if (!ws) {
       res.errores.push('No se encontró la hoja "BASE 2025".');
     } else {
-      const errorEnc = verificarEncabezado(
+      const { columnas: col, error: errorEnc, avisos } = mapearColumnas(
         ws,
         1,
         [
-          { col: 0, nombre: "PÓLIZA" },
-          { col: 2, nombre: "VENCIMIENTO" },
-          { col: 6, nombre: "PRIMA NETA" },
+          { campo: "poliza", alias: ["PÓLIZA", "POLIZA"], obligatoria: true },
+          { campo: "ramo", alias: ["RAMO"], obligatoria: true },
+          { campo: "vencimiento", alias: ["VENCIMIENTO"], obligatoria: true },
+          { campo: "mes", alias: ["MES"] },
+          { campo: "tipoNegocio", alias: ["TIPO NEGOCIO"] },
+          { campo: "asegurado", alias: ["ASEGURADO"] },
+          { campo: "primaNeta", alias: ["PRIMA NETA"], obligatoria: true },
+          { campo: "primaTotal", alias: ["PRIMA TOTAL"] },
         ],
         "BASE 2025"
       );
+      res.advertencias.push(...avisos);
       if (errorEnc) {
         res.errores.push(errorEnc);
       } else {
+        const v = (f: Fila, campo: string) => celda(f, col, campo);
         const vistos = new Set<string>();
         const filas = filasDesde(ws, 2);
         filas.forEach((f, i) => {
           const filaExcel = i + 2;
-          // 0 PÓLIZA · 1 RAMO · 2 VENCIMIENTO · 3 MES · 4 TIPO NEGOCIO ·
-          // 5 ASEGURADO · 6 PRIMA NETA · 7 PRIMA TOTAL
-          let poliza = texto(f[0]);
-          const ramo = texto(f[1]);
+          let poliza = texto(v(f, "poliza"));
+          const ramo = texto(v(f, "ramo"));
           if (!poliza && !ramo) return;
           res.leidos++;
           if (!ramo) {
@@ -564,8 +703,8 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             poliza = "S/N";
             res.advertencias.push(`BASE 2025 fila ${filaExcel}: sin número de PÓLIZA; se importó como "S/N".`);
           }
-          const vencimiento = fecha(f[2]);
-          const clave = `${poliza}|${ramo}|${vencimiento?.toISOString() ?? ""}|${texto(f[5]) ?? ""}|${numero(f[6])}`;
+          const vencimiento = fecha(v(f, "vencimiento"));
+          const clave = `${poliza}|${ramo}|${vencimiento?.toISOString() ?? ""}|${texto(v(f, "asegurado")) ?? ""}|${numero(v(f, "primaNeta"))}`;
           if (vistos.has(clave)) {
             res.duplicados++;
             res.advertencias.push(
@@ -579,11 +718,11 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             numero: poliza,
             ramo,
             vencimiento,
-            mes: mesDeFecha(vencimiento) ?? texto(f[3])?.toUpperCase() ?? null,
-            tipoNegocio: texto(f[4])?.toUpperCase() ?? null,
-            asegurado: texto(f[5]),
-            primaNeta: numero(f[6]),
-            primaTotal: numero(f[7]),
+            mes: mesDeFecha(vencimiento) ?? texto(v(f, "mes"))?.toUpperCase() ?? null,
+            tipoNegocio: texto(v(f, "tipoNegocio"))?.toUpperCase() ?? null,
+            asegurado: texto(v(f, "asegurado")),
+            primaNeta: numero(v(f, "primaNeta")),
+            primaTotal: numero(v(f, "primaTotal")),
           });
           res.importables++;
         });

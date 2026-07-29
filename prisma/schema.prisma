@@ -24,6 +24,10 @@ model Policy {
   placa           String?
   aseguradora     String?
   tipoNegocio     String? // NUEVO, RENOVACION, COASEGURO, INCLUSIÓN, ...
+  // Columna OBSERVACION del informe (añadida en julio de 2026). Es la nota
+  // que escribe el área técnica; no confundir con notaCartera, que es la
+  // observación de cobranza que se edita dentro de la aplicación.
+  observacion     String?
   asesor1         String?
   asesor2         String?
   primaNeta       Float     @default(0)

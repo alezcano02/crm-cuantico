@@ -29,9 +29,12 @@ const seg = calcularSeguimiento(
 //
 // IMPORTANTE: son una foto de un archivo concreto. El informe es un documento
 // vivo; cuando se agregan pólizas hay que refrescar estos números (última
-// actualización: archivo del 2026-07-24, que sumó producción en AUTOS).
+// actualización: archivo del 2026-07-29, que además CAMBIÓ LAS COLUMNAS de la
+// hoja DATOS: se insertó OBSERVACION y se eliminó FECHA PAGO).
 // Si el test falla, primero compruebe si el .xlsx cambió antes de sospechar
-// del motor de cálculo.
+// del motor de cálculo. Desde ese cambio las columnas se localizan por el
+// texto de su encabezado (ver mapearColumnas en lib/excel.ts), así que
+// agregar o mover columnas ya no descuadra la importación.
 //
 // Nota: el libro está en cálculo manual, por lo que las celdas de NUEVOS y
 // RENOVACIONES pueden guardar valores obsoletos; para esas dos columnas los
@@ -42,15 +45,15 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
     nombre: "CONSOLIDADO TOTAL",
     fila: seg.consolidado[12],
     valores: {
-      base: 6091314245.951177,
-      meta: 7375220160.1568775,
-      real: 4691676407.780336,
-      nuevos: 1672519763.4105883,
-      renovaciones: 2969268444.369748,
-      produccionCancelada: 321920675.9243697,
-      cancelaciones: 6054016.806722689,
-      neta: 4685622390.973614,
-      cumplimiento: 0.6353196635792289,
+      base: 6134473608.36495,
+      meta: 7432446667.632717,
+      real: 4776397759.587059,
+      nuevos: 1528222287.217311,
+      renovaciones: 3248175472.369748,
+      produccionCancelada: 328523493.9243697,
+      cancelaciones: 6477816.806722689,
+      neta: 4769919942.780336,
+      cumplimiento: 0.6417698176769544,
     },
   },
   {
@@ -59,13 +62,13 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
     valores: {
       base: 357829044.1344538,
       meta: 464398521.3046218,
-      real: 390146224,
-      nuevos: 113506171,
+      real: 392191418,
+      nuevos: 115551365,
       renovaciones: 276640053,
       produccionCancelada: 45995757,
       cancelaciones: 0,
-      neta: 390146224,
-      cumplimiento: 0.8401108231438229,
+      neta: 392191418,
+      cumplimiento: 0.8445147863482158,
     },
   },
   {
@@ -74,29 +77,29 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
     valores: {
       base: 383594607,
       meta: 569112043.1878151,
-      real: 1110217197.3193278,
-      nuevos: 672031053.9495798,
-      renovaciones: 438186143.3697479,
+      real: 1112465395.3193278,
+      nuevos: 572441781.9495798,
+      renovaciones: 540023613.3697479,
       produccionCancelada: 111285430.55462185,
       cancelaciones: 6054016.806722689,
-      neta: 1104163180.5126052,
-      cumplimiento: 1.940150790567993,
+      neta: 1106411378.5126052,
+      cumplimiento: 1.9441011515327813,
     },
   },
   {
     nombre: "RAMO AP TOTAL",
     fila: seg.porRamo.get("AP")![12],
-    valores: { base: 6808120, real: 9827146, nuevos: 350381, renovaciones: 9476765, neta: 9827146 },
+    valores: { base: 6808120, real: 9827146, nuevos: 154310, renovaciones: 9672836, neta: 9827146 },
   },
   {
     nombre: "RAMO ZONA COMUN (producción real)",
     fila: seg.porRamo.get("ZONA COMUN")![12],
-    valores: { real: 3256686375 },
+    valores: { real: 3328778322 },
   },
   {
     nombre: "RAMO AUTOS (producción real)",
     fila: seg.porRamo.get("AUTOS")![12],
-    valores: { real: 424288941.8307563 },
+    valores: { real: 430279888.637479 },
   },
 ];
 

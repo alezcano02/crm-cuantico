@@ -144,6 +144,17 @@ export const IconHistorial = (p: IconProps) =>
     </>
   ));
 
+export const IconRegalo = (p: IconProps) =>
+  base(p, (
+    <>
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8" />
+      <line x1="12" y1="8" x2="12" y2="21" />
+      <path d="M12 8H7.5a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8Z" />
+      <path d="M12 8h4.5a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8Z" />
+    </>
+  ));
+
 export const IconCarpeta = (p: IconProps) =>
   base(p, (
     <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />

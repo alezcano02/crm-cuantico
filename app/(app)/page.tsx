@@ -26,6 +26,7 @@ import {
   IconCartera,
   IconDinero,
   IconFlecha,
+  IconRegalo,
   IconRenovar,
 } from "@/components/icons";
 
@@ -116,7 +117,7 @@ export default async function Dashboard() {
             <h2 className="mb-2.5 text-[13px] font-semibold tracking-wide text-ink-secondary">
               Requiere atención
             </h2>
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
               <StatCard
                 etiqueta="Vencidas sin renovar"
                 valor={fmtNum(operativo.vencidas)}
@@ -148,6 +149,14 @@ export default async function Dashboard() {
                 acento={operativo.canceladasMes > 0 ? "amarillo" : undefined}
                 href="/cancelaciones"
                 Icono={IconCancelar}
+              />
+              <StatCard
+                etiqueta="Cumpleaños esta semana"
+                valor={fmtNum(operativo.cumpleSemana)}
+                detalle="Clientes para felicitar"
+                acento={operativo.cumpleSemana > 0 ? "verde" : undefined}
+                href="/cumpleanos"
+                Icono={IconRegalo}
               />
             </div>
           </section>

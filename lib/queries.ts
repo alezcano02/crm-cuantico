@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { pareceEmpresa, proximoCumpleanos } from "./cumpleanos";
 import {
   calcularSeguimiento,
   hoyUTC,
@@ -94,12 +95,34 @@ export async function resumenOperativo() {
       }),
     ]);
 
+  // Cumpleaños de los próximos 7 días (se compara día y mes, no el año).
+  let cumpleSemana = 0;
+  try {
+    const conFecha = await prisma.policy.findMany({
+      where: { fechaNacimiento: { not: null } },
+      select: { asegurado: true, fechaNacimiento: true },
+    });
+    const vistos = new Set<string>();
+    for (const p of conFecha) {
+      if (!p.fechaNacimiento) continue;
+      const clave = p.asegurado.trim().toUpperCase();
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      const prox = proximoCumpleanos(p.fechaNacimiento, hoy);
+      const dias = Math.round((prox.getTime() - hoy.getTime()) / 86400000);
+      if (dias <= 7 && !pareceEmpresa(p.asegurado)) cumpleSemana++;
+    }
+  } catch {
+    cumpleSemana = 0;
+  }
+
   return {
     vencidas,
     sinGestionar,
     proximas,
     mora,
     canceladasMes,
+    cumpleSemana,
     primaMora: primaMora._sum.primaTotal ?? 0,
   };
 }
