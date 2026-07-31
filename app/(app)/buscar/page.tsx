@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { diasAlVence, semaforoVencimiento } from "@/lib/calculos";
 import { fmtCOP, fmtFecha } from "@/lib/format";
@@ -33,18 +34,23 @@ export default async function BuscarPage({
       }
     : undefined;
 
-  const [polizas, otras] = q
+  const [polizas, otras, canceladas] = q
     ? await Promise.all([
         prisma.policy.findMany({ where: filtro, take: 100, orderBy: { asegurado: "asc" } }),
         prisma.otherPolicy.findMany({ where: filtro, take: 100, orderBy: { asegurado: "asc" } }),
+        prisma.cancellation.findMany({
+          where: filtro,
+          take: 100,
+          orderBy: [{ fechaCancelacion: "desc" }, { fechaRenovacion: "desc" }],
+        }),
       ])
-    : [[], []];
+    : [[], [], []];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        titulo="Búsqueda de pólizas"
-        descripcion="Por número de póliza, nombre de asegurado o CC/NIT"
+        titulo="Búsqueda"
+        descripcion="Por número de póliza, nombre de asegurado o CC/NIT, en la cartera activa, en otras pólizas y en las cancelaciones"
       />
 
       <form method="get" className="flex max-w-xl gap-2">
@@ -151,6 +157,76 @@ export default async function BuscarPage({
                         <Td>{fmtFecha(p.vencimiento)}</Td>
                         <Td>
                           <EstadoPagoBadge estado={p.estadoPago} />
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <CardTitle
+              accion={
+                canceladas.length > 0 ? (
+                  <Link
+                    href="/cancelaciones"
+                    className="text-xs font-medium text-brand hover:underline"
+                  >
+                    Ver histórico
+                  </Link>
+                ) : undefined
+              }
+            >
+              Cancelaciones · {canceladas.length} resultado{canceladas.length !== 1 && "s"}
+            </CardTitle>
+            {canceladas.length === 0 ? (
+              <p className="text-sm text-ink-muted">Sin coincidencias en las cancelaciones.</p>
+            ) : (
+              <div className="overflow-x-auto scroll-fino">
+                <table className="w-full border-collapse whitespace-nowrap">
+                  <thead>
+                    <tr>
+                      <Th>Asegurado</Th>
+                      <Th>CC/NIT</Th>
+                      <Th>Ramo</Th>
+                      <Th>Aseguradora</Th>
+                      <Th>Póliza</Th>
+                      <Th derecha>Prima neta</Th>
+                      <Th>Fecha renovación</Th>
+                      <Th>Fecha cancelación</Th>
+                      <Th>Motivo</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {canceladas.map((c) => (
+                      <tr key={c.id} className="hover:bg-surface-page">
+                        <Td className="font-medium">
+                          {c.asegurado ?? "—"}
+                          {c.manual && (
+                            <span
+                              className="ml-1.5 rounded bg-brand-light/60 px-1 py-0.5 text-[10px] font-semibold text-brand-dark"
+                              title="Registrada desde la aplicación"
+                            >
+                              app
+                            </span>
+                          )}
+                        </Td>
+                        <Td>{c.ccNit ?? "—"}</Td>
+                        <Td>{c.ramo}</Td>
+                        <Td>{c.aseguradora ?? "—"}</Td>
+                        <Td>{c.numero}</Td>
+                        <Td derecha>{fmtCOP(c.primaNeta)}</Td>
+                        <Td>{fmtFecha(c.fechaRenovacion)}</Td>
+                        <Td>{fmtFecha(c.fechaCancelacion)}</Td>
+                        <Td>
+                          <div
+                            className="max-w-[220px] truncate text-xs text-ink-secondary"
+                            title={c.motivo ?? undefined}
+                          >
+                            {c.motivo ?? "—"}
+                          </div>
                         </Td>
                       </tr>
                     ))}
