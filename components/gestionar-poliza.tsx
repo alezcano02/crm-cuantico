@@ -4,6 +4,7 @@ import { useState } from "react";
 import clsx from "clsx";
 import type { ListasFormulario } from "@/lib/queries";
 import { fmtCOP, fmtFecha } from "@/lib/format";
+import { primaNoCausada } from "@/lib/calculos";
 import {
   IconCancelar,
   IconCarpeta,
@@ -796,6 +797,39 @@ function PanelCancelar({
           />
         </div>
       </div>
+
+      {/* Vista previa de lo que se descontará. Sale solo con la fecha de
+          cancelación: es la prima no causada, o sea la devolución al cliente. */}
+      {!noRenovada && (
+        <div className="mt-3 rounded-lg bg-surface-page px-3 py-2.5 text-xs">
+          {(() => {
+            const fc = fechaCancelacion ? new Date(fechaCancelacion + "T00:00:00Z") : null;
+            const fv = fechaRenovacion ? new Date(fechaRenovacion + "T00:00:00Z") : null;
+            const noCausada = primaNoCausada(poliza.primaNeta, fc, fv);
+            const dias =
+              fc && fv ? Math.round((fv.getTime() - fc.getTime()) / 86400000) : null;
+            return (
+              <>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-ink-secondary">
+                    Se descontará de las cancelaciones del mes:
+                  </span>
+                  <span className="tabla-num font-bold text-status-critical">
+                    −{fmtCOP(noCausada)}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-ink-muted">
+                  {dias == null
+                    ? "Sin las dos fechas no se puede prorratear: se descuenta la prima completa."
+                    : dias <= 0
+                      ? "La vigencia ya había terminado: no hay prima por devolver."
+                      : `Prima no causada: ${dias} días que faltaban de vigencia, sobre una prima neta de ${fmtCOP(poliza.primaNeta)}.`}
+                </p>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       <label className="mt-4 block">
         <span className={claseLabel}>

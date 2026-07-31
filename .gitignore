@@ -11,3 +11,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Base local de SQLite que se usa al desarrollar (nunca se despliega)
+prisma/dev.db
+prisma/dev.db-journal

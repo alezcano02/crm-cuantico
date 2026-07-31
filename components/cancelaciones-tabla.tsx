@@ -7,6 +7,7 @@ import { MESES } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { StatCard, Td, Th } from "@/components/ui";
 import { BotonExportar } from "@/components/boton-exportar";
+import { primaNoCausada } from "@/lib/calculos";
 import { IconEditar } from "@/components/icons";
 
 export interface CancelacionVista {
@@ -27,6 +28,19 @@ export interface CancelacionVista {
 }
 
 type CampoFecha = "fechaCancelacion" | "fechaRenovacion";
+
+/**
+ * Lo que realmente se descuenta al cancelar: la prima no causada, es decir la
+ * devolución al cliente por los días que le faltaban de vigencia. Se calcula
+ * sola a partir de la fecha de cancelación y la de renovación (fin de vigencia).
+ */
+function noCausadaDe(c: CancelacionVista): number {
+  return primaNoCausada(
+    c.primaNeta,
+    c.fechaCancelacion ? new Date(c.fechaCancelacion) : null,
+    c.fechaRenovacion ? new Date(c.fechaRenovacion) : null
+  );
+}
 
 function normalizar(v: string): string {
   return v.trim().replace(/\s+/g, " ");
@@ -91,6 +105,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
   }, [cancelaciones, campo, anio, mes, desde, hasta, ramo, aseguradora, asesor, q]);
 
   const totalPrima = filtradas.reduce((s, c) => s + c.primaNeta, 0);
+  const totalNoCausada = filtradas.reduce((s, c) => s + noCausadaDe(c), 0);
 
   // Desglose por año del campo de fecha elegido
   const porAnio = useMemo(() => {
@@ -136,11 +151,24 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
           detalle={fmtCOP(totalPrima)}
           acento={totalPrima > 0 ? "rojo" : undefined}
         />
-        <StatCard
-          etiqueta="Prima promedio"
-          valor={fmtCOPCompact(filtradas.length ? totalPrima / filtradas.length : 0)}
-          detalle="Por póliza cancelada"
-        />
+        {/* Lo que de verdad se descuenta del seguimiento: la devolución al
+            cliente. Solo tiene sentido al mirar por fecha de cancelación; por
+            fecha de renovación la métrica es la producción cancelada, que va
+            con la prima completa. */}
+        {campo === "fechaCancelacion" ? (
+          <StatCard
+            etiqueta="Prima no causada"
+            valor={fmtCOPCompact(totalNoCausada)}
+            detalle="Devolución al cliente · es lo que descuenta el seguimiento"
+            acento={totalNoCausada > 0 ? "rojo" : undefined}
+          />
+        ) : (
+          <StatCard
+            etiqueta="Prima promedio"
+            valor={fmtCOPCompact(filtradas.length ? totalPrima / filtradas.length : 0)}
+            detalle="Por póliza cancelada"
+          />
+        )}
         <StatCard
           etiqueta="Años con registro"
           valor={fmtNum(porAnio.length)}
@@ -273,6 +301,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
             },
             { encabezado: "Prima neta", valor: (c) => c.primaNeta },
             { encabezado: "Prima total", valor: (c) => c.primaTotal },
+            { encabezado: "Prima no causada (devolución)", valor: (c) => noCausadaDe(c) },
             { encabezado: "Motivo", valor: (c) => c.motivo ?? "" },
             { encabezado: "Origen", valor: (c) => (c.manual ? "APP" : "EXCEL") },
           ]}
@@ -292,6 +321,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
               <Th>Fecha renovación</Th>
               <Th>Fecha cancelación</Th>
               <Th derecha>Prima neta</Th>
+              <Th derecha>No causada</Th>
               <Th />
             </tr>
           </thead>
@@ -326,6 +356,13 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
                 <Td derecha className="font-semibold">
                   {fmtCOP(c.primaNeta)}
                 </Td>
+                <Td
+                  derecha
+                  className="text-status-critical"
+                  title="Devolución al cliente por los días que faltaban de vigencia"
+                >
+                  {c.fechaCancelacion ? fmtCOP(noCausadaDe(c)) : "—"}
+                </Td>
                 <Td>
                   <button
                     onClick={() => setEditando(c)}
@@ -340,7 +377,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={10}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={11}>
                   No hay cancelaciones que cumplan los filtros.
                 </Td>
               </tr>

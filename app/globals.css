@@ -6,6 +6,21 @@ body {
   @apply bg-surface-page text-ink antialiased;
 }
 
+/* Etiqueta en versalitas, como los botones de cuanticoseguros.com.co */
+.etiqueta-marca {
+  font-family: var(--fuente-barlow-condensed), system-ui, sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.085em;
+}
+
+/* Titular con la serif de la marca */
+.titular {
+  font-family: var(--fuente-cormorant), Georgia, serif;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+
 .tabla-num {
   font-variant-numeric: tabular-nums;
 }

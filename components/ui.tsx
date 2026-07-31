@@ -33,9 +33,7 @@ export function CardTitle({
 }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3">
-      <h2 className="text-[13px] font-semibold tracking-wide text-ink-secondary">
-        {children}
-      </h2>
+      <h2 className="etiqueta-marca text-[12px] text-ink-secondary">{children}</h2>
       {accion}
     </div>
   );
@@ -67,9 +65,7 @@ export function StatCard({
   const contenido = (
     <>
       <div className="flex items-start justify-between gap-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-          {etiqueta}
-        </div>
+        <div className="etiqueta-marca text-[11px] text-ink-muted">{etiqueta}</div>
         {Icono && <Icono className="h-4 w-4 shrink-0 text-ink-muted/70" />}
       </div>
       <div
@@ -228,9 +224,7 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line-grid pb-4">
       <div className="min-w-0">
-        <h1 className="text-[22px] font-bold leading-tight tracking-tight text-ink">
-          {titulo}
-        </h1>
+        <h1 className="titular text-[30px] leading-tight text-brand">{titulo}</h1>
         {descripcion && (
           <p className="mt-1 text-sm text-ink-muted">{descripcion}</p>
         )}
@@ -353,15 +347,19 @@ export function Td({
   className,
   derecha,
   colSpan,
+  title,
 }: {
   children?: React.ReactNode;
   className?: string;
   derecha?: boolean;
   colSpan?: number;
+  /** Tooltip nativo, para explicar una cifra sin ocupar espacio en la tabla. */
+  title?: string;
 }) {
   return (
     <td
       colSpan={colSpan}
+      title={title}
       className={clsx(
         "border-b border-line-grid px-2.5 py-1.5 text-sm",
         derecha && "text-right tabla-num",

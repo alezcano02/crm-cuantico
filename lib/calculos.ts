@@ -178,7 +178,66 @@ export function baseHistorica(historicas: HistoricaRow[]): MatrizRamoMes {
   return matriz;
 }
 
-/** Cancelaciones agrupadas por mes de una fecha, filtrando por año de esa fecha. */
+/**
+ * Prima no causada: lo que realmente se pierde al cancelar una póliza.
+ *
+ * Cuando un cliente cancela a mitad de vigencia, la agencia solo devuelve la
+ * parte proporcional a los días que le faltaban; lo ya transcurrido queda
+ * causado. Por eso la métrica de CANCELACIONES no descuenta la prima
+ * completa, sino esta porción:
+ *
+ *     prima no causada = prima neta × (días que faltaban / días de vigencia)
+ *
+ * El fin de la vigencia es la FECHA DE RENOVACIÓN (la fecha en que la póliza
+ * iba a renovarse) y el inicio se toma un año antes, porque las pólizas de la
+ * agencia son anuales. Así basta con registrar la fecha de cancelación para
+ * que el valor salga solo.
+ *
+ * Ojo: esto NO aplica a PRODUCCIÓN CANCELADA, que sigue contando la prima
+ * completa porque mide la producción que se deja de renovar, no el dinero
+ * devuelto.
+ */
+export function primaNoCausada(
+  primaNeta: number,
+  fechaCancelacion: Date | null,
+  finVigencia: Date | null
+): number {
+  const prima = primaNeta || 0;
+  if (prima === 0) return 0;
+  // Sin alguna de las dos fechas no se puede prorratear; se cuenta completa
+  // para no subestimar las cancelaciones por un dato faltante.
+  if (!fechaCancelacion || !finVigencia) return prima;
+
+  const inicioVigencia = new Date(
+    Date.UTC(
+      finVigencia.getUTCFullYear() - 1,
+      finVigencia.getUTCMonth(),
+      finVigencia.getUTCDate()
+    )
+  );
+  const diasVigencia = Math.round(
+    (finVigencia.getTime() - inicioVigencia.getTime()) / 86400000
+  );
+  if (diasVigencia <= 0) return prima;
+
+  const diasRestantes = Math.round(
+    (finVigencia.getTime() - fechaCancelacion.getTime()) / 86400000
+  );
+  // Ya se había cumplido la vigencia: no hay nada que devolver.
+  if (diasRestantes <= 0) return 0;
+  // Se canceló antes de que empezara: se devuelve todo.
+  if (diasRestantes >= diasVigencia) return prima;
+
+  return (prima * diasRestantes) / diasVigencia;
+}
+
+/**
+ * Cancelaciones agrupadas por mes de una fecha, filtrando por año de esa fecha.
+ *
+ * Según el campo cambia lo que se suma:
+ *  · fechaRenovacion → PRODUCCIÓN CANCELADA, con la prima completa.
+ *  · fechaCancelacion → CANCELACIONES, con la prima no causada (la devolución).
+ */
 export function cancelacionesPorMes(
   cancelaciones: CancelacionRow[],
   anio: number,
@@ -188,7 +247,11 @@ export function cancelacionesPorMes(
   for (const c of cancelaciones) {
     const fecha = c[campo];
     if (!fecha || fecha.getUTCFullYear() !== anio) continue;
-    sumar(matriz, c.ramo, fecha.getUTCMonth(), c.primaNeta || 0);
+    const valor =
+      campo === "fechaCancelacion"
+        ? primaNoCausada(c.primaNeta, c.fechaCancelacion, c.fechaRenovacion)
+        : c.primaNeta || 0;
+    sumar(matriz, c.ramo, fecha.getUTCMonth(), valor);
   }
   return matriz;
 }

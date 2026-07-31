@@ -65,19 +65,19 @@ export function LogoCompleto({
     <div className={`flex items-center gap-3 ${className}`}>
       <LogoMarca
         className="h-9 w-9 shrink-0"
-        orbita={claro ? "#ffffff" : "#123b5e"}
+        orbita={claro ? "#ffffff" : "#132240"}
         nodo={claro ? "rgba(255,255,255,0.45)" : "#9a9a9a"}
       />
       <div className="leading-none">
         <div
-          className={`font-serif text-[15px] font-bold tracking-[0.14em] ${
+          className={`font-display text-[19px] font-normal tracking-[0.16em] ${
             claro ? "text-white" : "text-brand"
           }`}
         >
           CUÁNTICO
         </div>
         <div
-          className={`mt-1 font-serif text-[9.5px] font-semibold tracking-[0.2em] ${
+          className={`mt-1 font-condensada text-[9px] font-semibold uppercase tracking-[0.22em] ${
             claro ? "text-white/55" : "text-ink-muted"
           }`}
         >

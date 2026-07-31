@@ -127,7 +127,7 @@ export function AppShell({
       <nav className="flex-1 overflow-y-auto scroll-fino px-3 pb-4">
         {GRUPOS.map((grupo) => (
           <div key={grupo.titulo} className="mb-4">
-            <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+            <div className="etiqueta-marca px-3 pb-1.5 text-[10px] text-white/35">
               {grupo.titulo}
             </div>
             <div className="flex flex-col gap-0.5">
@@ -214,7 +214,7 @@ export function AppShell({
   return (
     <div className="min-h-screen">
       {/* Barra lateral fija en escritorio */}
-      <aside className="no-imprimir fixed inset-y-0 left-0 z-40 hidden w-60 flex-col bg-brand-900 lg:flex">
+      <aside className="no-imprimir fixed inset-y-0 left-0 z-40 hidden w-60 flex-col bg-brand-800 lg:flex">
         {barra}
       </aside>
 
@@ -240,8 +240,8 @@ export function AppShell({
           </svg>
         </button>
         <Link href="/" className="flex items-center gap-2">
-          <LogoMarca className="h-6 w-6" orbita="#123b5e" nodo="#9a9a9a" />
-          <span className="font-serif text-sm font-bold tracking-widest text-brand">
+          <LogoMarca className="h-6 w-6" orbita="#132240" nodo="#9a9a9a" />
+          <span className="font-display text-sm font-bold tracking-widest text-brand">
             CUÁNTICO
           </span>
         </Link>
@@ -261,7 +261,7 @@ export function AppShell({
           onClick={() => setMenuAbierto(false)}
         >
           <aside
-            className="flex h-full w-64 flex-col bg-brand-900"
+            className="flex h-full w-64 flex-col bg-brand-800"
             onClick={(e) => e.stopPropagation()}
           >
             {barra}

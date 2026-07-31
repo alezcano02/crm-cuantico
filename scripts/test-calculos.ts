@@ -7,13 +7,16 @@
  */
 import { readFileSync } from "fs";
 import { parsearLibro } from "../lib/excel";
-import { calcularSeguimiento, FilaSeguimiento } from "../lib/calculos";
+import { calcularSeguimiento, FilaSeguimiento, primaNoCausada } from "../lib/calculos";
 
 const ruta = process.argv[2];
 if (!ruta) {
   console.error('Uso: npx tsx scripts/test-calculos.ts "<ruta al .xlsx>"');
   process.exit(1);
 }
+
+/** Informe del que se tomaron los valores esperados de más abajo. */
+const ARCHIVO_ESPERADO = "2026-07-29";
 
 const datos = parsearLibro(readFileSync(ruta));
 const seg = calcularSeguimiento(
@@ -40,6 +43,27 @@ const seg = calcularSeguimiento(
 // RENOVACIONES pueden guardar valores obsoletos; para esas dos columnas los
 // valores esperados se recalculan de forma independiente aplicando las mismas
 // fórmulas SUMIFS de la hoja sobre los datos crudos de DATOS.
+//
+// CANCELACIONES ya NO se compara contra el Excel a propósito: la hoja descuenta
+// la prima completa, mientras que la aplicación descuenta solo la prima no
+// causada (lo que de verdad se le devuelve al cliente por los días que le
+// faltaban de vigencia). Aquí se recalcula esa cifra de forma independiente, y
+// con ella la producción neta y el cumplimiento, que dependen de ella.
+const cancelacionesDe = (mes?: number) =>
+  datos.cancellations
+    .filter(
+      (c) =>
+        c.fechaCancelacion?.getUTCFullYear() === 2026 &&
+        (mes === undefined || c.fechaCancelacion.getUTCMonth() === mes)
+    )
+    .reduce(
+      (suma, c) => suma + primaNoCausada(c.primaNeta, c.fechaCancelacion, c.fechaRenovacion),
+      0
+    );
+
+const cancTotal = cancelacionesDe();
+const cancEnero = cancelacionesDe(0);
+const cancFebrero = cancelacionesDe(1);
 const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Record<keyof FilaSeguimiento, number>> }[] = [
   {
     nombre: "CONSOLIDADO TOTAL",
@@ -51,9 +75,10 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
       nuevos: 1528222287.217311,
       renovaciones: 3248175472.369748,
       produccionCancelada: 328523493.9243697,
-      cancelaciones: 6477816.806722689,
-      neta: 4769919942.780336,
-      cumplimiento: 0.6417698176769544,
+      // Recalculadas: dependen de la prima no causada, no de la hoja.
+      cancelaciones: cancTotal,
+      neta: 4776397759.587059 - cancTotal,
+      cumplimiento: (4776397759.587059 - cancTotal) / 7432446667.632717,
     },
   },
   {
@@ -66,9 +91,9 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
       nuevos: 115551365,
       renovaciones: 276640053,
       produccionCancelada: 45995757,
-      cancelaciones: 0,
-      neta: 392191418,
-      cumplimiento: 0.8445147863482158,
+      cancelaciones: cancEnero,
+      neta: 392191418 - cancEnero,
+      cumplimiento: (392191418 - cancEnero) / 464398521.3046218,
     },
   },
   {
@@ -81,9 +106,9 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
       nuevos: 572441781.9495798,
       renovaciones: 540023613.3697479,
       produccionCancelada: 111285430.55462185,
-      cancelaciones: 6054016.806722689,
-      neta: 1106411378.5126052,
-      cumplimiento: 1.9441011515327813,
+      cancelaciones: cancFebrero,
+      neta: 1112465395.3193278 - cancFebrero,
+      cumplimiento: (1112465395.3193278 - cancFebrero) / 569112043.1878151,
     },
   },
   {
@@ -120,4 +145,13 @@ for (const { nombre, fila, valores } of esperados) {
 console.log(
   `\n${fallos === 0 ? "✔ TODOS LOS VALORES COINCIDEN CON LA HOJA SEGUIMIENTO 2026" : `✘ ${fallos} diferencias`}`
 );
+if (fallos > 0) {
+  console.log(
+    `\nEsta prueba compara contra una foto del informe del ${ARCHIVO_ESPERADO}.\n` +
+      "Antes de sospechar del motor de cálculo, confirme que ese es el archivo que\n" +
+      "le pasó. Con un informe anterior a esa fecha las diferencias son normales:\n" +
+      "son otros datos, y hasta julio la hoja CANCELACIONES no traía las columnas\n" +
+      "FECHA RENOVACIÓN y FECHA CANCELACIÓN (sin ellas se importan 0 cancelaciones)."
+  );
+}
 process.exit(fallos === 0 ? 0 : 1);
