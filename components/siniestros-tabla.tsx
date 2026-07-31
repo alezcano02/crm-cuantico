@@ -11,7 +11,8 @@ import {
 import { fmtCOP, fmtCOPCompact, fmtFecha } from "@/lib/format";
 import { StatCard, Td, Th } from "@/components/ui";
 import { BotonExportar } from "@/components/boton-exportar";
-import { IconCheck } from "@/components/icons";
+import { IconCarpeta, IconCheck } from "@/components/icons";
+import { urlBusqueda } from "@/lib/carpetas";
 
 export interface SiniestroVista {
   id: number;
@@ -422,11 +423,20 @@ function ModalSiniestro({
   onCerrar: () => void;
   onGuardado: () => void;
 }) {
-  const [pestania, setPestania] = useState<"seguimiento" | "caso" | "editar">("seguimiento");
+  const [pestania, setPestania] = useState<
+    "seguimiento" | "caso" | "documentos" | "editar"
+  >("seguimiento");
   const [nota, setNota] = useState("");
   const [estadoTexto, setEstadoTexto] = useState(s.estadoTexto ?? "");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Para cerrar hay que confirmar el pago, así que el botón abre un formulario
+  // en vez de cerrar de una vez.
+  const [cerrando, setCerrando] = useState(false);
+  const [fechaPago, setFechaPago] = useState(s.fechaPago ? s.fechaPago.slice(0, 10) : "");
+  const [valorPagado, setValorPagado] = useState(
+    s.valorPagado != null ? String(s.valorPagado) : ""
+  );
 
   const hoy = new Date();
   const hoyISO = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
@@ -478,6 +488,12 @@ function ModalSiniestro({
             </button>
             <button onClick={() => setPestania("caso")} className={claseTab(pestania === "caso")}>
               Historia del caso
+            </button>
+            <button
+              onClick={() => setPestania("documentos")}
+              className={claseTab(pestania === "documentos")}
+            >
+              Documentos
             </button>
             <button onClick={() => setPestania("editar")} className={claseTab(pestania === "editar")}>
               Editar datos
@@ -547,14 +563,72 @@ function ModalSiniestro({
 
               {error && <p className="mt-3 text-sm text-status-critical">{error}</p>}
 
-              <div className="mt-5 flex items-center gap-2 border-t border-line-grid pt-4">
-                <button
-                  onClick={() => enviar({ cerrado: !s.cerrado })}
-                  disabled={guardando}
-                  className="rounded-lg border border-line-axis px-3 py-1.5 text-sm font-medium text-ink-secondary hover:bg-surface-page"
-                >
-                  {s.cerrado ? "Reabrir caso" : "Marcar como cerrado"}
-                </button>
+              {/* Para cerrar el caso primero hay que confirmar el pago */}
+              {cerrando && !s.cerrado && (
+                <div className="mt-4 rounded-lg border border-status-good/40 bg-status-good/5 p-3">
+                  <p className="text-xs text-ink-secondary">
+                    Antes de cerrar el caso confirme el pago. Si se objetó o no
+                    hubo indemnización, escriba <b>0</b> en el valor.
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={claseLabel}>Fecha de confirmación del pago *</label>
+                      <input
+                        type="date"
+                        className={claseInput}
+                        value={fechaPago}
+                        onChange={(e) => setFechaPago(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className={claseLabel}>Valor pagado *</label>
+                      <input
+                        type="number"
+                        className={claseInput}
+                        value={valorPagado}
+                        onChange={(e) => setValorPagado(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line-grid pt-4">
+                {s.cerrado ? (
+                  <button
+                    onClick={() => enviar({ cerrado: false })}
+                    disabled={guardando}
+                    className="rounded-lg border border-line-axis px-3 py-1.5 text-sm font-medium text-ink-secondary hover:bg-surface-page"
+                  >
+                    Reabrir caso
+                  </button>
+                ) : cerrando ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => enviar({ cerrado: true, fechaPago, valorPagado })}
+                      disabled={guardando}
+                      className="rounded-lg bg-status-good px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                    >
+                      Confirmar pago y cerrar
+                    </button>
+                    <button
+                      onClick={() => setCerrando(false)}
+                      disabled={guardando}
+                      className="rounded-lg px-2 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
+                    >
+                      Volver
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setCerrando(true)}
+                    disabled={guardando}
+                    className="rounded-lg border border-line-axis px-3 py-1.5 text-sm font-medium text-ink-secondary hover:bg-surface-page"
+                  >
+                    Cerrar caso…
+                  </button>
+                )}
                 <div className="ml-auto flex gap-2">
                   <button
                     onClick={onCerrar}
@@ -619,6 +693,45 @@ function ModalSiniestro({
 
               {s.origen && (
                 <p className="text-[11px] text-ink-muted">Procedencia: {s.origen}</p>
+              )}
+            </div>
+          )}
+
+          {pestania === "documentos" && (
+            <div>
+              <p className="rounded-lg bg-surface-page px-3 py-2 text-xs text-ink-secondary">
+                Los soportes del siniestro están en la unidad compartida de la
+                empresa. El botón abre el buscador de SharePoint con el nombre
+                del cliente ya escrito, en una pestaña nueva.
+              </p>
+              <a
+                href={urlBusqueda(s.asegurado)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
+              >
+                <IconCarpeta className="h-4 w-4" />
+                Buscar en SharePoint
+              </a>
+              <p className="mt-2.5 text-xs text-ink-muted">
+                Se buscará:{" "}
+                <span className="font-medium text-ink-secondary">{s.asegurado}</span>
+              </p>
+
+              {s.radicado && (
+                <>
+                  <p className="mt-4 text-xs text-ink-muted">
+                    Si los soportes están archivados por el número del caso:
+                  </p>
+                  <a
+                    href={urlBusqueda(s.radicado)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1.5 inline-flex items-center gap-2 rounded-lg border border-line-axis px-3 py-1.5 text-sm font-medium text-ink-secondary hover:border-brand-300 hover:text-brand"
+                  >
+                    Buscar por radicado {s.radicado}
+                  </a>
+                </>
               )}
             </div>
           )}

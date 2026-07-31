@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import clsx from "clsx";
 import { fmtCOP, fmtCOPCompact, fmtFecha, fmtNum } from "@/lib/format";
 import { MESES } from "@/lib/constants";
+import { useRouter } from "next/navigation";
 import { StatCard, Td, Th } from "@/components/ui";
 import { BotonExportar } from "@/components/boton-exportar";
+import { IconEditar } from "@/components/icons";
 
 export interface CancelacionVista {
   id: number;
@@ -20,6 +22,7 @@ export interface CancelacionVista {
   aseguradora: string | null;
   primaNeta: number;
   primaTotal: number;
+  motivo: string | null;
   manual: boolean;
 }
 
@@ -36,6 +39,8 @@ function opciones(valores: (string | null)[]): string[] {
 }
 
 export function CancelacionesTabla({ cancelaciones }: { cancelaciones: CancelacionVista[] }) {
+  const router = useRouter();
+  const [editando, setEditando] = useState<CancelacionVista | null>(null);
   const [campo, setCampo] = useState<CampoFecha>("fechaCancelacion");
   const [anio, setAnio] = useState("");
   const [mes, setMes] = useState("");
@@ -268,6 +273,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
             },
             { encabezado: "Prima neta", valor: (c) => c.primaNeta },
             { encabezado: "Prima total", valor: (c) => c.primaTotal },
+            { encabezado: "Motivo", valor: (c) => c.motivo ?? "" },
             { encabezado: "Origen", valor: (c) => (c.manual ? "APP" : "EXCEL") },
           ]}
         />
@@ -286,6 +292,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
               <Th>Fecha renovación</Th>
               <Th>Fecha cancelación</Th>
               <Th derecha>Prima neta</Th>
+              <Th />
             </tr>
           </thead>
           <tbody>
@@ -319,17 +326,225 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
                 <Td derecha className="font-semibold">
                   {fmtCOP(c.primaNeta)}
                 </Td>
+                <Td>
+                  <button
+                    onClick={() => setEditando(c)}
+                    title="Editar cancelación"
+                    className="inline-flex items-center gap-1 rounded-lg border border-brand/40 px-2.5 py-1 text-xs font-semibold text-brand hover:bg-brand-light/40"
+                  >
+                    <IconEditar className="h-3.5 w-3.5" />
+                    Editar
+                  </button>
+                </Td>
               </tr>
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={9}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={10}>
                   No hay cancelaciones que cumplan los filtros.
                 </Td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {editando && (
+        <ModalCancelacion
+          cancelacion={editando}
+          onCerrar={() => setEditando(null)}
+          onGuardado={() => {
+            setEditando(null);
+            router.refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Edición de una cancelación del histórico
+//
+// Las dos fechas mueven métricas distintas del seguimiento de producción:
+// la de renovación suma a "producción cancelada" y la de cancelación a
+// "cancelaciones" del mes. Por eso se editan por separado y con su aviso.
+// ---------------------------------------------------------------------------
+
+const claseInput =
+  "w-full rounded-md border border-line-axis bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
+const claseLabel = "block text-xs font-semibold uppercase tracking-wide text-ink-muted";
+
+function ModalCancelacion({
+  cancelacion: c,
+  onCerrar,
+  onGuardado,
+}: {
+  cancelacion: CancelacionVista;
+  onCerrar: () => void;
+  onGuardado: () => void;
+}) {
+  const soloFecha = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
+  const [f, setF] = useState({
+    numero: c.numero,
+    ramo: c.ramo,
+    asegurado: c.asegurado ?? "",
+    ccNit: c.ccNit ?? "",
+    placa: "",
+    aseguradora: c.aseguradora ?? "",
+    asesor: c.asesor ?? "",
+    tipoNegocio: c.tipoNegocio ?? "",
+    motivo: c.motivo ?? "",
+    fechaRenovacion: soloFecha(c.fechaRenovacion),
+    fechaCancelacion: soloFecha(c.fechaCancelacion),
+    primaNeta: c.primaNeta,
+    primaTotal: c.primaTotal,
+  });
+  const [guardando, setGuardando] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const campo = (k: keyof typeof f) => ({
+    value: f[k] as string | number,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setF({ ...f, [k]: e.target.value }),
+  });
+
+  const enviar = async (metodo: "PATCH" | "DELETE") => {
+    setGuardando(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/cancelaciones/${c.id}`, {
+        method: metodo,
+        headers: { "Content-Type": "application/json" },
+        body: metodo === "PATCH" ? JSON.stringify(f) : undefined,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "No se pudo guardar.");
+      onGuardado();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/45 p-4 py-[6vh]"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-2xl rounded-xl bg-surface p-6 shadow-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-bold">Editar cancelación {c.numero}</h3>
+        <p className="mt-0.5 text-xs text-ink-muted">
+          Cambiar las fechas mueve las cifras del seguimiento de producción.
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3">
+          <div>
+            <label className={claseLabel}>Póliza *</label>
+            <input className={claseInput} {...campo("numero")} />
+          </div>
+          <div>
+            <label className={claseLabel}>Ramo *</label>
+            <input className={claseInput} {...campo("ramo")} />
+          </div>
+          <div>
+            <label className={claseLabel}>Tipo</label>
+            <input className={claseInput} {...campo("tipoNegocio")} />
+          </div>
+          <div className="col-span-2">
+            <label className={claseLabel}>Asegurado</label>
+            <input className={claseInput} {...campo("asegurado")} />
+          </div>
+          <div>
+            <label className={claseLabel}>CC / NIT</label>
+            <input className={claseInput} {...campo("ccNit")} />
+          </div>
+          <div>
+            <label className={claseLabel}>Aseguradora</label>
+            <input className={claseInput} {...campo("aseguradora")} />
+          </div>
+          <div>
+            <label className={claseLabel}>Asesor</label>
+            <input className={claseInput} {...campo("asesor")} />
+          </div>
+          <div>
+            <label className={claseLabel}>Placa</label>
+            <input className={claseInput} {...campo("placa")} />
+          </div>
+          <div>
+            <label className={claseLabel}>Fecha de renovación</label>
+            <input type="date" className={claseInput} {...campo("fechaRenovacion")} />
+            <span className="mt-1 block text-[10px] text-ink-muted">Producción cancelada</span>
+          </div>
+          <div>
+            <label className={claseLabel}>Fecha de cancelación</label>
+            <input type="date" className={claseInput} {...campo("fechaCancelacion")} />
+            <span className="mt-1 block text-[10px] text-ink-muted">Cancelaciones del mes</span>
+          </div>
+          <div>
+            <label className={claseLabel}>Prima neta</label>
+            <input type="number" className={claseInput} {...campo("primaNeta")} />
+          </div>
+          <div>
+            <label className={claseLabel}>Prima total</label>
+            <input type="number" className={claseInput} {...campo("primaTotal")} />
+          </div>
+          <div className="col-span-2 md:col-span-3">
+            <label className={claseLabel}>Motivo de la cancelación</label>
+            <textarea className={claseInput} rows={3} {...campo("motivo")} />
+          </div>
+        </div>
+
+        {error && <p className="mt-3 text-sm text-status-critical">{error}</p>}
+
+        <div className="mt-5 flex items-center gap-2 border-t border-line-grid pt-4">
+          {confirmando ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-status-critical">¿Eliminar del histórico?</span>
+              <button
+                onClick={() => enviar("DELETE")}
+                disabled={guardando}
+                className="rounded-lg bg-status-critical px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Sí, eliminar
+              </button>
+              <button
+                onClick={() => setConfirmando(false)}
+                className="rounded-lg px-2 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmando(true)}
+              disabled={guardando}
+              className="rounded-lg border border-status-critical/40 px-3 py-1.5 text-sm font-medium text-status-critical hover:bg-status-critical/5"
+            >
+              Eliminar
+            </button>
+          )}
+          <div className="ml-auto flex gap-2">
+            <button
+              onClick={onCerrar}
+              disabled={guardando}
+              className="rounded-lg px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => enviar("PATCH")}
+              disabled={guardando}
+              className="rounded-lg bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+            >
+              {guardando ? "Guardando…" : "Guardar cambios"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

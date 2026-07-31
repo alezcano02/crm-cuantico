@@ -351,6 +351,7 @@ export function CarteraTabla({
             { encabezado: "Fecha máx. pago", valor: (p) => fechaCSV(p.fechaMaxPago) },
             { encabezado: "Póliza", valor: (p) => p.numero },
             { encabezado: "Ramo", valor: (p) => p.ramo },
+            { encabezado: "Placa", valor: (p) => p.placa ?? "" },
             { encabezado: "Tipo negocio", valor: (p) => p.tipoNegocio ?? "" },
             { encabezado: "Asegurado", valor: (p) => p.asegurado },
             { encabezado: "CC/NIT", valor: (p) => p.ccNit ?? "" },
@@ -379,6 +380,7 @@ export function CarteraTabla({
               <Th>Póliza</Th>
               <Th>Ramo</Th>
               <Th>Tipo negocio</Th>
+              <Th>Placa</Th>
               <Th>Asegurado</Th>
               <Th>Teléfono</Th>
               <Th>Aseguradora</Th>
@@ -401,6 +403,15 @@ export function CarteraTabla({
                   {p.tipoNegocio ? (
                     <span className="rounded bg-surface-sunken px-1.5 py-0.5 text-[11px] font-medium text-ink-secondary">
                       {p.tipoNegocio}
+                    </span>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
+                </Td>
+                <Td>
+                  {p.placa ? (
+                    <span className="rounded bg-surface-sunken px-1.5 py-0.5 text-[11px] font-semibold tracking-wide">
+                      {p.placa}
                     </span>
                   ) : (
                     <span className="text-ink-muted">—</span>
@@ -448,7 +459,7 @@ export function CarteraTabla({
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={12}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={13}>
                   No hay pólizas que cumplan los filtros.
                 </Td>
               </tr>

@@ -698,6 +698,7 @@ function PanelCancelar({
   const [modo, setModo] = useState<"cancelacion" | "no_renovada">("cancelacion");
   const [fechaCancelacion, setFechaCancelacion] = useState(hoyISO());
   const [fechaRenovacion, setFechaRenovacion] = useState(vencISO);
+  const [motivo, setMotivo] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -714,6 +715,7 @@ function PanelCancelar({
           noRenovada,
           fechaCancelacion: noRenovada ? null : fechaCancelacion,
           fechaRenovacion,
+          motivo,
         }),
       });
       const json = await res.json();
@@ -794,6 +796,22 @@ function PanelCancelar({
           />
         </div>
       </div>
+
+      <label className="mt-4 block">
+        <span className={claseLabel}>
+          Motivo {noRenovada ? "de la no renovación" : "de la cancelación"}
+        </span>
+        <textarea
+          className={`${claseInput} mt-1`}
+          rows={3}
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="Ej: el cliente vendió el vehículo · se pasó a otra agencia · pérdida total…"
+        />
+        <span className="mt-1 block text-[11px] text-ink-muted">
+          Queda guardado en el histórico de cancelaciones.
+        </span>
+      </label>
 
       {error && <p className="mt-3 text-sm text-status-critical">{error}</p>}
       <Acciones

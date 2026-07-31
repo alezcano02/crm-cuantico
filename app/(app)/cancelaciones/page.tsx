@@ -23,6 +23,7 @@ export default async function CancelacionesPage() {
     aseguradora: c.aseguradora,
     primaNeta: c.primaNeta,
     primaTotal: c.primaTotal,
+    motivo: c.motivo,
     manual: c.manual,
   }));
 

@@ -84,6 +84,10 @@ export async function POST(
         aseguradora: poliza.aseguradora,
         primaNeta: poliza.primaNeta,
         primaTotal: poliza.primaTotal,
+        motivo:
+          typeof body.motivo === "string" && body.motivo.trim() !== ""
+            ? body.motivo.trim()
+            : null,
         manual: true,
       },
     });

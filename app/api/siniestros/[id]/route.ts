@@ -111,7 +111,35 @@ export async function PATCH(
       datos.estadoTexto = t;
       datos.estado = normalizarEstado(t);
     }
-    if ("cerrado" in body) datos.cerrado = body.cerrado === true;
+
+    if ("cerrado" in body) {
+      const cerrar = body.cerrado === true;
+      if (cerrar) {
+        // Un caso no se cierra sin confirmar el pago: la fecha y el valor
+        // pueden venir en esta misma petición o estar ya guardados.
+        const fechaPago = "fechaPago" in body ? fecha(body.fechaPago) : actual.fechaPago;
+        const valorPagado =
+          "valorPagado" in body ? numero(body.valorPagado) : actual.valorPagado;
+        if (!fechaPago) {
+          return NextResponse.json(
+            { error: "Para cerrar el siniestro indique la fecha de confirmación del pago." },
+            { status: 400 }
+          );
+        }
+        if (valorPagado == null) {
+          return NextResponse.json(
+            {
+              error:
+                "Para cerrar el siniestro indique el valor pagado (escriba 0 si el caso se objetó o no hubo indemnización).",
+            },
+            { status: 400 }
+          );
+        }
+        datos.fechaPago = fechaPago;
+        datos.valorPagado = valorPagado;
+      }
+      datos.cerrado = cerrar;
+    }
   }
 
   await prisma.siniestro.update({ where: { id }, data: datos });
