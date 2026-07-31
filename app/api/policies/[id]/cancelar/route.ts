@@ -47,26 +47,20 @@ export async function POST(
   const noRenovada = body.noRenovada === true;
   const fechaRenovacion = fecha(body.fechaRenovacion) ?? poliza.vencimiento ?? null;
 
-  // Modo "no renovada": la póliza llegó a su renovación y no se renovó. No hay
-  // fecha de cancelación (no cuenta como cancelación del mes), solo la de
-  // renovación (producción cancelada por mes de renovación).
-  let fechaCancelacion: Date | null;
-  if (noRenovada) {
-    if (!fechaRenovacion) {
-      return NextResponse.json(
-        { error: "Indique la fecha de renovación (AAAA-MM-DD)." },
-        { status: 400 }
-      );
-    }
-    fechaCancelacion = null;
-  } else {
-    fechaCancelacion = fecha(body.fechaCancelacion);
-    if (!fechaCancelacion) {
-      return NextResponse.json(
-        { error: "Indique la fecha de cancelación (AAAA-MM-DD)." },
-        { status: 400 }
-      );
-    }
+  // Modo "no renovada": la póliza llegó a su renovación y no se renovó, así que
+  // nunca lleva fecha de cancelación.
+  //
+  // Fuera de ese modo la fecha de cancelación es OPCIONAL: la mayoría de las
+  // bajas son no renovaciones y no tienen una. Sin ella la baja cuenta como
+  // producción cancelada (por mes de renovación) pero no como cancelación del
+  // mes. Lo único que sí hace falta es alguna de las dos fechas; sin ninguna
+  // no habría cómo atribuirla a un mes del seguimiento.
+  const fechaCancelacion = noRenovada ? null : fecha(body.fechaCancelacion);
+  if (!fechaCancelacion && !fechaRenovacion) {
+    return NextResponse.json(
+      { error: "Indique la fecha de cancelación o la de renovación (AAAA-MM-DD)." },
+      { status: 400 }
+    );
   }
 
   await prisma.$transaction(async (tx) => {

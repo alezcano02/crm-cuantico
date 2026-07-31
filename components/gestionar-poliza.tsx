@@ -774,9 +774,7 @@ function PanelCancelar({
 
       <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
         <div>
-          <label className={claseLabel}>
-            Fecha de cancelación {noRenovada ? "" : "*"}
-          </label>
+          <label className={claseLabel}>Fecha de cancelación</label>
           <input
             type="date"
             className={`${claseInput} disabled:cursor-not-allowed disabled:bg-surface-page disabled:text-ink-muted`}
@@ -798,16 +796,31 @@ function PanelCancelar({
         </div>
       </div>
 
-      {/* Vista previa de lo que se descontará. Sale solo con la fecha de
-          cancelación: es la prima no causada, o sea la devolución al cliente. */}
+      {/* Vista previa de lo que se descontará. Se calcula sola con la fecha de
+          cancelación: es la prima no causada, o sea la devolución al cliente.
+          Sin esa fecha no hay cancelación del mes que descontar, solo
+          producción cancelada; se dice explícitamente para que no parezca que
+          la cifra se perdió. */}
       {!noRenovada && (
         <div className="mt-3 rounded-lg bg-surface-page px-3 py-2.5 text-xs">
           {(() => {
             const fc = fechaCancelacion ? new Date(fechaCancelacion + "T00:00:00Z") : null;
             const fv = fechaRenovacion ? new Date(fechaRenovacion + "T00:00:00Z") : null;
+            if (!fc) {
+              return (
+                <p className="text-[11px] leading-relaxed text-ink-muted">
+                  Sin fecha de cancelación no se descuenta nada de las
+                  cancelaciones del mes. La póliza cuenta como{" "}
+                  <b>producción cancelada</b> en el mes de su renovación, por la
+                  prima completa ({fmtCOP(poliza.primaNeta)}). Es lo normal en
+                  las no renovaciones.
+                </p>
+              );
+            }
             const noCausada = primaNoCausada(poliza.primaNeta, fc, fv);
-            const dias =
-              fc && fv ? Math.round((fv.getTime() - fc.getTime()) / 86400000) : null;
+            const dias = fv
+              ? Math.round((fv.getTime() - fc.getTime()) / 86400000)
+              : null;
             return (
               <>
                 <div className="flex items-baseline justify-between gap-3">
@@ -820,7 +833,7 @@ function PanelCancelar({
                 </div>
                 <p className="mt-1 text-[11px] text-ink-muted">
                   {dias == null
-                    ? "Sin las dos fechas no se puede prorratear: se descuenta la prima completa."
+                    ? "Sin la fecha de renovación no se puede prorratear: se descuenta la prima completa."
                     : dias <= 0
                       ? "La vigencia ya había terminado: no hay prima por devolver."
                       : `Prima no causada: ${dias} días que faltaban de vigencia, sobre una prima neta de ${fmtCOP(poliza.primaNeta)}.`}

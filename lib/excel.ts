@@ -584,15 +584,18 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
         [
           { campo: "poliza", alias: ["PÓLIZA", "POLIZA"], obligatoria: true },
           { campo: "ramo", alias: ["RAMO"], obligatoria: true },
+          // Ninguna de las dos fechas es obligatoria como columna. La mayoría de
+          // las bajas son NO RENOVACIONES: llegaron a su renovación y no se
+          // renovaron, así que no tienen fecha de cancelación (en el informe del
+          // 2026-05-22, 200 de 202). Exigir la columna hacía que un informe que
+          // no la trajera perdiera TODAS las cancelaciones de golpe.
           {
             campo: "fechaRenovacion",
-            alias: ["FECHA RENOVACION", "FECHA RENOVACIÓN"],
-            obligatoria: true,
+            alias: ["FECHA RENOVACION", "FECHA RENOVACIÓN", "VENCIMIENTO"],
           },
           {
             campo: "fechaCancelacion",
             alias: ["FECHA CANCELACIÓN", "FECHA CANCELACION"],
-            obligatoria: true,
           },
           { campo: "tipoNegocio", alias: ["TIPO NEGOCIO"] },
           { campo: "asegurado", alias: ["ASEGURADO"] },
@@ -609,6 +612,15 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
       if (errorEnc) {
         res.errores.push(errorEnc);
       } else {
+        // Sin ninguna de las dos fechas no hay forma de atribuir la baja a un
+        // mes, así que no alimentaría ni producción cancelada ni cancelaciones.
+        if (col.fechaRenovacion === undefined && col.fechaCancelacion === undefined) {
+          res.advertencias.push(
+            "CANCELACIONES: la hoja no trae FECHA RENOVACIÓN ni FECHA CANCELACIÓN. " +
+              "Las bajas se importan, pero no aparecerán en el seguimiento hasta que " +
+              "el informe traiga al menos una de las dos fechas."
+          );
+        }
         const v = (f: Fila, campo: string) => celda(f, col, campo);
         const vistos = new Set<string>();
         const filas = filasDesde(ws, 3);
@@ -628,7 +640,29 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
           }
           const fechaRen = fecha(v(f, "fechaRenovacion"));
           const fechaCan = fecha(v(f, "fechaCancelacion"));
-          const clave = `${poliza}|${ramo}|${fechaRen?.toISOString() ?? ""}|${fechaCan?.toISOString() ?? ""}|${texto(v(f, "asegurado")) ?? ""}|${numero(v(f, "primaNeta"))}`;
+          const primaNeta = numero(v(f, "primaNeta"));
+
+          // Avisos de captura. No se corrige nada: la hoja SEGUIMIENTO arrastra
+          // exactamente los mismos valores, así que "arreglarlos" aquí
+          // descuadraría la aplicación contra el informe. Se señalan para que se
+          // corrijan en el Excel, que es donde nacen.
+          if (/^\d{6,}$/.test(ramo)) {
+            res.advertencias.push(
+              `CANCELACIONES fila ${filaExcel}: RAMO dice "${ramo}", que parece un NIT o un número de póliza. Revise la celda.`
+            );
+          }
+          if (!fechaRen && !fechaCan) {
+            res.advertencias.push(
+              `CANCELACIONES fila ${filaExcel} (póliza ${poliza}): sin FECHA RENOVACIÓN ni FECHA CANCELACIÓN. Se importa, pero no aparecerá en el seguimiento de ningún mes.`
+            );
+          }
+          if (primaNeta === 0) {
+            res.advertencias.push(
+              `CANCELACIONES fila ${filaExcel} (póliza ${poliza}): PRIMA NETA vacía o no numérica; suma $0. Suele pasar al pegar una fila desde DATOS, que tiene otras columnas.`
+            );
+          }
+
+          const clave = `${poliza}|${ramo}|${fechaRen?.toISOString() ?? ""}|${fechaCan?.toISOString() ?? ""}|${texto(v(f, "asegurado")) ?? ""}|${primaNeta}`;
           if (vistos.has(clave)) {
             res.duplicados++;
             res.advertencias.push(
@@ -647,7 +681,7 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
             placa: texto(v(f, "placa")),
             asesor: texto(v(f, "asesor")),
             aseguradora: texto(v(f, "aseguradora")),
-            primaNeta: numero(v(f, "primaNeta")),
+            primaNeta,
             primaTotal: numero(v(f, "primaTotal")),
           });
           res.importables++;

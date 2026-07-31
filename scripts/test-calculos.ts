@@ -15,8 +15,13 @@ if (!ruta) {
   process.exit(1);
 }
 
-/** Informe del que se tomaron los valores esperados de más abajo. */
-const ARCHIVO_ESPERADO = "2026-07-29";
+/**
+ * Informe del que se tomaron los valores esperados de más abajo. Es el que vive
+ * en la carpeta compartida, que se sigue editando; la fecha es la del contenido
+ * usado como referencia, no la del nombre del archivo (que sigue diciendo 2026-05-22):
+ * "…\3. Area Tecnica\Informes\Informe Anual\2026\20260522 - NUEVO - INFORME DE PRODUCCIÓN COMPLETO 2026.xlsx"
+ */
+const ARCHIVO_ESPERADO = "2026-07-31";
 
 const datos = parsearLibro(readFileSync(ruta));
 const seg = calcularSeguimiento(
@@ -71,14 +76,14 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
     valores: {
       base: 6134473608.36495,
       meta: 7432446667.632717,
-      real: 4776397759.587059,
-      nuevos: 1528222287.217311,
-      renovaciones: 3248175472.369748,
+      real: 4814417606.587059,
+      nuevos: 1532223960.217311,
+      renovaciones: 3282193646.369748,
       produccionCancelada: 328523493.9243697,
       // Recalculadas: dependen de la prima no causada, no de la hoja.
       cancelaciones: cancTotal,
-      neta: 4776397759.587059 - cancTotal,
-      cumplimiento: (4776397759.587059 - cancTotal) / 7432446667.632717,
+      neta: 4814417606.587059 - cancTotal,
+      cumplimiento: (4814417606.587059 - cancTotal) / 7432446667.632717,
     },
   },
   {
@@ -119,12 +124,12 @@ const esperados: { nombre: string; fila: FilaSeguimiento; valores: Partial<Recor
   {
     nombre: "RAMO ZONA COMUN (producción real)",
     fila: seg.porRamo.get("ZONA COMUN")![12],
-    valores: { real: 3328778322 },
+    valores: { real: 3362565329 },
   },
   {
     nombre: "RAMO AUTOS (producción real)",
     fila: seg.porRamo.get("AUTOS")![12],
-    valores: { real: 430279888.637479 },
+    valores: { real: 430519547.637479 },
   },
 ];
 
