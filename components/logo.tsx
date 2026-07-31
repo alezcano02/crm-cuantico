@@ -9,11 +9,26 @@
 
 type MarcaProps = {
   className?: string;
-  /** Color de las órbitas y el núcleo. Por defecto hereda del contenedor. */
+  /** Color de las órbitas. Por defecto hereda del contenedor. */
   orbita?: string;
   /** Color de los seis nodos. */
   nodo?: string;
+  /** Relleno del núcleo. */
+  nucleo?: string;
+  /** Anillo cian alrededor del núcleo. `null` lo quita. */
+  anillo?: string | null;
 };
+
+/**
+ * Colores del logo original (medidos sobre images/logo-icon.png del sitio):
+ * órbitas gris, nodos azul pizarra, núcleo crema con un anillo cian.
+ */
+export const COLORES_MARCA = {
+  orbita: "#a8a8a8",
+  nodo: "#39536c",
+  nucleo: "#d7cfbc",
+  anillo: "#34b7cb",
+} as const;
 
 // Extremos del eje mayor de cada órbita (ry = 44 desde el centro 50,50),
 // para las tres rotaciones: 0°, 60° y 120°.
@@ -30,6 +45,8 @@ export function LogoMarca({
   className = "h-8 w-8",
   orbita = "currentColor",
   nodo = "currentColor",
+  nucleo,
+  anillo,
 }: MarcaProps) {
   return (
     <svg viewBox="0 0 100 100" className={className} fill="none" aria-hidden>
@@ -43,14 +60,21 @@ export function LogoMarca({
           <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="7.6" />
         ))}
       </g>
-      <circle cx="50" cy="50" r="11.5" fill={orbita} />
+      {anillo && (
+        <circle cx="50" cy="50" r="13.4" fill="none" stroke={anillo} strokeWidth="3" />
+      )}
+      <circle cx="50" cy="50" r="11.5" fill={nucleo ?? orbita} />
     </svg>
   );
 }
 
 /**
- * Marca + nombre. El logo original usa una serif romana en versalitas, así que
- * el texto va en serif para mantener el parecido.
+ * Marca + nombre, igual que la cabecera de cuanticoseguros.com.co: el símbolo a
+ * color, "Cuántico Seguros" en Cormorant Garamond 600 y "Siempre Contigo" en
+ * Barlow Condensed en versalitas azul acento.
+ *
+ * Sobre fondo oscuro (`tono="claro"`) el símbolo se pasa a blanco: los grises y
+ * el crema del original desaparecen contra el azul marino.
  */
 export function LogoCompleto({
   className = "",
@@ -62,26 +86,28 @@ export function LogoCompleto({
 }) {
   const claro = tono === "claro";
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
+    <div className={`flex items-center gap-2.5 ${className}`}>
       <LogoMarca
-        className="h-9 w-9 shrink-0"
-        orbita={claro ? "#ffffff" : "#132240"}
-        nodo={claro ? "rgba(255,255,255,0.45)" : "#9a9a9a"}
+        className="h-10 w-10 shrink-0"
+        orbita={claro ? "rgba(255,255,255,0.85)" : COLORES_MARCA.orbita}
+        nodo={claro ? "rgba(255,255,255,0.55)" : COLORES_MARCA.nodo}
+        nucleo={claro ? "#ffffff" : COLORES_MARCA.nucleo}
+        anillo={claro ? null : COLORES_MARCA.anillo}
       />
       <div className="leading-none">
         <div
-          className={`font-display text-[19px] font-normal tracking-[0.16em] ${
+          className={`font-display text-[20px] font-semibold tracking-[0.01em] ${
             claro ? "text-white" : "text-brand"
           }`}
         >
-          CUÁNTICO
+          Cuántico Seguros
         </div>
         <div
-          className={`mt-1 font-condensada text-[9px] font-semibold uppercase tracking-[0.22em] ${
-            claro ? "text-white/55" : "text-ink-muted"
+          className={`mt-1 font-condensada text-[10px] font-medium uppercase tracking-[0.14em] ${
+            claro ? "text-white/60" : "text-brand-acento"
           }`}
         >
-          SIEMPRE CONTIGO
+          Siempre Contigo
         </div>
       </div>
     </div>

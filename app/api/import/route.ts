@@ -28,15 +28,29 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Conservar la gestión interna de renovación de la carga anterior
-  // (gestionada / nota), casando por número de póliza + ramo.
+  // Conservar lo que la aplicación administra y el Excel no debe pisar,
+  // casando por número de póliza + ramo:
+  //  · la gestión interna de renovación (gestionada / nota);
+  //  · la cobranza de las pólizas cuyo recaudo se registró aquí, que va por
+  //    delante del informe (ver lib/cobranza.ts).
   const previas = await prisma.policy.findMany({
-    where: { gestionada: true },
-    select: { numero: true, ramo: true, notaGestion: true, gestionadaEn: true },
+    where: { OR: [{ gestionada: true }, { cobranzaEditadaEn: { not: null } }] },
+    select: {
+      numero: true,
+      ramo: true,
+      gestionada: true,
+      notaGestion: true,
+      gestionadaEn: true,
+      cobranzaEditadaEn: true,
+      estadoPago: true,
+      fechaPago: true,
+      fechaMaxPago: true,
+      valorCuota: true,
+      notaCartera: true,
+    },
   });
-  const gestionPrevia = new Map(
-    previas.map((p) => [`${p.numero}|${p.ramo}`, p])
-  );
+  const anteriores = new Map(previas.map((p) => [`${p.numero}|${p.ramo}`, p]));
+  let cobranzaConservada = 0;
 
   await prisma.$transaction(
     async (tx) => {
@@ -44,12 +58,25 @@ export async function POST(req: NextRequest) {
         await tx.policy.deleteMany();
         await tx.policy.createMany({
           data: datos.policies.map((p) => {
-            const previa = gestionPrevia.get(`${p.numero}|${p.ramo}`);
+            const previa = anteriores.get(`${p.numero}|${p.ramo}`);
+            const conservarCobranza = previa?.cobranzaEditadaEn != null;
+            if (conservarCobranza) cobranzaConservada++;
             return {
               ...p,
-              gestionada: !!previa,
+              gestionada: previa?.gestionada ?? false,
               notaGestion: previa?.notaGestion ?? null,
               gestionadaEn: previa?.gestionadaEn ?? null,
+              // Manda el CRM: el pago se registró aquí, no en el informe.
+              ...(conservarCobranza
+                ? {
+                    estadoPago: previa!.estadoPago,
+                    fechaPago: previa!.fechaPago,
+                    fechaMaxPago: previa!.fechaMaxPago,
+                    valorCuota: previa!.valorCuota,
+                    notaCartera: previa!.notaCartera,
+                    cobranzaEditadaEn: previa!.cobranzaEditadaEn,
+                  }
+                : {}),
             };
           }),
         });
@@ -76,5 +103,5 @@ export async function POST(req: NextRequest) {
     { timeout: 55000 }
   );
 
-  return NextResponse.json({ ok: true, resumen: datos.resumen });
+  return NextResponse.json({ ok: true, resumen: datos.resumen, cobranzaConservada });
 }

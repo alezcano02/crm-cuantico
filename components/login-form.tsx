@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogoMarca } from "@/components/logo";
+import { LogoCompleto, LogoMarca } from "@/components/logo";
 
 export function LoginForm() {
   const router = useRouter();
@@ -40,21 +40,7 @@ export function LoginForm() {
     <div className="flex min-h-screen">
       {/* Panel de marca — se oculta en pantallas pequeñas */}
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-brand-800 p-10 lg:flex">
-        <div className="flex items-center gap-3">
-          <LogoMarca
-            className="h-10 w-10"
-            orbita="#ffffff"
-            nodo="rgba(255,255,255,0.45)"
-          />
-          <div className="leading-none">
-            <div className="font-display text-xl font-normal tracking-[0.16em] text-white">
-              CUÁNTICO
-            </div>
-            <div className="mt-1 font-condensada text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">
-              SIEMPRE CONTIGO
-            </div>
-          </div>
-        </div>
+        <LogoCompleto tono="claro" />
 
         {/* Marca de agua: el mismo símbolo, ampliado */}
         <LogoMarca
@@ -82,17 +68,7 @@ export function LoginForm() {
       {/* Formulario */}
       <div className="flex w-full items-center justify-center bg-surface-page px-5 py-10 lg:w-1/2">
         <div className="w-full max-w-sm">
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <LogoMarca className="h-9 w-9" orbita="#132240" nodo="#9a9a9a" />
-            <div className="leading-none">
-              <div className="font-display text-lg font-normal tracking-[0.16em] text-brand">
-                CUÁNTICO
-              </div>
-              <div className="mt-1 font-condensada text-[9px] font-semibold uppercase tracking-[0.22em] text-ink-muted">
-                SIEMPRE CONTIGO
-              </div>
-            </div>
-          </div>
+          <LogoCompleto className="mb-8 lg:hidden" />
 
           <h1 className="titular text-3xl text-brand">Ingresar</h1>
           <p className="mt-1 text-sm text-ink-muted">

@@ -12,6 +12,7 @@ export function ImportForm() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resumen, setResumen] = useState<ResumenHoja[] | null>(null);
+  const [cobranzaConservada, setCobranzaConservada] = useState(0);
 
   const importar = async () => {
     if (!archivo) return;
@@ -25,6 +26,7 @@ export function ImportForm() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error desconocido");
       setResumen(json.resumen);
+      setCobranzaConservada(json.cobranzaConservada ?? 0);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -73,6 +75,18 @@ export function ImportForm() {
             {totalErrores > 0 && `${totalErrores} filas con errores fueron omitidas. `}
             {totalAdvertencias > 0 &&
               `${totalAdvertencias} advertencias de validación contra LISTAS.`}
+            {cobranzaConservada > 0 && (
+              <p className="mt-1.5 text-ink-secondary">
+                Se conservó la cobranza que ya estaba registrada en el CRM en{" "}
+                <b>
+                  {cobranzaConservada}{" "}
+                  {cobranzaConservada === 1 ? "póliza" : "pólizas"}
+                </b>
+                : el pago, la cuota y la observación de cartera se anotan aquí, así
+                que el archivo no las pisa. El resto de los datos sí se actualizó
+                con el informe.
+              </p>
+            )}
           </div>
           <table className="w-full border-collapse">
             <thead>

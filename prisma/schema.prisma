@@ -42,6 +42,12 @@ model Policy {
   // Observación de cobranza que aparece en el informe de cartera
   // (p. ej. "PENDIENTE AMPLIACIÓN", "BLIN SE ENCARGA DE LOS RECAUDOS").
   notaCartera     String?
+  // Cuándo se tocó la cobranza DENTRO de la aplicación (registrar un pago,
+  // pactar una cuota, escribir una observación de cartera). Mientras esté
+  // puesta, la reimportación del Excel NO pisa los campos de cobranza de esta
+  // póliza: manda el CRM, que es donde se registra el recaudo al día. Con la
+  // fecha en null la póliza sigue tomando la cobranza del informe.
+  cobranzaEditadaEn DateTime?
   vencimiento     DateTime?
   mesVencimiento  String? // derivado del vencimiento al importar
   fechaNacimiento DateTime?

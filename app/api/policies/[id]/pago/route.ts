@@ -66,6 +66,11 @@ export async function PATCH(
       ? body.notaCartera.trim() || null
       : undefined;
 
+  // Registrar un pago es exactamente el caso en que el CRM va por delante del
+  // Excel: el recaudo se anota aquí el día que entra. A partir de ahora la
+  // reimportación respeta la cobranza de esta póliza (ver app/api/import).
+  const cobranzaEditadaEn = new Date();
+
   try {
     if (modo === "cuota") {
       const proxima = fecha(body.proximaFecha);
@@ -82,6 +87,7 @@ export async function PATCH(
           estadoPago: "PENDIENTE",
           fechaPago: fecha(body.fechaPago) ?? fecha(hoyISO()),
           fechaMaxPago: proxima,
+          cobranzaEditadaEn,
           ...(valorCuota != null ? { valorCuota } : {}),
           ...(notaCartera !== undefined ? { notaCartera } : {}),
         },
@@ -95,6 +101,7 @@ export async function PATCH(
         data: {
           estadoPago: "OK PAGO",
           fechaPago: fecha(body.fechaPago) ?? fecha(hoyISO()),
+          cobranzaEditadaEn,
           ...(notaCartera !== undefined ? { notaCartera } : {}),
         },
       });
@@ -107,6 +114,7 @@ export async function PATCH(
       data: {
         estadoPago: "PENDIENTE",
         fechaPago: null,
+        cobranzaEditadaEn,
         ...(notaCartera !== undefined ? { notaCartera } : {}),
       },
     });

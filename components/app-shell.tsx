@@ -16,7 +16,7 @@ import {
   IconSiniestro,
   IconTendencia,
 } from "@/components/icons";
-import { LogoCompleto, LogoMarca } from "@/components/logo";
+import { LogoCompleto } from "@/components/logo";
 import { BotonBusquedaRapida, BusquedaRapida } from "@/components/busqueda-rapida";
 
 export interface ContadoresNav {
@@ -114,13 +114,15 @@ export function AppShell({
 
   const barra = (
     <>
-      <div className="px-5 py-5">
+      {/* Esquina superior izquierda: la misma cabecera de la web —fondo claro,
+          símbolo a color y el nombre completo—, no una versión en blanco. */}
+      <div className="bg-surface px-4 py-4">
         <Link href="/" className="block">
-          <LogoCompleto tono="claro" />
+          <LogoCompleto />
         </Link>
       </div>
 
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-2 pt-3">
         <BotonBusquedaRapida onAbrir={() => setBuscando(true)} />
       </div>
 
@@ -239,11 +241,8 @@ export function AppShell({
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <Link href="/" className="flex items-center gap-2">
-          <LogoMarca className="h-6 w-6" orbita="#132240" nodo="#9a9a9a" />
-          <span className="font-display text-sm font-bold tracking-widest text-brand">
-            CUÁNTICO
-          </span>
+        <Link href="/" className="flex items-center">
+          <LogoCompleto className="scale-90 origin-left" />
         </Link>
         <button
           onClick={() => setBuscando(true)}
