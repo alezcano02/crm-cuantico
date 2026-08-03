@@ -13,7 +13,6 @@ import {
   IconImportar,
   IconPersonas,
   IconRegalo,
-  IconProducto,
   IconSiniestro,
   IconTendencia,
 } from "@/components/icons";
@@ -61,7 +60,6 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
   {
     titulo: "Datos",
     enlaces: [
-      { href: "/productos", etiqueta: "Productos", Icono: IconProducto },
       { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
       { href: "/importar", etiqueta: "Importar datos", Icono: IconImportar },
     ],
@@ -118,9 +116,9 @@ export function AppShell({
     <>
       {/* Esquina superior izquierda: la misma cabecera de la web —fondo claro,
           símbolo a color y el nombre completo—, no una versión en blanco. */}
-      <div className="bg-surface px-4 py-4">
+      <div className="flex justify-center bg-surface px-3 py-3">
         <Link href="/" className="block">
-          <LogoCompleto />
+          <LogoCompleto ancho={150} />
         </Link>
       </div>
 
@@ -244,7 +242,7 @@ export function AppShell({
           </svg>
         </button>
         <Link href="/" className="flex items-center">
-          <LogoCompleto className="scale-90 origin-left" />
+          <LogoCompleto ancho={104} />
         </Link>
         <button
           onClick={() => setBuscando(true)}

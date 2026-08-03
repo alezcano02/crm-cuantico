@@ -1,3 +1,6 @@
+import Image from "next/image";
+import clsx from "clsx";
+
 /**
  * Marca de Cuántico Seguros en SVG.
  *
@@ -69,46 +72,64 @@ export function LogoMarca({
 }
 
 /**
- * Marca + nombre, igual que la cabecera de cuanticoseguros.com.co: el símbolo a
- * color, "Cuántico Seguros" en Cormorant Garamond 600 y "Siempre Contigo" en
- * Barlow Condensed en versalitas azul acento.
+ * El logo REAL de la agencia, el archivo oficial de
+ * "2. Administrativa\Logos\Logo.png": el átomo con los iconos de cada ramo en
+ * las órbitas y el nombre debajo. Sustituye a la reconstrucción en SVG, que se
+ * parecía pero no era el logo.
  *
- * Sobre fondo oscuro (`tono="claro"`) el símbolo se pasa a blanco: los grises y
- * el crema del original desaparecen contra el azul marino.
+ * El PNG trae el nombre incorporado y en azul marino, así que sobre fondo
+ * oscuro (`tono="claro"`) no se leería: ahí va sobre una tarjeta blanca en vez
+ * de recolorearlo, que sería alterar la marca.
  */
+/**
+ * El PNG es cuadrado (1563×1563) pero el dibujo ocupa solo 1182×1039 en el
+ * centro: el resto es margen blanco. Medido sobre el archivo, sobra un 12,2% a
+ * cada lado, un 16,3% arriba y un 17,2% abajo. Se recorta con una ventana y un
+ * desplazamiento para que el logo se vea grande sin gastar ese espacio en
+ * blanco, que en una barra de 240 px se nota.
+ */
+const RECORTE = { izq: 0.122, arriba: 0.163, ancho: 0.756, alto: 0.665 };
+
 export function LogoCompleto({
   className = "",
   tono = "oscuro",
+  ancho = 132,
 }: {
   className?: string;
   /** "oscuro" = para fondos claros · "claro" = para fondos oscuros */
   tono?: "oscuro" | "claro";
+  /** Ancho visible del dibujo, ya sin el margen blanco. */
+  ancho?: number;
 }) {
   const claro = tono === "claro";
+  // Tamaño al que hay que pintar la imagen completa para que la parte útil
+  // mida `ancho`, y cuánto hay que correrla para dejar fuera el margen.
+  const anchoImagen = Math.round(ancho / RECORTE.ancho);
+  const alto = Math.round(ancho * (RECORTE.alto / RECORTE.ancho));
+
   return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
-      <LogoMarca
-        className="h-10 w-10 shrink-0"
-        orbita={claro ? "rgba(255,255,255,0.85)" : COLORES_MARCA.orbita}
-        nodo={claro ? "rgba(255,255,255,0.55)" : COLORES_MARCA.nodo}
-        nucleo={claro ? "#ffffff" : COLORES_MARCA.nucleo}
-        anillo={claro ? null : COLORES_MARCA.anillo}
-      />
-      <div className="leading-none">
-        <div
-          className={`font-display text-[20px] font-semibold tracking-[0.01em] ${
-            claro ? "text-white" : "text-brand"
-          }`}
-        >
-          Cuántico Seguros
-        </div>
-        <div
-          className={`mt-1 font-condensada text-[10px] font-medium uppercase tracking-[0.14em] ${
-            claro ? "text-white/60" : "text-brand-acento"
-          }`}
-        >
-          Siempre Contigo
-        </div>
+    <div
+      className={clsx(
+        claro && "inline-block rounded-xl bg-white p-3",
+        className
+      )}
+    >
+      <div
+        className="relative overflow-hidden"
+        style={{ width: ancho, height: alto }}
+      >
+        <Image
+          src="/logo-cuantico.png"
+          alt="Cuántico Seguros · Siempre Contigo"
+          width={anchoImagen}
+          height={anchoImagen}
+          priority
+          className="max-w-none"
+          style={{
+            marginLeft: -Math.round(anchoImagen * RECORTE.izq),
+            marginTop: -Math.round(anchoImagen * RECORTE.arriba),
+          }}
+        />
       </div>
     </div>
   );
