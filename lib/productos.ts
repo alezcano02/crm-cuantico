@@ -521,3 +521,117 @@ export const SURA_AUTOS_ILEGIBLE = {
   archivo: "CLAUSULADO AUTOS.pdf",
   ruta: "3. Area Tecnica\\Compañia de Seguros\\Sura\\AUTOS - MOTOS\\CLAUSULADO\\2025\\AUTOS",
 };
+
+// ---------------------------------------------------------------------------
+// ASISTENCIAS de copropiedades
+// ---------------------------------------------------------------------------
+
+/**
+ * Las asistencias son lo que más se nota en el día a día de una copropiedad
+ * —el plomero a las once de la noche— y van en anexos aparte del clausulado.
+ * Hay documento de cuatro compañías.
+ *
+ * OJO con la procedencia: los de ZURICH y PREVISORA son el anexo oficial de la
+ * compañía. El de AXA COLPATRIA es su lista de exclusiones por servicio (de
+ * ella se deduce qué servicios presta, porque solo se excluye lo que existe).
+ * El de BBVA es una nota resumida por alguien de la agencia, no el documento
+ * de la compañía: sirve de guía, no para responderle a un cliente.
+ */
+export type OrigenAsistencia = "anexo_oficial" | "exclusiones" | "nota_interna";
+
+export interface AsistenciaCompania {
+  compania: string;
+  archivo: string;
+  origen: OrigenAsistencia;
+  /** Tope de eventos y de valor, cuando el documento lo dice. */
+  tope: string | null;
+  servicios: string[];
+  /** Lo que conviene saber antes de prometerle algo a un cliente. */
+  advertencia?: string;
+}
+
+export const SERVICIOS_ASISTENCIA = [
+  "Plomería",
+  "Electricidad",
+  "Cerrajería",
+  "Vidrios",
+  "Jardinería",
+  "Vigilante sustituto",
+  "Aseo sustituto",
+  "Jurídica",
+] as const;
+
+export const ASISTENCIAS: AsistenciaCompania[] = [
+  {
+    compania: "PREVISORA",
+    archivo: "ANEEXO ASISTENCIA- PREVISORA.pdf",
+    origen: "anexo_oficial",
+    tope: "El anexo no fija número de eventos ni tope por evento",
+    servicios: [
+      "Plomería",
+      "Electricidad",
+      "Cerrajería",
+      "Vidrios",
+      "Jardinería",
+      "Vigilante sustituto",
+      "Aseo sustituto",
+      "Jurídica",
+    ],
+    advertencia:
+      "Es la lista más larga: 17 servicios numerados. Además de los habituales trae sustitución de tejas, traslado de bienes, vigilante de apoyo en caso de robo, handy man y, literalmente, chef, DJ y mesero a domicilio.",
+  },
+  {
+    compania: "ZURICH",
+    archivo: "anexo-de-asistencia ZURICH.pdf",
+    origen: "anexo_oficial",
+    tope: "15 asistencias por vigencia (combinadas) · hasta 30 SMDLV por evento, materiales y mano de obra incluidos",
+    servicios: [
+      "Plomería",
+      "Electricidad",
+      "Cerrajería",
+      "Vidrios",
+      "Jardinería",
+      "Vigilante sustituto",
+      "Aseo sustituto",
+      "Jurídica",
+    ],
+    advertencia:
+      "Es el único que pone números: 15 asistencias por vigencia y 30 SMDLV por evento. Separa servicios básicos (electricidad, cerrajería, vidrios, plomería) de otros siete, entre ellos guarda de seguridad sustituto y gastos de traslado de bienes.",
+  },
+  {
+    compania: "AXA COLPATRIA",
+    archivo: "ASISTENCIAS Y EXCLUSIONES AXA COLPATRIA.docx",
+    origen: "exclusiones",
+    tope: "El documento archivado solo trae exclusiones; no fija topes",
+    servicios: [
+      "Plomería",
+      "Electricidad",
+      "Cerrajería",
+      "Vidrios",
+      "Jardinería",
+      "Aseo sustituto",
+    ],
+    advertencia:
+      "Lo archivado es la lista de exclusiones por servicio, no el anexo de coberturas: los servicios de aquí se deducen de qué se excluye. Distingue áreas privadas de comunes, y en vidrios cubre el desmonte e instalación de uno por evento. Su anexo oficial (9 MB) está escaneado como imagen y no se pudo leer.",
+  },
+  {
+    compania: "BBVA SEGUROS",
+    archivo: "ASISTENCIAS Y EXCLUSIONES BBVA SEGUROS.docx",
+    origen: "nota_interna",
+    tope: "Sin datos",
+    servicios: ["Plomería", "Electricidad", "Cerrajería", "Vidrios", "Jardinería"],
+    advertencia:
+      "No es el documento de la compañía sino un resumen escrito en la agencia, con frases como «también pueden incluir». Sirve para orientarse; para responderle a un cliente hay que pedirle el anexo oficial a BBVA.",
+  },
+];
+
+/** Exclusiones que repiten TODAS las compañías con anexo de asistencia. */
+export const EXCLUSIONES_COMUNES_ASISTENCIA = [
+  "Fenómenos naturales catastróficos (terremoto, inundación, erupción volcánica)",
+  "Terrorismo, motín o tumulto popular",
+  "Actos de las fuerzas armadas o cuerpos de seguridad",
+  "Energía nuclear o radiactiva",
+  "Mala fe del asegurado o beneficiario",
+  "Servicios contratados por el asegurado sin autorización previa de la compañía",
+  "Daños por desgaste natural, falta de mantenimiento o preexistentes",
+];
