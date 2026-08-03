@@ -82,54 +82,94 @@ export function LogoMarca({
  * de recolorearlo, que sería alterar la marca.
  */
 /**
- * El PNG es cuadrado (1563×1563) pero el dibujo ocupa solo 1182×1039 en el
- * centro: el resto es margen blanco. Medido sobre el archivo, sobra un 12,2% a
- * cada lado, un 16,3% arriba y un 17,2% abajo. Se recorta con una ventana y un
- * desplazamiento para que el logo se vea grande sin gastar ese espacio en
- * blanco, que en una barra de 240 px se nota.
+ * Dónde está el ÁTOMO dentro del PNG oficial, en fracciones del ancho del
+ * archivo (1563 px). Medido sobre el propio archivo: el átomo ocupa 787×874 a
+ * partir de (380, 255); debajo van el nombre y el eslogan, que aquí no se usan
+ * porque se escriben en HTML con la tipografía de la web.
  */
-const RECORTE = { izq: 0.122, arriba: 0.163, ancho: 0.756, alto: 0.665 };
+const ATOMO = { izq: 0.2431, arriba: 0.1631, ancho: 0.5035, alto: 0.5592 };
 
+/** Solo el símbolo, recortado del archivo oficial. */
+export function LogoSimbolo({
+  alto = 42,
+  className = "",
+}: {
+  alto?: number;
+  className?: string;
+}) {
+  // Tamaño al que hay que pintar el PNG entero para que el átomo mida `alto`.
+  const anchoImagen = Math.round(alto / ATOMO.alto);
+  const ancho = Math.round(alto * (ATOMO.ancho / ATOMO.alto));
+  return (
+    <div
+      className={clsx("relative shrink-0 overflow-hidden", className)}
+      style={{ width: ancho, height: alto }}
+    >
+      <Image
+        src="/logo-cuantico.png"
+        alt=""
+        width={anchoImagen}
+        height={anchoImagen}
+        priority
+        className="max-w-none"
+        style={{
+          marginLeft: -Math.round(anchoImagen * ATOMO.izq),
+          marginTop: -Math.round(anchoImagen * ATOMO.arriba),
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * El lockup tal como está en la cabecera de cuanticoseguros.com.co: el símbolo
+ * a la izquierda y, al lado, "Cuántico Seguros" en Cormorant Garamond 600 sobre
+ * "SIEMPRE CONTIGO" en Barlow Condensed en versalitas azul acento. Las medidas
+ * salen de la propia web (20 px / 10,4 px, interletraje 1,456 px).
+ *
+ * El símbolo es el del archivo oficial, no una reconstrucción: el nombre se
+ * escribe en HTML porque en el PNG viene en azul marino y no se podría adaptar
+ * a fondo oscuro sin alterar la marca.
+ */
 export function LogoCompleto({
   className = "",
   tono = "oscuro",
-  ancho = 132,
+  alto = 42,
 }: {
   className?: string;
   /** "oscuro" = para fondos claros · "claro" = para fondos oscuros */
   tono?: "oscuro" | "claro";
-  /** Ancho visible del dibujo, ya sin el margen blanco. */
-  ancho?: number;
+  /** Alto del símbolo; el texto acompaña en proporción. */
+  alto?: number;
 }) {
   const claro = tono === "claro";
-  // Tamaño al que hay que pintar la imagen completa para que la parte útil
-  // mida `ancho`, y cuánto hay que correrla para dejar fuera el margen.
-  const anchoImagen = Math.round(ancho / RECORTE.ancho);
-  const alto = Math.round(ancho * (RECORTE.alto / RECORTE.ancho));
-
+  const escala = alto / 42;
   return (
-    <div
-      className={clsx(
-        claro && "inline-block rounded-xl bg-white p-3",
-        className
-      )}
-    >
-      <div
-        className="relative overflow-hidden"
-        style={{ width: ancho, height: alto }}
-      >
-        <Image
-          src="/logo-cuantico.png"
-          alt="Cuántico Seguros · Siempre Contigo"
-          width={anchoImagen}
-          height={anchoImagen}
-          priority
-          className="max-w-none"
+    <div className={clsx("flex items-center", className)} style={{ gap: 10 * escala }}>
+      <LogoSimbolo alto={alto} />
+      <div className="leading-none">
+        <div
+          className={clsx(
+            "font-display font-semibold",
+            claro ? "text-white" : "text-brand"
+          )}
+          style={{ fontSize: 20 * escala, letterSpacing: 0.2 * escala }}
+        >
+          Cuántico Seguros
+        </div>
+        <div
+          className={clsx(
+            "font-condensada font-medium uppercase",
+            claro ? "text-white/70" : "text-brand-acento"
+          )}
           style={{
-            marginLeft: -Math.round(anchoImagen * RECORTE.izq),
-            marginTop: -Math.round(anchoImagen * RECORTE.arriba),
+            fontSize: 10.4 * escala,
+            letterSpacing: 1.456 * escala,
+            marginTop: 2 * escala,
           }}
-        />
+        >
+          Siempre Contigo
+        </div>
       </div>
     </div>
   );

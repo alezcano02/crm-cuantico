@@ -116,9 +116,9 @@ export function AppShell({
     <>
       {/* Esquina superior izquierda: la misma cabecera de la web —fondo claro,
           símbolo a color y el nombre completo—, no una versión en blanco. */}
-      <div className="flex justify-center bg-surface px-3 py-3">
+      <div className="bg-surface px-4 py-4">
         <Link href="/" className="block">
-          <LogoCompleto ancho={150} />
+          <LogoCompleto />
         </Link>
       </div>
 
@@ -242,7 +242,7 @@ export function AppShell({
           </svg>
         </button>
         <Link href="/" className="flex items-center">
-          <LogoCompleto ancho={104} />
+          <LogoCompleto alto={36} />
         </Link>
         <button
           onClick={() => setBuscando(true)}

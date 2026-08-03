@@ -26,8 +26,10 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Se excluyen el login, sus rutas de API, los recursos de Next y el favicon.
+  // Se excluyen el login, sus rutas de API, los recursos de Next, el favicon y
+  // el logo. El logo tiene que salir en la pantalla de ingreso, donde todavía
+  // no hay sesión: sin excluirlo, pedirlo devolvía un 307 hacia /login.
   matcher: [
-    "/((?!login|api/auth|_next/static|_next/image|icon.svg|favicon.ico).*)",
+    "/((?!login|api/auth|_next/static|_next/image|icon.svg|favicon.ico|logo-cuantico.png).*)",
   ],
 };

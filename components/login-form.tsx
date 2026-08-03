@@ -40,7 +40,7 @@ export function LoginForm() {
     <div className="flex min-h-screen">
       {/* Panel de marca — se oculta en pantallas pequeñas */}
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-brand-800 p-10 lg:flex">
-        <LogoCompleto tono="claro" ancho={168} />
+        <LogoCompleto tono="claro" alto={52} />
 
         {/* Marca de agua: el mismo símbolo, ampliado */}
         <LogoMarca
@@ -68,7 +68,7 @@ export function LoginForm() {
       {/* Formulario */}
       <div className="flex w-full items-center justify-center bg-surface-page px-5 py-10 lg:w-1/2">
         <div className="w-full max-w-sm">
-          <LogoCompleto className="mb-8 lg:hidden" ancho={130} />
+          <LogoCompleto className="mb-8 lg:hidden" alto={44} />
 
           <h1 className="titular text-3xl text-brand">Ingresar</h1>
           <p className="mt-1 text-sm text-ink-muted">
