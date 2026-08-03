@@ -1,10 +1,14 @@
 import { ImportForm } from "@/components/import-form";
 import { ImportSiniestrosForm } from "@/components/import-siniestros-form";
 import { Card, CardTitle, PageHeader } from "@/components/ui";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default function ImportarPage() {
+export default async function ImportarPage() {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader

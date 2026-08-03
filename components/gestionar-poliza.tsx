@@ -15,6 +15,7 @@ import {
 } from "@/components/icons";
 import { urlBusqueda } from "@/lib/carpetas";
 import { PolizaEditable, CamposPoliza } from "@/components/poliza-form";
+import { exigirOk } from "@/lib/respuesta";
 
 export interface PolizaGestionable extends PolizaEditable {
   id: number;
@@ -215,8 +216,7 @@ function PanelPago({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...cuerpo, notaCartera: nota }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error al registrar el pago.");
+      const json = await exigirOk(res, "Error al registrar el pago.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -387,8 +387,7 @@ function PanelEditar({
           fechaNacimiento: soloFecha(f.fechaNacimiento),
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error al guardar.");
+      const json = await exigirOk(res, "Error al guardar.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -400,7 +399,7 @@ function PanelEditar({
     setGuardando(true);
     try {
       const res = await fetch(`/api/policies/${poliza.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Error al eliminar.");
+      await exigirOk(res, "Error al eliminar.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -480,8 +479,7 @@ function PanelRenovar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vencimiento, primaNeta, primaTotal, estadoPago, fechaMaxPago }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error al renovar.");
+      const json = await exigirOk(res, "Error al renovar.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -633,7 +631,7 @@ function PanelGestion({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gestionada, nota }),
       });
-      if (!res.ok) throw new Error("No se pudo guardar.");
+      await exigirOk(res, "No se pudo guardar.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -719,8 +717,7 @@ function PanelCancelar({
           motivo,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error al cancelar.");
+      const json = await exigirOk(res, "Error al cancelar.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

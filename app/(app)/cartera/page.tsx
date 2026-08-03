@@ -4,10 +4,14 @@ import { estadoCartera } from "@/lib/calculos";
 import { listasParaFormularios } from "@/lib/queries";
 import { Card, EstadoVacio, PageHeader } from "@/components/ui";
 import { CarteraTabla, CarteraVista } from "@/components/cartera-tabla";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CarteraPage() {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const [polizas, listas] = await Promise.all([
     prisma.policy.findMany({ orderBy: { fechaMaxPago: "asc" } }),
     listasParaFormularios(),

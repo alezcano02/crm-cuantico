@@ -64,23 +64,36 @@ export async function PATCH(
       ? body.estadoPago.trim().toUpperCase()
       : "PENDIENTE";
 
-  await prisma.policy.update({
-    where: { id },
-    data: {
-      vencimiento: nuevoVencimiento,
-      mesVencimiento: mesDeFecha(nuevoVencimiento),
-      tipoNegocio: TIPO_RENOVACION,
-      primaNeta: numero(body.primaNeta, actual.primaNeta),
-      primaTotal: numero(body.primaTotal, actual.primaTotal),
-      estadoPago,
-      fechaPago: fecha(body.fechaPago),
-      fechaMaxPago: fecha(body.fechaMaxPago),
-      // Nuevo ciclo: se reinicia la gestión de renovación
-      gestionada: false,
-      notaGestion: null,
-      gestionadaEn: null,
-    },
-  });
+  // La póliza pudo desaparecer entre la lectura y la escritura (otro usuario la
+  // canceló, o se reimportó el Excel, que borra y recrea las pólizas con ids
+  // nuevos). Sin este try era un 500 sin mensaje.
+  try {
+    await prisma.policy.update({
+      where: { id },
+      data: {
+        vencimiento: nuevoVencimiento,
+        mesVencimiento: mesDeFecha(nuevoVencimiento),
+        tipoNegocio: TIPO_RENOVACION,
+        primaNeta: numero(body.primaNeta, actual.primaNeta),
+        primaTotal: numero(body.primaTotal, actual.primaTotal),
+        estadoPago,
+        fechaPago: fecha(body.fechaPago),
+        fechaMaxPago: fecha(body.fechaMaxPago),
+        // Nuevo ciclo: se reinicia la gestión de renovación
+        gestionada: false,
+        notaGestion: null,
+        gestionadaEn: null,
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "No se pudo renovar: es posible que otro usuario haya modificado la póliza o que se acabe de reimportar el Excel. Actualice la página.",
+      },
+      { status: 409 }
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

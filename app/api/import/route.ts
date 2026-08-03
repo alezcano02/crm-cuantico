@@ -52,8 +52,13 @@ export async function POST(req: NextRequest) {
   const anteriores = new Map(previas.map((p) => [`${p.numero}|${p.ramo}`, p]));
   let cobranzaConservada = 0;
 
-  await prisma.$transaction(
-    async (tx) => {
+  // La importación borra y recrea casi todo. Si se cae a mitad (dos personas
+  // importando a la vez, la transacción pasa de 55 s, o la base se cae) la
+  // transacción revierte entera y no queda una base a medias; lo que faltaba
+  // era decirlo en vez de responder un 500 sin cuerpo.
+  try {
+    await prisma.$transaction(
+      async (tx) => {
       if (datos.policies.length > 0) {
         await tx.policy.deleteMany();
         await tx.policy.createMany({
@@ -99,9 +104,20 @@ export async function POST(req: NextRequest) {
         await tx.listValue.deleteMany();
         await tx.listValue.createMany({ data: datos.listas });
       }
-    },
-    { timeout: 55000 }
-  );
+      },
+      { timeout: 55000 }
+    );
+  } catch (e) {
+    return NextResponse.json(
+      {
+        error:
+          "No se pudo guardar la importación; no se cambió nada de la base. " +
+          "Si alguien más estaba importando al mismo tiempo, espere e inténtelo de nuevo. " +
+          String(e),
+      },
+      { status: 409 }
+    );
+  }
 
   return NextResponse.json({ ok: true, resumen: datos.resumen, cobranzaConservada });
 }

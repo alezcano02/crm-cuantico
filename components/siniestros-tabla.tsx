@@ -13,6 +13,7 @@ import { StatCard, Td, Th } from "@/components/ui";
 import { BotonExportar } from "@/components/boton-exportar";
 import { IconCarpeta, IconCheck } from "@/components/icons";
 import { urlBusqueda } from "@/lib/carpetas";
+import { exigirOk } from "@/lib/respuesta";
 
 export interface SiniestroVista {
   id: number;
@@ -451,8 +452,7 @@ function ModalSiniestro({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cuerpo),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "No se pudo guardar.");
+      const json = await exigirOk(res, "No se pudo guardar.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

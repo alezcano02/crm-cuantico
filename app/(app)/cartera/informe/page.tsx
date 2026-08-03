@@ -4,6 +4,7 @@ import { construirInforme, PolizaInforme } from "@/lib/informe-cartera";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import { Card, EstadoVacio, PageHeader, StatCard } from "@/components/ui";
 import { IconDescargar } from "@/components/icons";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,9 @@ export default async function InformeCarteraPage({
 }: {
   searchParams: { asesor?: string };
 }) {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const asesorParam = searchParams.asesor ?? "";
 
   const polizas = await prisma.policy.findMany({

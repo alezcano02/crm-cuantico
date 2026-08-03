@@ -2,10 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { Card, PageHeader } from "@/components/ui";
 import { CancelacionesTabla, CancelacionVista } from "@/components/cancelaciones-tabla";
 import Link from "next/link";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CancelacionesPage() {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const cancelaciones = await prisma.cancellation.findMany({
     orderBy: [{ fechaCancelacion: "desc" }, { fechaRenovacion: "desc" }],
   });

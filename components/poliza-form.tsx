@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ListasFormulario } from "@/lib/queries";
+import { exigirOk } from "@/lib/respuesta";
 
 export interface PolizaEditable {
   id?: number;
@@ -240,8 +241,7 @@ export function PolizaForm({
           fechaNacimiento: soloFecha(f.fechaNacimiento),
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error al guardar.");
+      const json = await exigirOk(res, "Error al guardar.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

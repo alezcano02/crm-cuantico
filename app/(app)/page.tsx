@@ -20,6 +20,7 @@ import {
   Th,
 } from "@/components/ui";
 import { MetaRealChart, RamoBarChart } from "@/components/charts";
+import { exigirSesionPagina } from "@/lib/auth";
 import {
   IconCalendario,
   IconCancelar,
@@ -33,6 +34,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const hoy = hoyUTC();
   const anio = hoy.getUTCFullYear();
 

@@ -63,30 +63,44 @@ export async function POST(
     );
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.cancellation.create({
-      data: {
-        numero: poliza.numero,
-        ramo: poliza.ramo,
-        fechaRenovacion,
-        fechaCancelacion,
-        tipoNegocio: noRenovada ? "NO RENOVADA" : "CANCELACION",
-        asegurado: poliza.asegurado,
-        ccNit: poliza.ccNit,
-        placa: poliza.placa,
-        asesor: poliza.asesor1 ?? poliza.asesor2 ?? null,
-        aseguradora: poliza.aseguradora,
-        primaNeta: poliza.primaNeta,
-        primaTotal: poliza.primaTotal,
-        motivo:
-          typeof body.motivo === "string" && body.motivo.trim() !== ""
-            ? body.motivo.trim()
-            : null,
-        manual: true,
-      },
+  // Dos personas pueden estar cancelando la misma póliza a la vez: la segunda
+  // encuentra que ya no existe y la transacción falla entera (no queda una
+  // cancelación duplicada). Sin este try devolvía un 500 con el cuerpo vacío y
+  // el diálogo mostraba "Unexpected end of JSON input".
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.cancellation.create({
+        data: {
+          numero: poliza.numero,
+          ramo: poliza.ramo,
+          fechaRenovacion,
+          fechaCancelacion,
+          tipoNegocio: noRenovada ? "NO RENOVADA" : "CANCELACION",
+          asegurado: poliza.asegurado,
+          ccNit: poliza.ccNit,
+          placa: poliza.placa,
+          asesor: poliza.asesor1 ?? poliza.asesor2 ?? null,
+          aseguradora: poliza.aseguradora,
+          primaNeta: poliza.primaNeta,
+          primaTotal: poliza.primaTotal,
+          motivo:
+            typeof body.motivo === "string" && body.motivo.trim() !== ""
+              ? body.motivo.trim()
+              : null,
+          manual: true,
+        },
+      });
+      await tx.policy.delete({ where: { id } });
     });
-    await tx.policy.delete({ where: { id } });
-  });
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "No se pudo cancelar: es posible que otro usuario ya la haya cancelado o renovado. Actualice la página.",
+      },
+      { status: 409 }
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

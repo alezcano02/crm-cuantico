@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { diasAlVence, semaforoVencimiento } from "@/lib/calculos";
 import { fmtCOP, fmtFecha } from "@/lib/format";
+import { exigirSesionPagina } from "@/lib/auth";
 import {
   Card,
   CardTitle,
@@ -19,6 +20,9 @@ export default async function BuscarPage({
 }: {
   searchParams: { q?: string };
 }) {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const q = (searchParams.q ?? "").trim();
 
   // Los datos del informe vienen en mayúsculas; se buscan las variantes del

@@ -11,6 +11,7 @@ import { IconCheck, IconMas } from "@/components/icons";
 import { PolizaEditable, PolizaForm } from "@/components/poliza-form";
 import { BotonExportar } from "@/components/boton-exportar";
 import { GestionarPoliza } from "@/components/gestionar-poliza";
+import { Paginacion, usePaginacion } from "@/components/paginacion";
 
 export interface PolizaVista extends PolizaEditable {
   id: number;
@@ -134,6 +135,9 @@ export function VencimientosTabla({
 
   const claseSelect =
     "rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
+
+  // Solo se pintan 100 filas por página; los filtros siguen sobre el total.
+  const { visibles, pagina, setPagina, totalPaginas } = usePaginacion(filtradas);
 
   return (
     <div className="space-y-4">
@@ -294,7 +298,7 @@ export function VencimientosTabla({
             </tr>
           </thead>
           <tbody>
-            {filtradas.map((p) => (
+            {visibles.map((p) => (
               <tr
                 key={p.id}
                 className={clsx("hover:bg-surface-page", p.gestionada && "opacity-60")}
@@ -382,6 +386,14 @@ export function VencimientosTabla({
           </tbody>
         </table>
       </div>
+
+      <Paginacion
+        pagina={pagina}
+        totalPaginas={totalPaginas}
+        onCambiar={setPagina}
+        total={filtradas.length}
+        etiqueta="pólizas"
+      />
 
       {gestionando && (
         <GestionarPoliza

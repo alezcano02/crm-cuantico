@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogoCompleto, LogoMarca } from "@/components/logo";
+import { exigirOk } from "@/lib/respuesta";
 
 export function LoginForm() {
   const router = useRouter();
@@ -22,8 +23,7 @@ export function LoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usuario, clave }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "No se pudo ingresar.");
+      const json = await exigirOk(res, "No se pudo ingresar.");
       // replace + refresh para que el layout vuelva a leer la sesión
       router.replace("/");
       router.refresh();

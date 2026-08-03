@@ -12,6 +12,7 @@ import { CarteraBadge, StatCard, Td, Th } from "@/components/ui";
 import { IconDescargar, IconDinero } from "@/components/icons";
 import { BotonExportar } from "@/components/boton-exportar";
 import { GestionarPoliza } from "@/components/gestionar-poliza";
+import { Paginacion, usePaginacion } from "@/components/paginacion";
 
 /** Las fechas viajan como ISO; el CSV las quiere como Date para formatearlas. */
 function fechaCSV(iso: string | null): Date | null {
@@ -151,6 +152,9 @@ export function CarteraTabla({
   ]);
 
   // Totales sobre lo filtrado (prima total = lo que se cobra al cliente)
+  // Solo se pintan 100 filas por página; los filtros siguen sobre el total.
+  const { visibles, pagina, setPagina, totalPaginas } = usePaginacion(filtradas);
+
   const resumen = useMemo(() => {
     let pendiente = 0, mora = 0, porCobrar = 0, recaudado = 0, nMora = 0, nPend = 0;
     for (const p of filtradas) {
@@ -391,7 +395,7 @@ export function CarteraTabla({
             </tr>
           </thead>
           <tbody>
-            {filtradas.map((p) => (
+            {visibles.map((p) => (
               <tr key={p.id} className="hover:bg-surface-page">
                 <Td>
                   <CarteraBadge estado={p.estado} dias={p.diasCartera} />
@@ -467,6 +471,14 @@ export function CarteraTabla({
           </tbody>
         </table>
       </div>
+
+      <Paginacion
+        pagina={pagina}
+        totalPaginas={totalPaginas}
+        onCambiar={setPagina}
+        total={filtradas.length}
+        etiqueta="pólizas"
+      />
 
       {gestionando && (
         <GestionarPoliza

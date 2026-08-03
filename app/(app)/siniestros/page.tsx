@@ -4,10 +4,14 @@ import { hoyUTC } from "@/lib/calculos";
 import { diasSinMovimiento, type EstadoSiniestro } from "@/lib/siniestros";
 import { Card, EstadoVacio, PageHeader } from "@/components/ui";
 import { SiniestrosTabla, SiniestroVista } from "@/components/siniestros-tabla";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function SiniestrosPage() {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const hoy = hoyUTC();
   const siniestros = await prisma.siniestro.findMany({
     orderBy: { fechaUltimoSeguimiento: "asc" },

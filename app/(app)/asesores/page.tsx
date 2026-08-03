@@ -6,6 +6,7 @@ import { fmtCOPCompact, fmtNum } from "@/lib/format";
 import { Card, CardTitle, EstadoVacio, PageHeader, StatCard } from "@/components/ui";
 import { RamoBarChart } from "@/components/charts";
 import { AsesoresTabla } from "@/components/asesores-tabla";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,9 @@ export default async function AsesoresPage({
 }: {
   searchParams: { anio?: string; campo?: string };
 }) {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const anios = await aniosDisponibles();
   const anioActual = hoyUTC().getUTCFullYear();
   const anio =

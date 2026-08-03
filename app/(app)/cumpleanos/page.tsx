@@ -4,10 +4,14 @@ import { hoyUTC } from "@/lib/calculos";
 import { calcularCumpleanos, ClienteCumple } from "@/lib/cumpleanos";
 import { Card, EstadoVacio, PageHeader } from "@/components/ui";
 import { CumpleanosTabla, CumpleVista } from "@/components/cumpleanos-tabla";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CumpleanosPage() {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const hoy = hoyUTC();
 
   // Se juntan la cartera y las otras pólizas: un cliente puede tener varias,

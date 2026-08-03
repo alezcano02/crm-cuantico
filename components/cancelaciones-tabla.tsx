@@ -9,6 +9,7 @@ import { StatCard, Td, Th } from "@/components/ui";
 import { BotonExportar } from "@/components/boton-exportar";
 import { primaNoCausada } from "@/lib/calculos";
 import { IconEditar } from "@/components/icons";
+import { exigirOk } from "@/lib/respuesta";
 
 export interface CancelacionVista {
   id: number;
@@ -456,8 +457,7 @@ function ModalCancelacion({
         headers: { "Content-Type": "application/json" },
         body: metodo === "PATCH" ? JSON.stringify(f) : undefined,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "No se pudo guardar.");
+      const json = await exigirOk(res, "No se pudo guardar.");
       onGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

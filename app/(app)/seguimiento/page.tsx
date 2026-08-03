@@ -6,6 +6,7 @@ import { Card, CardTitle, PageHeader, StatCard } from "@/components/ui";
 import { CumplimientoChart, ProduccionMensualChart } from "@/components/charts";
 import { SeguimientoSelector } from "@/components/seguimiento-selector";
 import { MES_TITULO, TablaSeguimiento } from "@/components/tabla-seguimiento";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,9 @@ export default async function SeguimientoPage({
 }: {
   searchParams: { anio?: string; ramo?: string; aseguradora?: string; mes?: string };
 }) {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const anios = await aniosDisponibles();
   const anioDefecto = hoyUTC().getUTCFullYear();
   const anio =

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ResumenSiniestros } from "@/lib/siniestros";
 import { IconAlerta } from "@/components/icons";
+import { exigirOk } from "@/lib/respuesta";
 
 export function ImportSiniestrosForm() {
   const router = useRouter();
@@ -25,8 +26,7 @@ export function ImportSiniestrosForm() {
       if (seguimiento) fd.append("seguimiento", seguimiento);
       if (resumen) fd.append("resumen", resumen);
       const res = await fetch("/api/import-siniestros", { method: "POST", body: fd });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error desconocido");
+      const json = await exigirOk<{ total: number; resumen: ResumenSiniestros[] }>(res, "Error desconocido");
       setSalida(json);
       router.refresh();
     } catch (e) {

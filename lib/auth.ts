@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 
@@ -106,4 +107,25 @@ export async function exigirSesion(): Promise<NextResponse | null> {
     return NextResponse.json({ error: "Sesión requerida." }, { status: 401 });
   }
   return null;
+}
+
+/**
+ * Guardia para las PÁGINAS. Debe ser la primera línea de cada página del grupo
+ * (app), antes de cualquier consulta a la base.
+ *
+ * No basta con comprobar la sesión en el layout: React renderiza el layout y
+ * sus hijos EN PARALELO, así que la página alcanza a consultar la base y a
+ * renderizarse aunque el layout llame a redirect(). Next devuelve entonces un
+ * 307 hacia /login cuyo CUERPO sigue trayendo la página completa. El navegador
+ * sigue la redirección y no lo enseña, pero cualquiera que lea la respuesta
+ * directamente (curl) se lleva los datos con solo mandar una cookie con
+ * cualquier valor, porque el middleware únicamente comprueba que exista.
+ *
+ * Llamándola aquí la página se corta antes de tocar la base y el cuerpo del
+ * 307 sale vacío de datos.
+ */
+export async function exigirSesionPagina(): Promise<SesionActiva> {
+  const sesion = await sesionActual();
+  if (!sesion) redirect("/login");
+  return sesion;
 }

@@ -4,10 +4,14 @@ import { listasParaFormularios } from "@/lib/queries";
 import { Card, PageHeader } from "@/components/ui";
 import { VencimientosTabla, PolizaVista } from "@/components/vencimientos-tabla";
 import Link from "next/link";
+import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function VencimientosPage() {
+  // Antes de tocar la base: el layout no alcanza a cortar el render.
+  await exigirSesionPagina();
+
   const [polizas, listas] = await Promise.all([
     prisma.policy.findMany({ orderBy: { vencimiento: "asc" } }),
     listasParaFormularios(),
