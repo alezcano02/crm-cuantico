@@ -285,3 +285,62 @@ export const DOCUMENTOS_ASISTENCIA = [
 /** Ruta de la carpeta en la unidad compartida, para poder abrir el original. */
 export const CARPETA_CLAUSULADOS =
   "3. Area Tecnica\\Compañia de Seguros\\Clausulados";
+
+/**
+ * Inventario del resto de la unidad compartida.
+ *
+ * La carpeta "Clausulados" no es la única: cada compañía tiene la suya en
+ * `3. Area Tecnica\Compañia de Seguros\<COMPAÑÍA>\<RAMO>`, y ahí hay bastante
+ * más material. Esto es solo un índice de QUÉ HAY, contando archivos: sirve
+ * para saber si existe clausulado de un ramo antes de pedirlo a la compañía.
+ *
+ * No es una comparación: comparar coberturas exige leer cada documento, y por
+ * ahora eso solo está hecho para copropiedades.
+ */
+export interface InventarioRamo {
+  ramo: string;
+  documentos: number;
+  companias: string[];
+  /** true cuando ya hay comparación de coberturas hecha en esta pantalla. */
+  comparado?: boolean;
+}
+
+export const INVENTARIO_COMPARTIDA: InventarioRamo[] = [
+  {
+    ramo: "SALUD",
+    documentos: 14,
+    companias: ["AXA COLPATRIA", "MUNDIAL", "SURA"],
+  },
+  {
+    ramo: "AUTOS y MOTOS",
+    documentos: 16,
+    companias: [
+      "ALLIANZ",
+      "AXA COLPATRIA",
+      "BOLÍVAR",
+      "SEGUROS DEL ESTADO",
+      "HDI",
+      "MAPFRE",
+      "SBS",
+      "SURA",
+    ],
+  },
+  {
+    ramo: "COPROPIEDADES",
+    documentos: 8,
+    companias: ["AXA COLPATRIA", "EQUIDAD", "MAPFRE", "PREVISORA", "SBS"],
+    comparado: true,
+  },
+  { ramo: "PYME", documentos: 3, companias: ["ALLIANZ", "MAPFRE", "SURA"] },
+  { ramo: "MASCOTAS", documentos: 3, companias: ["MUNDIAL", "SURA"] },
+  { ramo: "VIAJES", documentos: 2, companias: ["SURA"] },
+  { ramo: "VIDA", documentos: 1, companias: ["AXA COLPATRIA"] },
+  { ramo: "RCE", documentos: 1, companias: ["SURA"] },
+  { ramo: "HOGAR", documentos: 1, companias: ["ALLIANZ"] },
+  { ramo: "ARRENDAMIENTO", documentos: 1, companias: ["SBS"] },
+];
+
+/** Total de archivos de clausulado/condicionado hallados en la compartida. */
+export const TOTAL_CLAUSULADOS_COMPARTIDA = 654;
+
+export const CARPETA_COMPANIAS = "3. Area Tecnica\\Compañia de Seguros";

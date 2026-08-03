@@ -1,12 +1,15 @@
 import { exigirSesionPagina } from "@/lib/auth";
-import { Card, CardTitle, PageHeader } from "@/components/ui";
+import { Card, CardTitle, PageHeader, Td, Th } from "@/components/ui";
 import { TablaProductos } from "@/components/tabla-productos";
 import {
   CARPETA_CLAUSULADOS,
+  CARPETA_COMPANIAS,
   COBERTURAS_COMPARADAS,
   COPROPIEDADES,
   DOCUMENTOS_ASISTENCIA,
+  INVENTARIO_COMPARTIDA,
   OTROS_PRODUCTOS,
+  TOTAL_CLAUSULADOS_COMPARTIDA,
 } from "@/lib/productos";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +92,59 @@ export default async function ProductosPage() {
             revisar la carátula al renovar.
           </p>
         </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Qué clausulados hay en la compartida</CardTitle>
+        <p className="mb-3 text-sm leading-relaxed text-ink-secondary">
+          La carpeta <span className="tabla-num text-xs">Clausulados</span> no es
+          la única: cada compañía tiene la suya en{" "}
+          <span className="tabla-num text-xs">
+            {CARPETA_COMPANIAS}\&lt;COMPAÑÍA&gt;\&lt;RAMO&gt;
+          </span>
+          . En total hay <b>{TOTAL_CLAUSULADOS_COMPARTIDA} archivos</b> de
+          clausulado o condicionado. Este índice sirve para saber si ya existe
+          uno antes de pedírselo a la compañía; no compara coberturas.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse whitespace-nowrap">
+            <thead>
+              <tr>
+                <Th>Ramo</Th>
+                <Th derecha>Documentos</Th>
+                <Th>Compañías con clausulado archivado</Th>
+                <Th>Comparado</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {INVENTARIO_COMPARTIDA.map((r) => (
+                <tr key={r.ramo} className="hover:bg-surface-page">
+                  <Td className="font-semibold">{r.ramo}</Td>
+                  <Td derecha>{r.documentos}</Td>
+                  <Td className="whitespace-normal text-xs text-ink-secondary">
+                    {r.companias.join(" · ")}
+                  </Td>
+                  <Td>
+                    {r.comparado ? (
+                      <span className="rounded bg-status-good/12 px-1.5 py-0.5 text-[11px] font-semibold text-status-good">
+                        Sí
+                      </span>
+                    ) : (
+                      <span className="text-xs text-ink-muted">Pendiente</span>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-ink-muted">
+          Solo copropiedades tiene comparación de coberturas. AUTOS es el
+          siguiente candidato por número de compañías y por producción, pero sus
+          clausulados no comparten estructura, así que compararlos exige leer los
+          ocho documentos uno por uno; hacerlo a la ligera daría una tabla en la
+          que no se podría confiar frente a un cliente.
+        </p>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
