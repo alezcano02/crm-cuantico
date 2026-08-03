@@ -2,13 +2,16 @@ import { exigirSesionPagina } from "@/lib/auth";
 import { Card, CardTitle, PageHeader, Td, Th } from "@/components/ui";
 import { TablaProductos } from "@/components/tabla-productos";
 import {
+  AUTOS,
   CARPETA_CLAUSULADOS,
   CARPETA_COMPANIAS,
+  COBERTURAS_AUTOS,
   COBERTURAS_COMPARADAS,
   COPROPIEDADES,
   DOCUMENTOS_ASISTENCIA,
   INVENTARIO_COMPARTIDA,
   OTROS_PRODUCTOS,
+  SURA_AUTOS_ILEGIBLE,
   TOTAL_CLAUSULADOS_COMPARTIDA,
 } from "@/lib/productos";
 
@@ -24,7 +27,7 @@ export default async function ProductosPage() {
     <div className="space-y-6">
       <PageHeader
         titulo="Productos"
-        descripcion={`Diferencias entre los clausulados archivados de las compañías · ${COPROPIEDADES.length} de copropiedades y ${OTROS_PRODUCTOS.length} de otros ramos`}
+        descripcion={`Diferencias entre los clausulados archivados de las compañías · ${COPROPIEDADES.length} de copropiedades, ${AUTOS.length} de autos y ${OTROS_PRODUCTOS.length} de otros ramos`}
       />
 
       <div className="rounded-lg border border-status-warning/40 bg-status-warning/5 px-4 py-3 text-sm leading-relaxed text-ink-secondary">
@@ -95,6 +98,73 @@ export default async function ProductosPage() {
       </Card>
 
       <Card>
+        <CardTitle>Autos · {AUTOS.length} compañías</CardTitle>
+        <p className="mb-3 text-sm leading-relaxed text-ink-secondary">
+          Segundo ramo por producción. A diferencia de copropiedades, estos
+          clausulados no comparten esquema: unos separan amparos básicos de
+          adicionales y otros los listan todos juntos remitiéndose a la carátula.
+          Por eso aquí hay un estado más, <b>Carátula</b>.
+        </p>
+        <TablaProductos productos={AUTOS} coberturas={[...COBERTURAS_AUTOS]} />
+      </Card>
+
+      <Card>
+        <CardTitle>Autos · lo que hay que mirar al cotizar</CardTitle>
+        <div className="space-y-3 text-sm leading-relaxed text-ink-secondary">
+          <p>
+            <b className="text-ink">
+              En MAPFRE y BOLÍVAR, daños y hurto NO son básicos.
+            </b>{" "}
+            Es el hallazgo más importante de la comparación. MAPFRE dice que su
+            único amparo básico es la responsabilidad civil, y deja los daños, el
+            hurto y el terremoto entre sus 19 amparos adicionales. BOLÍVAR va más
+            lejos: su cobertura básica son solo los riesgos patrimoniales
+            —responsabilidad civil y gastos jurídicos— y pone daños, hurto y
+            terremoto bajo «coberturas opcionales». En una póliza de estas dos
+            compañías conviene confirmar que se contrataron, porque lo que un
+            cliente entiende por «seguro del carro» ahí no viene puesto.
+          </p>
+          <p>
+            <b className="text-ink">AXA COLPATRIA y SBS son lo contrario:</b>{" "}
+            daños, hurto, eventos de la naturaleza, protección patrimonial y
+            asistencia jurídica están dentro de los amparos básicos. AXA deja
+            fuera solo tres opcionales; SBS, once adicionales.
+          </p>
+          <p>
+            <b className="text-ink">
+              ALLIANZ, SEGUROS DEL ESTADO y HDI no separan básicos de
+              adicionales:
+            </b>{" "}
+            listan todos sus amparos y advierten que operan «de acuerdo con los
+            amparos contratados». Ahí la carátula es la única fuente de qué está
+            cubierto; el clausulado no permite deducirlo.
+          </p>
+          <p>
+            <b className="text-ink">HDI es el más completo en responsabilidad civil:</b>{" "}
+            distingue extracontractual, en exceso, obligatoria de ley,
+            contractual y general familiar. También es el único con lucro
+            cesante, exequias y obligaciones financieras.
+          </p>
+          <p>
+            <b className="text-ink">Detalles propios de cada uno:</b> ALLIANZ
+            tiene «llave en mano» y cubre lesiones o muerte en accidente de
+            tránsito incluso a familiares del conductor, a quienes excluye en sus
+            demás amparos. MAPFRE tiene canasta familiar, renta educativa y
+            cirugía plástica. SBS cubre documentos y billetera y el reemplazo de
+            llaves. SEGUROS DEL ESTADO y ALLIANZ separan daños y hurto por
+            cuantía, mayor y menor.
+          </p>
+          <p className="text-xs text-ink-muted">
+            SURA tiene clausulado de autos archivado en{" "}
+            <span className="tabla-num">{SURA_AUTOS_ILEGIBLE.ruta}</span>, pero
+            su PDF usa una fuente con codificación dañada y no devuelve texto por
+            ningún método de extracción. Se lee bien abriéndolo a mano; queda
+            fuera de esta tabla para no compararlo de oídas.
+          </p>
+        </div>
+      </Card>
+
+      <Card>
         <CardTitle>Qué clausulados hay en la compartida</CardTitle>
         <p className="mb-3 text-sm leading-relaxed text-ink-secondary">
           La carpeta <span className="tabla-num text-xs">Clausulados</span> no es
@@ -139,11 +209,8 @@ export default async function ProductosPage() {
           </table>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-ink-muted">
-          Solo copropiedades tiene comparación de coberturas. AUTOS es el
-          siguiente candidato por número de compañías y por producción, pero sus
-          clausulados no comparten estructura, así que compararlos exige leer los
-          ocho documentos uno por uno; hacerlo a la ligera daría una tabla en la
-          que no se podría confiar frente a un cliente.
+          Copropiedades y AUTOS ya tienen comparación de coberturas arriba. Los
+          demás ramos siguen pendientes: aquí solo consta que el documento existe.
         </p>
       </Card>
 

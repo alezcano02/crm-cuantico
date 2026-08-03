@@ -22,7 +22,17 @@
  * tabla.
  */
 
-export type Disponibilidad = "basico" | "opcional" | "no_especificado";
+/**
+ * "segun_caratula" es un cuarto estado que hizo falta al comparar AUTOS: varios
+ * clausulados listan todos sus amparos juntos, sin separar básicos de
+ * adicionales, y advierten que operan «de acuerdo con los amparos contratados y
+ * señalados en la carátula». Marcarlos como básicos sería afirmar de más.
+ */
+export type Disponibilidad =
+  | "basico"
+  | "opcional"
+  | "segun_caratula"
+  | "no_especificado";
 
 export interface CoberturaProducto {
   /** Cómo aparece en el clausulado de esa compañía. */
@@ -324,6 +334,7 @@ export const INVENTARIO_COMPARTIDA: InventarioRamo[] = [
       "SBS",
       "SURA",
     ],
+    comparado: true,
   },
   {
     ramo: "COPROPIEDADES",
@@ -344,3 +355,169 @@ export const INVENTARIO_COMPARTIDA: InventarioRamo[] = [
 export const TOTAL_CLAUSULADOS_COMPARTIDA = 654;
 
 export const CARPETA_COMPANIAS = "3. Area Tecnica\\Compañia de Seguros";
+
+// ---------------------------------------------------------------------------
+// AUTOS
+// ---------------------------------------------------------------------------
+
+/**
+ * Ocho compañías tienen clausulado de autos archivado. Aquí hay siete: el de
+ * SURA no se pudo leer (ver SURA_AUTOS_ILEGIBLE más abajo).
+ *
+ * A diferencia de copropiedades, estos clausulados no comparten esquema: unos
+ * separan amparos básicos de adicionales y otros los listan todos juntos
+ * remitiéndose a la carátula. Por eso la comparación usa cuatro estados y no
+ * tres: forzar un "básico" donde el documento no lo dice sería inventar.
+ */
+export const COBERTURAS_AUTOS = [
+  "Daños (pérdida total y parcial)",
+  "Hurto",
+  "RC extracontractual",
+  "Terremoto y eventos de la naturaleza",
+  "Protección patrimonial",
+  "Asistencia jurídica",
+  "Vehículo de reemplazo",
+  "Gastos de transporte",
+] as const;
+
+const s = (nota?: string): CoberturaProducto => ({
+  estado: "segun_caratula",
+  nota,
+});
+
+export const AUTOS: ProductoClausulado[] = [
+  {
+    compania: "MAPFRE",
+    producto: "Condicionado individuales · livianos",
+    archivo: "CONDICIONADO-INDIVIDUALES-Livianos-Noviembre-2024  AUTOS.pdf",
+    estructura:
+      "Su cláusula 1 dice literalmente que el AMPARO BÁSICO es «responsabilidad civil extracontractual», y todo lo demás —daños, hurto, terremoto, patrimonial, jurídica— va en la lista de AMPAROS ADICIONALES. Es la lista más larga del grupo: 19 adicionales, con cosas que nadie más tiene, como canasta familiar, renta educativa y gastos por cirugía plástica.",
+    coberturas: {
+      "Daños (pérdida total y parcial)": o("Adicional: por daños y terrorismo"),
+      Hurto: o("Adicional: hurto total y hurto parcial"),
+      "RC extracontractual": b("Es el único amparo básico"),
+      "Terremoto y eventos de la naturaleza": o("Temblor, terremoto o erupción volcánica"),
+      "Protección patrimonial": o(),
+      "Asistencia jurídica": o("Proceso penal y proceso civil, por separado"),
+      "Vehículo de reemplazo": o(),
+      "Gastos de transporte": o("Por pérdida total"),
+    },
+  },
+  {
+    compania: "BOLÍVAR",
+    producto: "Condicionado seguro de vehículo",
+    archivo: "condicionado-seguro-vehiculo-segurosBolivar_2025.pdf",
+    estructura:
+      "Su COBERTURA BÁSICA son solo los riesgos patrimoniales: responsabilidad civil y gastos de atención jurídica. Daños, hurto y terremoto están explícitamente bajo COBERTURAS OPCIONALES, y el resto bajo OTROS AMPAROS.",
+    coberturas: {
+      "Daños (pérdida total y parcial)": o("Opcional: daño parcial o total al vehículo"),
+      Hurto: o("Opcional: pérdida total o parcial por hurto"),
+      "RC extracontractual": b("Básica, con ampliación"),
+      "Terremoto y eventos de la naturaleza": o(
+        "Opcional: terremoto, temblor, erupción, maremoto, tsunami y huracán"
+      ),
+      "Protección patrimonial": o("Otros amparos: amparo patrimonial"),
+      "Asistencia jurídica": b("Básica: proceso civil y penal"),
+      "Vehículo de reemplazo": o("Otros amparos: vehículo temporal de reemplazo"),
+      "Gastos de transporte": o("Otros amparos: auxilio de transporte"),
+    },
+  },
+  {
+    compania: "AXA COLPATRIA",
+    producto: "Clausulado autos (movilidad)",
+    archivo: "Clausulado.pdf · CLAUSULADOS MOVILIDAD 2025",
+    estructura:
+      "Sí trae daños, hurto, terremoto y patrimonial dentro de los AMPAROS BÁSICOS. Deja como opcionales solo tres: gastos de transporte, muerte accidental y asistencia médica.",
+    coberturas: {
+      "Daños (pérdida total y parcial)": b("1.2 y 1.3, básicos"),
+      Hurto: b("1.4: hurto o hurto calificado"),
+      "RC extracontractual": b("1.1, con límite asegurado único"),
+      "Terremoto y eventos de la naturaleza": b("1.6, básico"),
+      "Protección patrimonial": b("1.7, básico"),
+      "Asistencia jurídica": b("2.2"),
+      "Vehículo de reemplazo": o("2.1: vehículo sustituto"),
+      "Gastos de transporte": o("3.1, opcional"),
+    },
+  },
+  {
+    compania: "SBS",
+    producto: "Clausulado autos",
+    archivo: "CLAUSULADOS AUTOS.pdf · SBS 2025",
+    estructura:
+      "Nueve amparos básicos (condición 1) que incluyen daños, hurto, naturaleza, patrimonial y las dos asistencias jurídicas; once adicionales (condición 2), entre ellos documentos y billetera, reemplazo de llaves y accidentes personales.",
+    coberturas: {
+      "Daños (pérdida total y parcial)": b("1.2 y 1.3, básicos"),
+      Hurto: b("1.4, básico"),
+      "RC extracontractual": b("1.1, básico"),
+      "Terremoto y eventos de la naturaleza": b("1.6: eventos de la naturaleza"),
+      "Protección patrimonial": b("1.7, básico"),
+      "Asistencia jurídica": b("1.8 y 1.9: penal y civil"),
+      "Vehículo de reemplazo": o("2.1, adicional"),
+      "Gastos de transporte": o("2.2 y 2.3, adicionales"),
+    },
+  },
+  {
+    compania: "SEGUROS DEL ESTADO",
+    producto: "Clausulado seguro de automóviles",
+    archivo: "Clausulado Seguro de Automoviles.pdf · 2025",
+    estructura:
+      "Lista sus 14 amparos juntos, sin separar básicos de adicionales: operan «de acuerdo con los amparos contratados». Separa daños y hurto por cuantía (mayor y menor), como ALLIANZ.",
+    coberturas: {
+      "Daños (pérdida total y parcial)": s(
+        "Pérdida total y daños parciales de mayor y menor cuantía"
+      ),
+      Hurto: s("Hurto de mayor y de menor cuantía"),
+      "RC extracontractual": s("1.1"),
+      "Terremoto y eventos de la naturaleza": s("Terremoto y eventos de la naturaleza; terrorismo aparte"),
+      "Protección patrimonial": s(),
+      "Asistencia jurídica": s(),
+      "Vehículo de reemplazo": s(),
+      "Gastos de transporte": s("Para pérdidas totales o de mayor cuantía"),
+    },
+  },
+  {
+    compania: "ALLIANZ",
+    producto: "Clausulado livianos particulares (AUTO58 versión 24)",
+    archivo: "Clausulado-Livianos-Particulares-AUTO58VERSION24.pdf",
+    estructura:
+      "Enumera nueve amparos sin separarlos en básicos y adicionales. Es el único que nombra un amparo de «llave en mano», y cubre lesiones o muerte en accidente de tránsito incluso para familiares del conductor, que en el resto de sus amparos excluye.",
+    coberturas: {
+      "Daños (pérdida total y parcial)": s("Daños de mayor o menor cuantía"),
+      Hurto: s("Hurto de mayor o menor cuantía"),
+      "RC extracontractual": s(),
+      "Terremoto y eventos de la naturaleza": n,
+      "Protección patrimonial": s("Amparo patrimonial"),
+      "Asistencia jurídica": s("En proceso penal o civil"),
+      "Vehículo de reemplazo": s(),
+      "Gastos de transporte": s("Gastos de movilización por pérdidas de mayor cuantía"),
+    },
+  },
+  {
+    compania: "HDI",
+    producto: "Clausulado autos (convenios de uso de red con entidades financieras)",
+    archivo: "Clausulado Autos pólizas mediante convenios… nov2024.pdf",
+    estructura:
+      "Agrupa por destinatario: amparos al vehículo, amparos de responsabilidad civil y amparos a las personas. Es el más detallado en RC —extracontractual, en exceso, obligatoria de ley, contractual y general familiar— y el único con lucro cesante, exequias y obligaciones financieras.",
+    coberturas: {
+      "Daños (pérdida total y parcial)": s("2.1.1: pérdida parcial y total por daños"),
+      Hurto: s("2.1.2: pérdida parcial y total por hurto"),
+      "RC extracontractual": s("2.2.1, más otras cuatro modalidades de RC"),
+      "Terremoto y eventos de la naturaleza": s("2.1.3: temblor, terremoto o erupción volcánica"),
+      "Protección patrimonial": s(),
+      "Asistencia jurídica": s("2.3.1"),
+      "Vehículo de reemplazo": s("2.3.7: vehículo sustituto"),
+      "Gastos de transporte": s("2.3.5: por pérdida total"),
+    },
+  },
+];
+
+/**
+ * SURA queda fuera de la comparación de autos y conviene decir por qué: su
+ * clausulado usa una fuente con codificación rota y NINGÚN modo de extracción
+ * (-layout, -raw, por defecto) devuelve texto legible. El documento existe y se
+ * lee bien abriéndolo a mano; solo no se puede procesar automáticamente.
+ */
+export const SURA_AUTOS_ILEGIBLE = {
+  archivo: "CLAUSULADO AUTOS.pdf",
+  ruta: "3. Area Tecnica\\Compañia de Seguros\\Sura\\AUTOS - MOTOS\\CLAUSULADO\\2025\\AUTOS",
+};

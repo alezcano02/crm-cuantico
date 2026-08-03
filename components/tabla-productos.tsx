@@ -19,6 +19,12 @@ const MARCA: Record<Disponibilidad, { texto: string; clase: string; ayuda: strin
     clase: "bg-status-warning/15 text-status-warning",
     ayuda: "Existe, pero como anexo o módulo aparte con prima adicional",
   },
+  segun_caratula: {
+    texto: "Carátula",
+    clase: "bg-brand-light text-brand-dark",
+    ayuda:
+      "El clausulado lo lista sin decir si es básico o adicional: opera si está contratado en la carátula",
+  },
   no_especificado: {
     texto: "—",
     clase: "text-ink-muted",
