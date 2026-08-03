@@ -24,6 +24,8 @@ export function TablaSeguimiento({
   anioBase,
   anio,
   mostrarBase = true,
+  columna = "Mes",
+  etiquetas,
 }: {
   filas: FilaSeguimiento[];
   anioBase: number;
@@ -31,13 +33,21 @@ export function TablaSeguimiento({
   /** false cuando la base del año anterior no puede desglosarse con el filtro
    *  activo (p. ej. aseguradora en 2026: la BASE 2025 no la registra). */
   mostrarBase?: boolean;
+  /** Encabezado de la primera columna. */
+  columna?: string;
+  /** Nombre de cada fila, en el mismo orden que `filas`. Sin esto se usa el
+   *  mes; se pasa cuando las filas son ramos y no meses. */
+  etiquetas?: string[];
 }) {
+  const nombreDe = (f: FilaSeguimiento, i: number) =>
+    etiquetas?.[i] ?? MES_TITULO[f.mes] ?? f.mes;
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse whitespace-nowrap">
         <thead>
           <tr>
-            <Th>Mes</Th>
+            <Th>{columna}</Th>
             <Th derecha>Base a renovar {anioBase}</Th>
             <Th derecha>Meta {anio} (+15%)</Th>
             <Th derecha>Real {anio}</Th>
@@ -50,17 +60,18 @@ export function TablaSeguimiento({
           </tr>
         </thead>
         <tbody>
-          {filas.map((f) => {
-            const esTotal = f.mes === "TOTAL";
+          {filas.map((f, i) => {
+            const nombre = nombreDe(f, i);
+            const esTotal = nombre === "TOTAL";
             return (
               <tr
-                key={f.mes}
+                key={nombre}
                 className={clsx(
                   "hover:bg-surface-page",
                   esTotal && "bg-surface-page font-bold"
                 )}
               >
-                <Td className={clsx(esTotal && "font-bold")}>{MES_TITULO[f.mes] ?? f.mes}</Td>
+                <Td className={clsx(esTotal && "font-bold")}>{nombre}</Td>
                 <Td derecha>{mostrarBase ? fmtCOP(f.base) : "—"}</Td>
                 <Td derecha>{mostrarBase ? fmtCOP(f.meta) : "—"}</Td>
                 <Td derecha>{fmtCOP(f.real)}</Td>

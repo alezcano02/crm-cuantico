@@ -63,6 +63,29 @@ export default async function SeguimientoPage({
   const resumen = hayMes ? filas12[idxMes] : filas12[12];
   const nivel = nivelCumplimiento(resumen.cumplimiento);
 
+  // --- Desglose por ramo del mes elegido ---
+  // Con un mes seleccionado la tabla de detalle se queda en una sola fila, así
+  // que se abre el mes por ramo: la meta de cada uno, no solo la consolidada.
+  // Se omiten los ramos sin nada ese mes (ni base, ni meta, ni producción, ni
+  // cancelaciones); listarlos en cero solo alarga la tabla.
+  const ramosDelMes = hayMes
+    ? seguimiento.ramos
+        .map((r) => ({ ramo: r, fila: seguimiento.porRamo.get(r)![idxMes] }))
+        .filter(
+          ({ fila }) =>
+            fila.base !== 0 ||
+            fila.meta !== 0 ||
+            fila.real !== 0 ||
+            fila.cancelaciones !== 0
+        )
+        // De mayor a menor meta: primero dónde hay más por cumplir. Sin base
+        // calculable (filtro de aseguradora) se ordena por producción real.
+        .sort((a, b) =>
+          mostrarBase ? b.fila.meta - a.fila.meta : b.fila.real - a.fila.real
+        )
+    : [];
+  const ramosOcultos = hayMes ? seguimiento.ramos.length - ramosDelMes.length : 0;
+
   const serieCumplimiento = filas12.slice(0, 12).map((f, i) => ({
     mes: MESES_CORTO[i],
     cumplimiento: f.cumplimiento,
@@ -160,6 +183,43 @@ export default async function SeguimientoPage({
           mostrarBase={mostrarBase}
         />
       </Card>
+
+      {hayMes && esConsolidado && (
+        <Card>
+          <CardTitle>
+            {mostrarBase ? "Metas por ramo" : "Producción por ramo"} ·{" "}
+            {MES_TITULO[mesParam]} {anio}
+            {aseguradora ? ` · ${aseguradora}` : ""}
+          </CardTitle>
+          {ramosDelMes.length === 0 ? (
+            <p className="py-6 text-center text-sm text-ink-muted">
+              Ningún ramo tiene base, meta ni producción en{" "}
+              {MES_TITULO[mesParam]} de {anio}.
+            </p>
+          ) : (
+            <>
+              <TablaSeguimiento
+                filas={[
+                  ...ramosDelMes.map((r) => r.fila),
+                  seguimiento.consolidado[idxMes],
+                ]}
+                etiquetas={[...ramosDelMes.map((r) => r.ramo), "TOTAL"]}
+                columna="Ramo"
+                anioBase={anio - 1}
+                anio={anio}
+                mostrarBase={mostrarBase}
+              />
+              {ramosOcultos > 0 && (
+                <p className="mt-2 text-xs text-ink-muted">
+                  Se omiten {ramosOcultos}{" "}
+                  {ramosOcultos === 1 ? "ramo" : "ramos"} sin base, meta ni
+                  producción en {MES_TITULO[mesParam]}.
+                </p>
+              )}
+            </>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
