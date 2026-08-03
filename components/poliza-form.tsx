@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ListasFormulario } from "@/lib/queries";
 import { exigirOk } from "@/lib/respuesta";
+import { api } from "@/lib/rutas";
 
 export interface PolizaEditable {
   id?: number;
@@ -230,7 +231,7 @@ export function PolizaForm({
     setGuardando(true);
     setError(null);
     try {
-      const res = await fetch(esNueva ? "/api/policies" : `/api/policies/${poliza!.id}`, {
+      const res = await fetch(api(esNueva ? "/api/policies" : `/api/policies/${poliza!.id}`), {
         method: esNueva ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

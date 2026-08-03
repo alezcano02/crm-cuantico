@@ -5,6 +5,7 @@ import { fmtCOP, fmtFecha } from "@/lib/format";
 import { Card, EstadoVacio, PageHeader, StatCard } from "@/components/ui";
 import { IconDescargar } from "@/components/icons";
 import { exigirSesionPagina } from "@/lib/auth";
+import { api } from "@/lib/rutas";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,9 @@ export default async function InformeCarteraPage({
     informe.vencida.reduce((s, g) => s + g.lineas.length, 0) +
     informe.proxima.reduce((s, g) => s + g.lineas.length, 0);
 
-  const urlWord = `/api/informe-cartera${asesorParam ? `?asesor=${encodeURIComponent(asesorParam)}` : ""}`;
+  const urlWord = api(
+    `/api/informe-cartera${asesorParam ? `?asesor=${encodeURIComponent(asesorParam)}` : ""}`
+  );
 
   return (
     <div className="space-y-6">

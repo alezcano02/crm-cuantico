@@ -18,6 +18,7 @@ import {
 } from "@/components/icons";
 import { LogoCompleto } from "@/components/logo";
 import { BotonBusquedaRapida, BusquedaRapida } from "@/components/busqueda-rapida";
+import { api } from "@/lib/rutas";
 
 export interface ContadoresNav {
   /** Pólizas vencidas pendientes de renovar */
@@ -89,7 +90,7 @@ export function AppShell({
   const salir = async () => {
     setSaliendo(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch(api("/api/auth/logout"), { method: "POST" });
       router.replace("/login");
       router.refresh();
     } finally {

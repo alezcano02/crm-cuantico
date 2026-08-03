@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import { IconBuscar } from "@/components/icons";
+import { api } from "@/lib/rutas";
 
 interface Resultado {
   tipo: "poliza" | "cancelacion";
@@ -111,7 +112,7 @@ export function BusquedaRapida({
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(termino)}`, {
+        const res = await fetch(api(`/api/search?q=${encodeURIComponent(termino)}`), {
           signal: ctrl.signal,
         });
         const json = await res.json();

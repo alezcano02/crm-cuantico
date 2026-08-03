@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ResumenSiniestros } from "@/lib/siniestros";
 import { IconAlerta } from "@/components/icons";
 import { exigirOk } from "@/lib/respuesta";
+import { api } from "@/lib/rutas";
 
 export function ImportSiniestrosForm() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export function ImportSiniestrosForm() {
       const fd = new FormData();
       if (seguimiento) fd.append("seguimiento", seguimiento);
       if (resumen) fd.append("resumen", resumen);
-      const res = await fetch("/api/import-siniestros", { method: "POST", body: fd });
+      const res = await fetch(api("/api/import-siniestros"), { method: "POST", body: fd });
       const json = await exigirOk<{ total: number; resumen: ResumenSiniestros[] }>(res, "Error desconocido");
       setSalida(json);
       router.refresh();

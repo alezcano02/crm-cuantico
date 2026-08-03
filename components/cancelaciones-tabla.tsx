@@ -10,6 +10,7 @@ import { BotonExportar } from "@/components/boton-exportar";
 import { primaNoCausada } from "@/lib/calculos";
 import { IconEditar } from "@/components/icons";
 import { exigirOk } from "@/lib/respuesta";
+import { api } from "@/lib/rutas";
 
 export interface CancelacionVista {
   id: number;
@@ -452,7 +453,7 @@ function ModalCancelacion({
     setGuardando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/cancelaciones/${c.id}`, {
+      const res = await fetch(api(`/api/cancelaciones/${c.id}`), {
         method: metodo,
         headers: { "Content-Type": "application/json" },
         body: metodo === "PATCH" ? JSON.stringify(f) : undefined,

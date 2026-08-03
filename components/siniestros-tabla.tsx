@@ -14,6 +14,7 @@ import { BotonExportar } from "@/components/boton-exportar";
 import { IconCarpeta, IconCheck } from "@/components/icons";
 import { urlBusqueda } from "@/lib/carpetas";
 import { exigirOk } from "@/lib/respuesta";
+import { api } from "@/lib/rutas";
 
 export interface SiniestroVista {
   id: number;
@@ -447,7 +448,7 @@ function ModalSiniestro({
     setGuardando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/siniestros/${s.id}`, {
+      const res = await fetch(api(`/api/siniestros/${s.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cuerpo),

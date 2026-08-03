@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogoCompleto, LogoMarca } from "@/components/logo";
 import { exigirOk } from "@/lib/respuesta";
+import { api } from "@/lib/rutas";
 
 export function LoginForm() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export function LoginForm() {
     setEntrando(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(api("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usuario, clave }),

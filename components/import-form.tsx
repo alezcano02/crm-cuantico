@@ -6,6 +6,7 @@ import type { ResumenHoja } from "@/lib/excel";
 import { Td, Th } from "@/components/ui";
 import { IconAlerta, IconError } from "@/components/icons";
 import { exigirOk } from "@/lib/respuesta";
+import { api } from "@/lib/rutas";
 
 export function ImportForm() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export function ImportForm() {
     try {
       const fd = new FormData();
       fd.append("archivo", archivo);
-      const res = await fetch("/api/import", { method: "POST", body: fd });
+      const res = await fetch(api("/api/import"), { method: "POST", body: fd });
       const json = await exigirOk<{ resumen: ResumenHoja[]; cobranzaConservada?: number }>(
         res,
         "Error desconocido"

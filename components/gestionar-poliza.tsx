@@ -16,6 +16,7 @@ import {
 import { urlBusqueda } from "@/lib/carpetas";
 import { PolizaEditable, CamposPoliza } from "@/components/poliza-form";
 import { exigirOk } from "@/lib/respuesta";
+import { api } from "@/lib/rutas";
 
 export interface PolizaGestionable extends PolizaEditable {
   id: number;
@@ -211,7 +212,7 @@ function PanelPago({
     setGuardando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/policies/${poliza.id}/pago`, {
+      const res = await fetch(api(`/api/policies/${poliza.id}/pago`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...cuerpo, notaCartera: nota }),
@@ -376,7 +377,7 @@ function PanelEditar({
     setGuardando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/policies/${poliza.id}`, {
+      const res = await fetch(api(`/api/policies/${poliza.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -398,7 +399,7 @@ function PanelEditar({
   const eliminar = async () => {
     setGuardando(true);
     try {
-      const res = await fetch(`/api/policies/${poliza.id}`, { method: "DELETE" });
+      const res = await fetch(api(`/api/policies/${poliza.id}`), { method: "DELETE" });
       await exigirOk(res, "Error al eliminar.");
       onGuardado();
     } catch (e) {
@@ -474,7 +475,7 @@ function PanelRenovar({
     setGuardando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/policies/${poliza.id}/renovar`, {
+      const res = await fetch(api(`/api/policies/${poliza.id}/renovar`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vencimiento, primaNeta, primaTotal, estadoPago, fechaMaxPago }),
@@ -626,7 +627,7 @@ function PanelGestion({
     setGuardando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/policies/${poliza.id}/gestion`, {
+      const res = await fetch(api(`/api/policies/${poliza.id}/gestion`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gestionada, nota }),
@@ -707,7 +708,7 @@ function PanelCancelar({
     setGuardando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/policies/${poliza.id}/cancelar`, {
+      const res = await fetch(api(`/api/policies/${poliza.id}/cancelar`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
