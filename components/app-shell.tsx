@@ -13,6 +13,7 @@ import {
   IconImportar,
   IconPersonas,
   IconRegalo,
+  IconProducto,
   IconSiniestro,
   IconTendencia,
 } from "@/components/icons";
@@ -60,6 +61,7 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
   {
     titulo: "Datos",
     enlaces: [
+      { href: "/productos", etiqueta: "Productos", Icono: IconProducto },
       { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
       { href: "/importar", etiqueta: "Importar datos", Icono: IconImportar },
     ],

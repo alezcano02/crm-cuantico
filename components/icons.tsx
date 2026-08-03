@@ -217,3 +217,16 @@ export const IconAbajo = (p: IconProps) =>
       <polyline points="19 12 12 19 5 12" />
     </>
   ));
+
+/** Productos / clausulados: un documento con líneas y un sello. */
+export function IconProducto({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 12h4" />
+      <path d="M9 16h6" />
+    </svg>
+  );
+}
