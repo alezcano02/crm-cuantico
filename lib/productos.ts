@@ -115,14 +115,14 @@ export const COPROPIEDADES: ProductoClausulado[] = [
   {
     compania: "MAPFRE",
     producto: "Copropiedades",
-    archivo: "CLAUSULADO MAPFRE.pdf",
+    archivo: "Mapfre/COPROPIEDADES/CLAUSULADO/CONDICIONADO COPROPIEDADES.pdf",
     estructura:
-      "Cinco secciones. El terremoto va DENTRO de la sección primera (amparo básico), no como anexo aparte: es la diferencia estructural más marcada del grupo.",
+      "Seis secciones. El terremoto va DENTRO de la sección primera (amparo básico) junto al todo riesgo daño material: es la diferencia estructural más marcada del grupo. La RC extracontractual es la sección sexta, adicional.",
     coberturas: {
       "Todo riesgo daño material": b("Sección primera, 1.1"),
       Terremoto: b("Sección primera, 1.2: terremoto, temblor y/o erupción volcánica"),
       "Sustracción / hurto": o("Sección cuarta: hurto calificado"),
-      "RC extracontractual": n,
+      "RC extracontractual": o("Sección sexta, adicional"),
       "Manejo / infidelidad de empleados": o("Sección quinta: infidelidad de empleados"),
       "Transporte de valores": n,
       Asistencia: n,
@@ -196,7 +196,7 @@ export const COPROPIEDADES: ProductoClausulado[] = [
   {
     compania: "PREVISORA",
     producto: "Póliza multirriesgo copropiedades (PRACP-003-006)",
-    archivo: "CLAUSULADO PREVISORA.pdf",
+    archivo: "Previsora/COPROPIEDADES/CLAUSULADO/Clausulado póliza multirriesgo copropiedades.pdf",
     estructura:
       "Amparo básico y una lista larga de amparos opcionales, cada uno con sus propias exclusiones. El hurto simple queda excluido salvo que se contrate el opcional de sustracción.",
     coberturas: {
@@ -213,14 +213,14 @@ export const COPROPIEDADES: ProductoClausulado[] = [
   {
     compania: "SBS",
     producto: "Póliza de todo riesgo para copropiedades (con o sin áreas privadas)",
-    archivo: "CLAUSULADO SBS.pdf",
+    archivo: "Sbs/COPROPIEDADES/CLAUSULADO/Clausulado.pdf",
     estructura:
-      "Amparo básico con gastos adicionales automáticos, más amparos opcionales. Es el único del grupo que ofrece accidentes personales para los integrantes del consejo.",
+      "Amparo básico todo riesgo daño material, amparo automático de gastos adicionales (1.2) y tres opcionales: hurto simple, responsabilidad civil y accidentes personales. Es el único del grupo con accidentes personales para los integrantes del consejo.",
     coberturas: {
       "Todo riesgo daño material": b(),
       Terremoto: n,
-      "Sustracción / hurto": n,
-      "RC extracontractual": o("Amparo opcional de responsabilidad civil"),
+      "Sustracción / hurto": o("2.1: amparo opcional de hurto simple"),
+      "RC extracontractual": o("2.2: amparo opcional de responsabilidad civil"),
       "Manejo / infidelidad de empleados": n,
       "Transporte de valores": n,
       Asistencia: n,
@@ -229,12 +229,12 @@ export const COPROPIEDADES: ProductoClausulado[] = [
   {
     compania: "AXA COLPATRIA",
     producto: "Póliza integral para copropiedades",
-    archivo: "CLAUSULADO AXA COLPATRIA.pdf",
+    archivo: "Axa Colpatria/COPROPIEDADES/CLAUSULADOS/CLAUSULADO AXA COLPATRIA.pdf",
     estructura:
-      "Amparos básicos y un bloque 1.2 de amparos opcionales. El clausulado fija sublímites propios para responsabilidad civil.",
+      "Amparos básicos (1.1: todo riesgo incendio, deslizamiento, extended coverage), opcionales (1.2) y temporales (1.3). El terremoto es opcional, no básico. Fija sublímites propios para responsabilidad civil.",
     coberturas: {
-      "Todo riesgo daño material": b(),
-      Terremoto: n,
+      "Todo riesgo daño material": b("1.1.1 todo riesgo incendio"),
+      Terremoto: o("1.2.1: terremoto, temblor o erupción volcánica"),
       "Sustracción / hurto": n,
       "RC extracontractual": o("Con sublímites propios (1.3.6 y 1.3.7)"),
       "Manejo / infidelidad de empleados": n,
@@ -246,7 +246,7 @@ export const COPROPIEDADES: ProductoClausulado[] = [
   {
     compania: "EQUIDAD",
     producto: "Seguro de copropiedades",
-    archivo: "CLAUSULADO EQUIDAD.pdf",
+    archivo: "EQUIDAD SEGUROS/COPROPIEDAD/CLAUSULADO EQUIDAD.pdf",
     estructura:
       "Cobertura básica más coberturas adicionales que, según el propio texto, pueden convenirse expresamente mediante anexos.",
     coberturas: {
@@ -259,37 +259,6 @@ export const COPROPIEDADES: ProductoClausulado[] = [
       Asistencia: n,
     },
   },
-];
-
-/** Clausulados de otros productos: uno por compañía, sin con qué compararlos. */
-export const OTROS_PRODUCTOS: ProductoClausulado[] = [
-  {
-    compania: "ALLIANZ",
-    producto: "Seguro de hogar (individual)",
-    archivo:
-      "CLAUSULADO HOGAR ALLIANZ -Condicionado_Hogar_Individual_13122023.pdf",
-    estructura:
-      "Clausulado de hogar, versión 07/02/2024. Es el único de HOGAR archivado, así que no hay con qué compararlo.",
-    coberturas: {},
-  },
-  {
-    compania: "AXA COLPATRIA",
-    producto:
-      "RC extracontractual · empresas de vigilancia y seguridad privada (Decreto 356 de 1994)",
-    archivo: "CLAUSULADO RC-EMP-VIGILANCIA - AXA COLPATRIA.pdf",
-    estructura:
-      "Producto de nicho, ligado al Decreto 356 de 1994. Es el único de su tipo archivado.",
-    coberturas: {},
-  },
-];
-
-/** Documentos de asistencias y exclusiones que están sueltos en la carpeta. */
-export const DOCUMENTOS_ASISTENCIA = [
-  "ASISTENCIAS Y EXCLUSIONES AXA COLPATRIA.docx",
-  "ASISTENCIAS Y EXCLUSIONES BBVA SEGUROS.docx",
-  "ASISTENCIAS Y EXCLUSIONES PREVISORA SEGUROS.docx",
-  "ASISTENCIAS Y EXCLUSIONES ZURICH COLOMBIA.docx",
-  "CLAUSULADOS TODAS Z COMUN.docx",
 ];
 
 /** Ruta de la carpeta en la unidad compartida, para poder abrir el original. */
@@ -315,43 +284,73 @@ export interface InventarioRamo {
   comparado?: boolean;
 }
 
-export const INVENTARIO_COMPARTIDA: InventarioRamo[] = [
-  {
-    ramo: "SALUD",
-    documentos: 14,
-    companias: ["AXA COLPATRIA", "MUNDIAL", "SURA"],
-  },
-  {
-    ramo: "AUTOS y MOTOS",
-    documentos: 16,
-    companias: [
-      "ALLIANZ",
-      "AXA COLPATRIA",
-      "BOLÍVAR",
-      "SEGUROS DEL ESTADO",
-      "HDI",
-      "MAPFRE",
-      "SBS",
-      "SURA",
-    ],
-    comparado: true,
-  },
-  {
-    ramo: "COPROPIEDADES",
-    documentos: 8,
-    companias: ["AXA COLPATRIA", "EQUIDAD", "MAPFRE", "PREVISORA", "SBS"],
-    comparado: true,
-  },
-  { ramo: "PYME", documentos: 3, companias: ["ALLIANZ", "MAPFRE", "SURA"] },
-  { ramo: "MASCOTAS", documentos: 3, companias: ["MUNDIAL", "SURA"] },
-  { ramo: "VIAJES", documentos: 2, companias: ["SURA"] },
-  { ramo: "VIDA", documentos: 1, companias: ["AXA COLPATRIA"] },
-  { ramo: "RCE", documentos: 1, companias: ["SURA"] },
-  { ramo: "HOGAR", documentos: 1, companias: ["ALLIANZ"] },
-  { ramo: "ARRENDAMIENTO", documentos: 1, companias: ["SBS"] },
+/**
+ * Dónde está el clausulado de cada compañía. La carpeta "Clausulados" resultó
+ * ser una copia parcial y desactualizada: los buenos están en la carpeta de
+ * cada compañía, en <COMPAÑÍA><PRODUCTO>. De AXA, MAPFRE y SBS los dos
+ * archivos ni siquiera coinciden, y se usó el de la compañía.
+ */
+export interface FuenteRamo {
+  ramo: "Copropiedades" | "Autos";
+  compania: string;
+  /** Dónde vive el clausulado que se usó. */
+  origen: "carpeta_compania" | "carpeta_clausulados";
+}
+
+export const FUENTES: FuenteRamo[] = [
+  { ramo: "Copropiedades", compania: "AXA COLPATRIA", origen: "carpeta_compania" },
+  { ramo: "Copropiedades", compania: "EQUIDAD", origen: "carpeta_compania" },
+  { ramo: "Copropiedades", compania: "MAPFRE", origen: "carpeta_compania" },
+  { ramo: "Copropiedades", compania: "PREVISORA", origen: "carpeta_compania" },
+  { ramo: "Copropiedades", compania: "SBS", origen: "carpeta_compania" },
+  { ramo: "Copropiedades", compania: "BBVA SEGUROS", origen: "carpeta_clausulados" },
+  { ramo: "Copropiedades", compania: "HDI", origen: "carpeta_clausulados" },
+  { ramo: "Copropiedades", compania: "SEGUROS DEL ESTADO", origen: "carpeta_clausulados" },
+  { ramo: "Copropiedades", compania: "SOLIDARIA", origen: "carpeta_clausulados" },
+  { ramo: "Copropiedades", compania: "SURA", origen: "carpeta_clausulados" },
+  { ramo: "Copropiedades", compania: "ZURICH", origen: "carpeta_clausulados" },
+  { ramo: "Autos", compania: "ALLIANZ", origen: "carpeta_compania" },
+  { ramo: "Autos", compania: "AXA COLPATRIA", origen: "carpeta_compania" },
+  { ramo: "Autos", compania: "BOLÍVAR", origen: "carpeta_compania" },
+  { ramo: "Autos", compania: "HDI", origen: "carpeta_compania" },
+  { ramo: "Autos", compania: "MAPFRE", origen: "carpeta_compania" },
+  { ramo: "Autos", compania: "SBS", origen: "carpeta_compania" },
+  { ramo: "Autos", compania: "SEGUROS DEL ESTADO", origen: "carpeta_compania" },
+  { ramo: "Autos", compania: "ZURICH", origen: "carpeta_compania" },
 ];
 
-/** Total de archivos de clausulado/condicionado hallados en la compartida. */
+/** Compañías con clausulado archivado que NO se pudieron comparar, y por qué. */
+export const SIN_COMPARAR = [
+  {
+    compania: "SURA",
+    ramo: "Autos",
+    motivo:
+      "Su clausulado tiene la fuente con codificación dañada: ningún modo de extracción devuelve texto. Se lee bien abriéndolo a mano.",
+    ruta: "Sura/AUTOS - MOTOS/CLAUSULADO/2025/AUTOS/CLAUSULADO AUTOS.pdf",
+  },
+  {
+    compania: "MUNDIAL",
+    ramo: "Autos",
+    motivo:
+      "Sus clausulados son de taxis (Seguro Amarillo), pesados de carga y RC (Conduce Tranquilo). No hay uno de livianos particulares, así que no es comparable con los demás.",
+    ruta: "Mundial/AUTOS/CLAUSULADOS MOVILIDAD MUNDIAL/2025",
+  },
+  {
+    compania: "LIBERTY",
+    ramo: "Autos",
+    motivo:
+      "Solo tiene manual de políticas de suscripción, no clausulado.",
+    ruta: "Liberty/AUTOS/POLITICAS",
+  },
+  {
+    compania: "EQUIDAD",
+    ramo: "Autos",
+    motivo:
+      "Lo archivado son presentaciones de producto y políticas, no el clausulado.",
+    ruta: "EQUIDAD SEGUROS/AUTOS",
+  },
+];
+
 export const TOTAL_CLAUSULADOS_COMPARTIDA = 654;
 
 export const CARPETA_COMPANIAS = "3. Area Tecnica\\Compañia de Seguros";
@@ -473,6 +472,25 @@ export const AUTOS: ProductoClausulado[] = [
       "Asistencia jurídica": s(),
       "Vehículo de reemplazo": s(),
       "Gastos de transporte": s("Para pérdidas totales o de mayor cuantía"),
+    },
+  },
+  {
+    compania: "ZURICH",
+    producto: "Póliza de seguro para vehículos livianos de servicio particular",
+    archivo: "ZURICH/AUTOS/CLAUSULADOS AUTOS ZURICH/2025/Poliza de Seguro Autos Livianos Particular MOV 15102022.pdf",
+    estructura:
+      "Encabeza su cláusula 1 diciendo que los amparos «aplican según el plan contratado» y solo operan si están en la carátula. Agrupa por coberturas de daños y coberturas por hurto. Su RC se extiende a bicicleta y patineta —propia, prestada o alquilada— con sublímite de $5.000.000 por evento, algo que ningún otro clausulado del grupo contempla.",
+    coberturas: {
+      "Daños (pérdida total y parcial)": s("Coberturas por daños: pérdida total y parcial"),
+      Hurto: s("Coberturas por hurto: pérdida total y parcial"),
+      "RC extracontractual": s("Se extiende a bicicleta y patineta, sublímite $5.000.000"),
+      "Terremoto y eventos de la naturaleza": s(
+        "Solo si se contrata: sus exclusiones dicen «cuando este amparo no haya sido contratado»"
+      ),
+      "Protección patrimonial": s("Amparo patrimonial"),
+      "Asistencia jurídica": n,
+      "Vehículo de reemplazo": n,
+      "Gastos de transporte": s(),
     },
   },
   {

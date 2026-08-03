@@ -9,10 +9,9 @@ import {
   COBERTURAS_COMPARADAS,
   COPROPIEDADES,
   EXCLUSIONES_COMUNES_ASISTENCIA,
-  INVENTARIO_COMPARTIDA,
+  FUENTES,
+  SIN_COMPARAR,
   SERVICIOS_ASISTENCIA,
-  SURA_AUTOS_ILEGIBLE,
-  TOTAL_CLAUSULADOS_COMPARTIDA,
 } from "@/lib/productos";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +28,9 @@ const CLAVES = {
         "Su sección primera lo trae junto al todo riesgo daño material. En SEGUROS DEL ESTADO es amparo adicional.",
     },
     {
-      titulo: "La responsabilidad civil casi nunca viene incluida.",
+      titulo: "La responsabilidad civil nunca viene incluida.",
       texto:
-        "Anexo o módulo aparte en ZURICH, SURA, SOLIDARIA, HDI y SBS. AXA COLPATRIA le fija sublímites propios.",
+        "En las once es anexo, módulo o sección aparte. En MAPFRE es la sección sexta; en SBS, el opcional 2.2; AXA COLPATRIA además le fija sublímites propios.",
     },
     {
       titulo: "PREVISORA excluye el hurto simple",
@@ -39,9 +38,9 @@ const CLAVES = {
         "salvo que se contrate el opcional de sustracción. Está en las exclusiones, no en las coberturas.",
     },
     {
-      titulo: "ZURICH condiciona sus anexos a la carátula:",
+      titulo: "El terremoto se contrata aparte en casi todas.",
       texto:
-        "si el amparo no figura allí, «no habrá responsabilidad de la compañía». Conviene revisarlo al renovar.",
+        "Solo MAPFRE lo trae en el básico. En AXA COLPATRIA es el opcional 1.2.1 y en SEGUROS DEL ESTADO un amparo adicional. ZURICH además avisa que si el anexo no figura en la carátula, «no habrá responsabilidad de la compañía».",
     },
   ],
   AUTOS: [
@@ -56,14 +55,14 @@ const CLAVES = {
         "daños, hurto, naturaleza, patrimonial y jurídica van dentro de los amparos básicos.",
     },
     {
-      titulo: "ALLIANZ, SEGUROS DEL ESTADO y HDI no separan básicos de adicionales.",
+      titulo: "ALLIANZ, SEGUROS DEL ESTADO, HDI y ZURICH no separan básicos de adicionales.",
       texto:
-        "Listan todo y remiten a «los amparos contratados»: ahí la carátula es la única fuente.",
+        "Listan todo y remiten a «los amparos contratados» o «el plan contratado»: ahí la carátula es la única fuente de qué está cubierto.",
     },
     {
-      titulo: "HDI es el más completo en responsabilidad civil",
+      titulo: "Detalles que solo tiene uno:",
       texto:
-        "—extracontractual, en exceso, de ley, contractual y general familiar— y el único con lucro cesante y exequias.",
+        "HDI distingue cinco modalidades de responsabilidad civil y es el único con lucro cesante y exequias. ZURICH extiende su RC a bicicleta y patineta —propia, prestada o alquilada— con sublímite de $5.000.000 por evento.",
     },
   ],
   ASISTENCIAS: [
@@ -98,7 +97,7 @@ export default async function ProductosPage() {
     <div className="space-y-5">
       <PageHeader
         titulo="Productos"
-        descripcion="Qué cubre cada compañía según sus clausulados archivados · copropiedades, autos y asistencias"
+        descripcion="Qué cubre cada compañía según el clausulado de su propia carpeta · copropiedades y autos"
       />
 
       <div className="rounded-lg border border-status-warning/40 bg-status-warning/5 px-4 py-2.5 text-sm leading-relaxed text-ink-secondary">
@@ -134,48 +133,64 @@ export default async function ProductosPage() {
         </Card>
 
         <Card>
-          <CardTitle>Qué más hay en la compartida</CardTitle>
+          <CardTitle>De dónde salió cada clausulado</CardTitle>
           <p className="mb-2.5 text-sm leading-relaxed text-ink-secondary">
-            {TOTAL_CLAUSULADOS_COMPARTIDA} archivos en{" "}
-            <span className="tabla-num text-xs">{CARPETA_COMPANIAS}</span>. Sirve
-            para saber si ya existe un clausulado antes de pedirlo.
+            Los buenos están en{" "}
+            <span className="tabla-num text-xs">
+              {CARPETA_COMPANIAS}/&lt;compañía&gt;/&lt;producto&gt;
+            </span>
+            . La carpeta <span className="tabla-num text-xs">Clausulados</span> es
+            una copia parcial: en AXA, MAPFRE y SBS los dos archivos ni siquiera
+            coinciden, y se usó el de la compañía.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse whitespace-nowrap">
               <thead>
                 <tr>
+                  <Th>Compañía</Th>
                   <Th>Ramo</Th>
-                  <Th derecha>Docs</Th>
-                  <Th>Compañías</Th>
+                  <Th>Fuente</Th>
                 </tr>
               </thead>
               <tbody>
-                {INVENTARIO_COMPARTIDA.map((r) => (
-                  <tr key={r.ramo} className="hover:bg-surface-page">
-                    <Td className="font-semibold">
-                      {r.ramo}
-                      {r.comparado && (
-                        <span className="ml-1.5 rounded bg-status-good/12 px-1 py-0.5 text-[10px] font-semibold text-status-good">
-                          comparado
-                        </span>
-                      )}
-                    </Td>
-                    <Td derecha>{r.documentos}</Td>
-                    <Td className="max-w-[16rem] truncate text-xs text-ink-secondary">
-                      {r.companias.join(" · ")}
+                {FUENTES.map((f) => (
+                  <tr key={`${f.ramo}-${f.compania}`} className="hover:bg-surface-page">
+                    <Td className="font-semibold">{f.compania}</Td>
+                    <Td className="text-xs text-ink-secondary">{f.ramo}</Td>
+                    <Td>
+                      <span
+                        className={
+                          f.origen === "carpeta_compania"
+                            ? "rounded bg-status-good/12 px-1.5 py-0.5 text-[11px] font-semibold text-status-good"
+                            : "rounded bg-status-warning/15 px-1.5 py-0.5 text-[11px] font-semibold text-status-warning"
+                        }
+                      >
+                        {f.origen === "carpeta_compania"
+                          ? "Carpeta de la compañía"
+                          : "Solo en Clausulados"}
+                      </span>
                     </Td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="mt-2.5 text-xs leading-relaxed text-ink-muted">
-            SURA tiene clausulado de autos en{" "}
-            <span className="tabla-num">{SURA_AUTOS_ILEGIBLE.ruta}</span>, pero su
-            PDF tiene la codificación dañada y no se puede leer automáticamente;
-            queda fuera de la comparación. El anexo de asistencia de AXA COLPATRIA
-            está escaneado como imagen, por lo mismo.
-          </p>
+          <div className="mt-3 border-t border-line-grid pt-2.5">
+            <div className="etiqueta-marca mb-1.5 text-[11px] text-ink-muted">
+              Con clausulado archivado pero sin comparar
+            </div>
+            {SIN_COMPARAR.map((c) => (
+              <p
+                key={`${c.compania}-${c.ramo}`}
+                className="text-xs leading-relaxed text-ink-secondary"
+              >
+                <b className="text-ink">
+                  {c.compania} ({c.ramo}):
+                </b>{" "}
+                {c.motivo}
+              </p>
+            ))}
+          </div>
         </Card>
       </div>
     </div>
