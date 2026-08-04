@@ -23,6 +23,12 @@ const nextConfig = {
     // «Cannot find module pdf.worker.mjs». Se deja fuera del empaquetado para
     // que se cargue desde node_modules como cualquier módulo de Node.
     serverComponentsExternalPackages: ["pdfjs-dist"],
+    // …y como esa resolución ocurre en ejecución, el rastreo de archivos de
+    // Vercel no la ve y el worker no viajaba al despliegue: en local iba y en
+    // producción daba «Cannot find module». Se incluye a mano.
+    outputFileTracingIncludes: {
+      "/api/extraer-poliza": ["./node_modules/pdfjs-dist/legacy/build/**"],
+    },
   },
   async redirects() {
     return [
