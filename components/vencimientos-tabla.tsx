@@ -12,6 +12,7 @@ import { PolizaEditable, PolizaForm } from "@/components/poliza-form";
 import { BotonExportar } from "@/components/boton-exportar";
 import { GestionarPoliza } from "@/components/gestionar-poliza";
 import { Paginacion, usePaginacion } from "@/components/paginacion";
+import { PanelFiltros } from "@/components/panel-filtros";
 
 export interface PolizaVista extends PolizaEditable {
   id: number;
@@ -167,7 +168,8 @@ export function VencimientosTabla({
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <PanelFiltros>
+      <div className="flex flex-col gap-2 rounded-lg border border-line-grid bg-white p-3">
         <input
           type="search"
           value={q}
@@ -277,6 +279,7 @@ export function VencimientosTabla({
           ]}
         />
       </div>
+      </PanelFiltros>
 
       <div className="overflow-x-auto scroll-fino rounded-xl border border-line-grid bg-surface">
         <table className="w-full border-collapse whitespace-nowrap">

@@ -15,6 +15,7 @@ import { IconCarpeta, IconCheck } from "@/components/icons";
 import { urlBusqueda } from "@/lib/carpetas";
 import { exigirOk } from "@/lib/respuesta";
 import { api } from "@/lib/rutas";
+import { PanelFiltros } from "@/components/panel-filtros";
 
 export interface SiniestroVista {
   id: number;
@@ -199,7 +200,8 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <PanelFiltros>
+      <div className="flex flex-col gap-2 rounded-lg border border-line-grid bg-white p-3">
         <input
           type="search"
           value={q}
@@ -291,6 +293,7 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
           ]}
         />
       </div>
+      </PanelFiltros>
 
       <div className="overflow-x-auto scroll-fino rounded-xl border border-line-grid bg-surface">
         <table className="w-full border-collapse whitespace-nowrap">

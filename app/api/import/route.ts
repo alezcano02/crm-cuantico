@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parsearLibro } from "@/lib/excel";
-import { exigirSesion } from "@/lib/auth";
+import { exigirImportador } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  const noAutorizado = await exigirSesion();
+  const noAutorizado = await exigirImportador();
   if (noAutorizado) return noAutorizado;
-  const formData = await req.formData();
+  // Sin cuerpo multipart, formData() lanza y devolvía un 500 sin mensaje.
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "Adjunte el archivo .xlsx en el campo 'archivo'." },
+      { status: 400 }
+    );
+  }
   const archivo = formData.get("archivo");
   if (!(archivo instanceof File)) {
     return NextResponse.json(

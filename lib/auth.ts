@@ -110,6 +110,42 @@ export async function exigirSesion(): Promise<NextResponse | null> {
 }
 
 /**
+ * Quién puede importar datos.
+ *
+ * La importación borra y recrea casi toda la base, así que no es una acción
+ * más: la hace una sola persona. Se compara en minúsculas porque el usuario
+ * se escribe a mano al ingresar.
+ */
+const USUARIOS_IMPORTACION = ["administrativo@cuanticoseguros.com"];
+
+export function puedeImportar(usuario: string | null | undefined): boolean {
+  if (!usuario) return false;
+  return USUARIOS_IMPORTACION.includes(usuario.trim().toLowerCase());
+}
+
+/**
+ * Guardia para las rutas de API que solo puede usar quien importa. Devuelve
+ * 401 si no hay sesión y 403 si la hay pero no es de quien corresponde, para
+ * que el cliente pueda distinguir "vuelva a entrar" de "no es para usted".
+ */
+export async function exigirImportador(): Promise<NextResponse | null> {
+  const sesion = await sesionActual();
+  if (!sesion) {
+    return NextResponse.json({ error: "Sesión requerida." }, { status: 401 });
+  }
+  if (!puedeImportar(sesion.usuario)) {
+    return NextResponse.json(
+      {
+        error:
+          "Solo el usuario administrativo puede importar datos. La importación reemplaza casi toda la base, así que está limitada a una sola cuenta.",
+      },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+/**
  * Guardia para las PÁGINAS. Debe ser la primera línea de cada página del grupo
  * (app), antes de cualquier consulta a la base.
  *

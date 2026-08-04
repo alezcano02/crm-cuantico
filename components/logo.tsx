@@ -1,5 +1,10 @@
 import Image from "next/image";
 import clsx from "clsx";
+// Importación estática, no la ruta escrita a mano: Next le pone el hash y el
+// basePath solo. Con src="/logo-cuantico.png" el optimizador pedía el archivo
+// a la raíz del despliegue, donde ya no está desde que la app cuelga de
+// /funcionarios, y devolvía 404: el logo salía en blanco.
+import logoCuantico from "../public/logo-cuantico.png";
 
 /**
  * Marca de Cuántico Seguros en SVG.
@@ -106,7 +111,7 @@ export function LogoSimbolo({
       style={{ width: ancho, height: alto }}
     >
       <Image
-        src="/logo-cuantico.png"
+        src={logoCuantico}
         alt=""
         width={anchoImagen}
         height={anchoImagen}

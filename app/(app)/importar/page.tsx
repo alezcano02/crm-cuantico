@@ -1,13 +1,16 @@
 import { ImportForm } from "@/components/import-form";
 import { ImportSiniestrosForm } from "@/components/import-siniestros-form";
 import { Card, CardTitle, PageHeader } from "@/components/ui";
-import { exigirSesionPagina } from "@/lib/auth";
+import { notFound } from "next/navigation";
+import { exigirSesionPagina, puedeImportar } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ImportarPage() {
   // Antes de tocar la base: el layout no alcanza a cortar el render.
-  await exigirSesionPagina();
+  const sesion = await exigirSesionPagina();
+  // La importación reemplaza casi toda la base: solo la cuenta administrativa.
+  if (!puedeImportar(sesion.usuario)) notFound();
 
   return (
     <div className="max-w-3xl space-y-6">

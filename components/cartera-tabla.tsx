@@ -13,6 +13,7 @@ import { IconDescargar, IconDinero } from "@/components/icons";
 import { BotonExportar } from "@/components/boton-exportar";
 import { GestionarPoliza } from "@/components/gestionar-poliza";
 import { Paginacion, usePaginacion } from "@/components/paginacion";
+import { PanelFiltros } from "@/components/panel-filtros";
 
 /** Las fechas viajan como ISO; el CSV las quiere como Date para formatearlas. */
 function fechaCSV(iso: string | null): Date | null {
@@ -252,7 +253,8 @@ export function CarteraTabla({
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <PanelFiltros>
+      <div className="flex flex-col gap-2 rounded-lg border border-line-grid bg-white p-3">
         <input
           type="search"
           value={q}
@@ -374,6 +376,7 @@ export function CarteraTabla({
           ]}
         />
       </div>
+      </PanelFiltros>
 
       <div className="overflow-x-auto scroll-fino rounded-xl border border-line-grid bg-surface">
         <table className="w-full border-collapse whitespace-nowrap">

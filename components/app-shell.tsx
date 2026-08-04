@@ -18,6 +18,7 @@ import {
 } from "@/components/icons";
 import { LogoCompleto } from "@/components/logo";
 import { BotonBusquedaRapida, BusquedaRapida } from "@/components/busqueda-rapida";
+import { ID_PANEL_FILTROS } from "@/components/panel-filtros";
 import { api } from "@/lib/rutas";
 
 export interface ContadoresNav {
@@ -32,44 +33,43 @@ type Enlace = {
   etiqueta: string;
   Icono: (p: { className?: string }) => JSX.Element;
   contador?: keyof ContadoresNav;
+  /** true = solo para quien puede importar. */
+  soloImportador?: boolean;
 };
 
-const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
+/**
+ * El menú va en el encabezado, en una sola fila. Antes eran tres grupos en una
+ * barra lateral; en horizontal los grupos no aportan y quitan sitio, así que se
+ * ordenan por uso: primero lo que se mira a diario.
+ */
+const ENLACES: Enlace[] = [
+  { href: "/", etiqueta: "Dashboard", Icono: IconDashboard },
   {
-    titulo: "Análisis",
-    enlaces: [
-      { href: "/", etiqueta: "Dashboard", Icono: IconDashboard },
-      { href: "/seguimiento", etiqueta: "Seguimiento", Icono: IconTendencia },
-      { href: "/asesores", etiqueta: "Asesores", Icono: IconPersonas },
-    ],
+    href: "/vencimientos",
+    etiqueta: "Vencimientos",
+    Icono: IconCalendario,
+    contador: "vencidas",
   },
+  { href: "/cartera", etiqueta: "Cartera", Icono: IconCartera, contador: "mora" },
+  { href: "/seguimiento", etiqueta: "Seguimiento", Icono: IconTendencia },
+  { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
+  { href: "/siniestros", etiqueta: "Siniestros", Icono: IconSiniestro },
+  { href: "/asesores", etiqueta: "Asesores", Icono: IconPersonas },
+  { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconRegalo },
+  { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
   {
-    titulo: "Operación",
-    enlaces: [
-      {
-        href: "/vencimientos",
-        etiqueta: "Vencimientos",
-        Icono: IconCalendario,
-        contador: "vencidas",
-      },
-      { href: "/cartera", etiqueta: "Cartera", Icono: IconCartera, contador: "mora" },
-      { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
-      { href: "/siniestros", etiqueta: "Siniestros", Icono: IconSiniestro },
-      { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconRegalo },
-    ],
-  },
-  {
-    titulo: "Datos",
-    enlaces: [
-      { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
-      { href: "/importar", etiqueta: "Importar datos", Icono: IconImportar },
-    ],
+    href: "/importar",
+    etiqueta: "Importar datos",
+    Icono: IconImportar,
+    soloImportador: true,
   },
 ];
 
 export interface SesionVista {
   usuario: string;
   nombre: string | null;
+  /** Si no puede importar, el enlace ni siquiera se dibuja. */
+  puedeImportar?: boolean;
 }
 
 export function AppShell({
@@ -86,6 +86,10 @@ export function AppShell({
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
+
+  const enlaces = ENLACES.filter(
+    (e) => !e.soloImportador || sesion?.puedeImportar
+  );
 
   const salir = async () => {
     setSaliendo(true);
@@ -113,165 +117,139 @@ export function AppShell({
   // Al navegar se cierra el menú móvil.
   useEffect(() => setMenuAbierto(false), [pathname]);
 
-  const barra = (
-    <>
-      {/* Esquina superior izquierda: la misma cabecera de la web —fondo claro,
-          símbolo a color y el nombre completo—, no una versión en blanco. */}
-      <div className="bg-surface px-4 py-4">
-        <Link href="/" className="block">
-          <LogoCompleto />
-        </Link>
-      </div>
+  const esActivo = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-      <div className="px-3 pb-2 pt-3">
-        <BotonBusquedaRapida onAbrir={() => setBuscando(true)} />
-      </div>
-
-      <nav className="flex-1 overflow-y-auto scroll-fino px-3 pb-4">
-        {GRUPOS.map((grupo) => (
-          <div key={grupo.titulo} className="mb-4">
-            <div className="etiqueta-marca px-3 pb-1.5 text-[10px] text-white/35">
-              {grupo.titulo}
-            </div>
-            <div className="flex flex-col gap-0.5">
-              {grupo.enlaces.map(({ href, etiqueta, Icono, contador }) => {
-                const activo =
-                  href === "/" ? pathname === "/" : pathname.startsWith(href);
-                const n = contador ? contadores[contador] : 0;
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={clsx(
-                      "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      activo
-                        ? "bg-white/12 text-white"
-                        : "text-white/65 hover:bg-white/6 hover:text-white"
-                    )}
-                  >
-                    {activo && (
-                      <span
-                        className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-white"
-                        aria-hidden
-                      />
-                    )}
-                    <Icono
-                      className={clsx(
-                        "h-4 w-4 shrink-0",
-                        activo ? "text-white" : "text-white/45 group-hover:text-white/80"
-                      )}
-                    />
-                    <span className="flex-1 truncate">{etiqueta}</span>
-                    {n > 0 && (
-                      <span
-                        className={clsx(
-                          "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabla-num",
-                          activo
-                            ? "bg-white/20 text-white"
-                            : "bg-status-critical/85 text-white"
-                        )}
-                        title={`${n} requieren atención`}
-                      >
-                        {n > 999 ? "999+" : n}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
-
-      {sesion ? (
-        <div className="border-t border-white/10 px-3 py-3">
-          <div className="flex items-center gap-2.5 px-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">
-              {(sesion.nombre ?? sesion.usuario).slice(0, 2).toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-white">
-                {sesion.nombre ?? sesion.usuario}
-              </div>
-              <div className="truncate text-[11px] text-white/40">{sesion.usuario}</div>
-            </div>
-          </div>
-          <button
-            onClick={salir}
-            disabled={saliendo}
-            className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-xs font-medium text-white/50 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
+  const enlaceNav = (e: Enlace, vertical = false) => {
+    const activo = esActivo(e.href);
+    const n = e.contador ? contadores[e.contador] : 0;
+    return (
+      <Link
+        key={e.href}
+        href={e.href}
+        className={clsx(
+          "group relative flex items-center gap-2 rounded-lg text-sm font-medium transition-colors",
+          vertical ? "px-3 py-2.5" : "px-2.5 py-1.5",
+          activo
+            ? "bg-brand text-white"
+            : "text-ink-secondary hover:bg-surface-page hover:text-ink"
+        )}
+      >
+        <e.Icono
+          className={clsx(
+            "h-4 w-4 shrink-0",
+            activo ? "text-white" : "text-ink-muted group-hover:text-ink-secondary"
+          )}
+        />
+        <span className="truncate">{e.etiqueta}</span>
+        {n > 0 && (
+          <span
+            className={clsx(
+              "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabla-num",
+              activo ? "bg-white/25 text-white" : "bg-status-critical/85 text-white"
+            )}
+            title={`${n} requieren atención`}
           >
-            {saliendo ? "Saliendo…" : "Cerrar sesión"}
-          </button>
-        </div>
-      ) : (
-        <div className="border-t border-white/10 px-5 py-3.5 text-[11px] leading-relaxed text-white/35">
-          CRM de producción y cartera
-          <br />
-          Datos en tiempo real desde la base
-        </div>
-      )}
-    </>
-  );
+            {n > 999 ? "999+" : n}
+          </span>
+        )}
+      </Link>
+    );
+  };
 
   return (
-    <div className="min-h-screen">
-      {/* Barra lateral fija en escritorio */}
-      <aside className="no-imprimir fixed inset-y-0 left-0 z-40 hidden w-60 flex-col bg-brand-800 lg:flex">
-        {barra}
-      </aside>
-
-      {/* Cabecera móvil */}
-      <header className="no-imprimir sticky top-0 z-30 flex items-center gap-3 border-b border-line-grid bg-surface px-4 py-3 lg:hidden">
-        <button
-          onClick={() => setMenuAbierto(true)}
-          aria-label="Abrir menú"
-          className="rounded-md p-1.5 text-ink-secondary hover:bg-surface-page"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden
+    <div className="min-h-screen bg-surface-page">
+      {/* ---------------------------------------------------------------
+          Encabezado: logo, menú y sesión. El menú pasó aquí desde la barra
+          lateral; la izquierda queda libre para los filtros de cada módulo.
+          --------------------------------------------------------------- */}
+      <header className="no-imprimir sticky top-0 z-40 border-b border-line-grid bg-surface">
+        <div className="flex items-center gap-3 px-4 py-2.5 lg:px-6">
+          <button
+            onClick={() => setMenuAbierto((v) => !v)}
+            aria-label="Abrir menú"
+            className="rounded-md p-1.5 text-ink-secondary hover:bg-surface-page xl:hidden"
           >
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-        </button>
-        <Link href="/" className="flex items-center">
-          <LogoCompleto alto={36} />
-        </Link>
-        <button
-          onClick={() => setBuscando(true)}
-          aria-label="Buscar"
-          className="ml-auto rounded-md p-1.5 text-ink-secondary hover:bg-surface-page"
-        >
-          <IconBuscar className="h-5 w-5" />
-        </button>
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+
+          <Link href="/" className="shrink-0">
+            <LogoCompleto alto={36} />
+          </Link>
+
+          <nav className="ml-2 hidden flex-1 flex-wrap items-center gap-0.5 xl:flex">
+            {enlaces.map((e) => enlaceNav(e))}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-2 xl:ml-0">
+            <div className="hidden w-44 md:block">
+              <BotonBusquedaRapida onAbrir={() => setBuscando(true)} />
+            </div>
+            <button
+              onClick={() => setBuscando(true)}
+              aria-label="Buscar"
+              className="rounded-md p-1.5 text-ink-secondary hover:bg-surface-page md:hidden"
+            >
+              <IconBuscar className="h-5 w-5" />
+            </button>
+
+            {sesion && (
+              <div className="flex items-center gap-2 border-l border-line-grid pl-2">
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white"
+                  title={sesion.usuario}
+                >
+                  {(sesion.nombre ?? sesion.usuario).slice(0, 2).toUpperCase()}
+                </div>
+                <div className="hidden min-w-0 lg:block">
+                  <div className="truncate text-sm font-medium leading-tight">
+                    {sesion.nombre ?? sesion.usuario}
+                  </div>
+                  <button
+                    onClick={salir}
+                    disabled={saliendo}
+                    className="text-[11px] text-ink-muted hover:text-brand disabled:opacity-50"
+                  >
+                    {saliendo ? "Saliendo…" : "Cerrar sesión"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Menú desplegado en pantallas donde no cabe en una fila */}
+        {menuAbierto && (
+          <nav className="grid grid-cols-2 gap-1 border-t border-line-grid px-4 py-2 sm:grid-cols-3 xl:hidden">
+            {enlaces.map((e) => enlaceNav(e, true))}
+          </nav>
+        )}
       </header>
 
-      {/* Cajón móvil */}
-      {menuAbierto && (
-        <div
-          className="no-imprimir fixed inset-0 z-50 bg-ink/50 lg:hidden"
-          onClick={() => setMenuAbierto(false)}
-        >
-          <aside
-            className="flex h-full w-64 flex-col bg-brand-800"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {barra}
-          </aside>
-        </div>
-      )}
-
-      <main className="min-w-0 px-4 py-5 sm:px-6 lg:ml-60 lg:px-8 lg:py-7">
-        {children}
-      </main>
+      {/* ---------------------------------------------------------------
+          Debajo: columna de filtros a la izquierda y contenido a la derecha.
+          El contenedor de filtros está siempre; cada módulo mete los suyos
+          con <PanelFiltros> (ver components/panel-filtros.tsx).
+          --------------------------------------------------------------- */}
+      <div className="mx-auto flex max-w-[1600px] gap-6 px-4 py-5 sm:px-6 lg:px-8">
+        <aside
+          id={ID_PANEL_FILTROS}
+          className="no-imprimir sticky top-[68px] hidden h-fit w-64 shrink-0 space-y-3 lg:block"
+        />
+        <main className="min-w-0 flex-1">{children}</main>
+      </div>
 
       <BusquedaRapida abierta={buscando} onCerrar={() => setBuscando(false)} />
     </div>

@@ -11,6 +11,7 @@ import { primaNoCausada } from "@/lib/calculos";
 import { IconEditar } from "@/components/icons";
 import { exigirOk } from "@/lib/respuesta";
 import { api } from "@/lib/rutas";
+import { PanelFiltros } from "@/components/panel-filtros";
 
 export interface CancelacionVista {
   id: number;
@@ -211,7 +212,8 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
         </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <PanelFiltros>
+      <div className="flex flex-col gap-2 rounded-lg border border-line-grid bg-white p-3">
         <input
           type="search"
           value={q}
@@ -309,6 +311,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
           ]}
         />
       </div>
+      </PanelFiltros>
 
       <div className="overflow-x-auto rounded-lg border border-line-grid bg-surface">
         <table className="w-full border-collapse whitespace-nowrap">

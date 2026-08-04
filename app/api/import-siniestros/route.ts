@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { exigirSesion } from "@/lib/auth";
+import { exigirImportador } from "@/lib/auth";
 import {
   parsearResumen,
   parsearSeguimiento,
@@ -18,7 +18,7 @@ export const maxDuration = 60;
  * Basta con uno de los dos.
  */
 export async function POST(req: NextRequest) {
-  const noAutorizado = await exigirSesion();
+  const noAutorizado = await exigirImportador();
   if (noAutorizado) return noAutorizado;
 
   let formData: FormData;
