@@ -1,50 +1,25 @@
+import type { Fila, Fragmento } from "./pdf-layout";
+import { valorALaDerecha, valorDebajo } from "./pdf-layout";
+
 /**
  * Lectura automática de una póliza en PDF.
  *
- * ⚠ SIN TERMINAR — NO ESTÁ CONECTADO A LA INTERFAZ TODAVÍA.
+ * PROPONE, NO GUARDA. Cada campo vuelve con su grado de certeza y con el
+ * fragmento del que salió, para que quien ingresa la póliza lo compruebe antes
+ * de aceptar. Estas cifras alimentan el seguimiento de producción: una prima
+ * mal leída descuadra el informe del año.
  *
- * Medido sobre 14 pólizas reales de la carpeta de asesores:
- *   · compañía   12/14  ✔ sirve
- *   · ramo       11/14  ✔ sirve
- *   · número      2/14  ✘ insuficiente
- *   · vigencia    3/14  ✘ insuficiente
- *   · prima       2/14  ✘ insuficiente
+ * POR QUÉ LEE POR COORDENADAS Y NO POR TEXTO PLANO
  *
- * El motivo está identificado: en ALLIANZ y AXA los campos vienen como
- * «etiqueta: valor» y estos patrones los cogen, pero en LIBERTY, SURA y HDI
- * vienen en TABLA —una fila con «RAMO PRODUCTO PÓLIZA CERTIFICADO» y la
- * siguiente con los valores—, y un patrón por renglón no puede emparejarlos.
- * Para esos hace falta leer por posición de columna (pdfjs da la coordenada x
- * de cada fragmento, `pdftotext -layout` no).
+ * Estos PDF vienen a dos columnas y aplanarlos a texto cruza las etiquetas de
+ * una con los valores de otra: `pdftotext` devolvía «Placa: CAMIONETA PASAJ.»,
+ * que es la clase del vehículo. Trabajando sobre las filas reconstruidas
+ * (ver lib/pdf-layout.ts) la misma póliza da «Placa: HGZ192».
  *
- * Lo que SÍ está terminado y probado es `montoColombiano()`: 7 de 7 casos,
- * incluidas las dos convenciones decimales que conviven en estos documentos.
- * Es la pieza donde un error costaría más caro.
- *
- * QUÉ HACE Y QUÉ NO
- *
- * Propone valores; no guarda nada. Cada campo vuelve con su grado de certeza y
- * con el trozo de texto del que salió, para que quien ingresa la póliza pueda
- * comprobarlo de un vistazo antes de aceptar. Eso no es exceso de celo: estas
- * cifras alimentan el seguimiento de producción, y una prima mal leída
- * descuadra el informe del año.
- *
- * Por qué hace falta esa cautela, en concreto:
- *
- * · Los PDF de las compañías vienen a dos columnas y `pdftotext` mezcla las
- *   etiquetas de una con los valores de la otra. En un certificado de Allianz
- *   se lee «Placa: CAMIONETA PASAJ.», y eso es la clase del vehículo, no la
- *   placa. Por eso la placa se busca por su forma (tres letras y tres cifras),
- *   no por lo que haya después de la etiqueta.
- *
- * · Conviven dos convenciones decimales: «2.301.383,00» y «176,551.60».
- *   Confundirlas cambia el valor por mil. `montoColombiano()` decide por la
- *   posición del último separador y, si el número queda ambiguo, baja la
- *   certeza en vez de adivinar.
- *
- * · La prima casi nunca está rotulada «PRIMA NETA»: aparece como «Valor a
- *   pagar», «PRIMA», «Total a pagar»… y a veces no está en las primeras
- *   páginas. Cuando no se encuentra, se devuelve vacía; nunca se estima.
+ * Además conviven dos maquetaciones:
+ *  · ALLIANZ, AXA — «etiqueta: valor» en la misma fila.
+ *  · LIBERTY, SURA, HDI — TABLA: una fila de encabezados y los valores debajo.
+ * Se prueban las dos, en ese orden.
  */
 
 export type Certeza = "alta" | "media" | "baja";
@@ -52,11 +27,21 @@ export type Certeza = "alta" | "media" | "baja";
 export interface CampoExtraido<T = string> {
   valor: T | null;
   certeza: Certeza;
-  /** Fragmento del PDF del que salió, para poder comprobarlo. */
+  /** De dónde salió, para poder comprobarlo de un vistazo. */
   evidencia: string | null;
 }
 
+/**
+ * Qué clase de documento resultó ser. Importa decirlo: buena parte de los PDF
+ * guardados con nombre de póliza son en realidad recibos de pago o escaneos, y
+ * devolver campos vacíos sin explicar por qué parece un fallo del lector.
+ */
+export type TipoDocumento = "poliza" | "recibo" | "escaneado" | "desconocido";
+
 export interface PolizaExtraida {
+  tipo: TipoDocumento;
+  /** Explicación para la interfaz cuando no se pudo leer gran cosa. */
+  aviso: string | null;
   numero: CampoExtraido;
   aseguradora: CampoExtraido;
   asegurado: CampoExtraido;
@@ -68,15 +53,13 @@ export interface PolizaExtraida {
   primaNeta: CampoExtraido<number>;
   primaTotal: CampoExtraido<number>;
   formaPago: CampoExtraido;
-  /** Cuántos campos salieron con certeza alta, para el resumen de la interfaz. */
-  camposSeguros: number;
-  /** Texto plano, por si hay que mirar algo a mano. */
-  textoPlano: string;
+  camposEncontrados: number;
+  camposDudosos: number;
 }
 
 const vacio = (): CampoExtraido => ({ valor: null, certeza: "baja", evidencia: null });
+const recortar = (s: string, n = 95) => s.replace(/\s+/g, " ").trim().slice(0, n);
 
-/** Compañías que la agencia maneja, tal como se escriben en LISTAS. */
 const ASEGURADORAS: [RegExp, string][] = [
   [/allianz/i, "ALLIANZ"],
   [/axa\s*colpatria|colpatria/i, "AXA COLPATRIA"],
@@ -96,36 +79,31 @@ const ASEGURADORAS: [RegExp, string][] = [
   [/\bbbva\b/i, "BBVA"],
 ];
 
-/** Pistas del ramo, en el vocabulario que ya usa el CRM. */
 const RAMOS: [RegExp, string][] = [
-  [/autom[oó]vil|veh[ií]culo|livianos|motos?\b/i, "AUTOS"],
   [/copropiedad|propiedad\s+horizontal|zona\s+com[uú]n/i, "ZONA COMUN"],
+  [/autom[oó]vil|veh[ií]culo|livianos|\bmotos?\b|pesados/i, "AUTOS"],
   [/\bhogar\b/i, "HOGAR"],
   [/\bsalud\b/i, "SALUD"],
-  [/\bvida\b/i, "VIDA"],
   [/arrendamiento/i, "ARRENDAMIENTO"],
   [/mascota|peludo/i, "MASCOTAS"],
-  [/\bpyme\b|peque[ñn]a\s+y\s+mediana/i, "PYME"],
-  [/responsabilidad\s+civil\s+profesional/i, "RC PROFESIONAL"],
+  [/\bpyme\b/i, "PYME"],
+  [/responsabilidad\s+civil\s+profesional|\brc\s+profesional/i, "RC PROFESIONAL"],
   [/cumplimiento/i, "CUMPLIMIENTO"],
+  [/\bvida\b/i, "VIDA"],
 ];
 
 /**
  * Convierte un número de un PDF colombiano a `number`.
  *
- * Decide por el ÚLTIMO separador: si va seguido de exactamente dos dígitos y el
- * otro separador aparece antes, ese último es el decimal. Devuelve también si
- * quedó alguna duda, para no dar por buena una cifra ambigua.
+ * Conviven «2.301.383,00» y «176,551.60»: confundirlas cambia la cifra por
+ * mil. Se decide por la posición del último separador y, si queda ambiguo, se
+ * marca como no seguro en vez de adivinar.
  */
 export function montoColombiano(bruto: string): { valor: number | null; seguro: boolean } {
   const limpio = bruto.replace(/[^\d.,]/g, "");
   if (!limpio || !/\d/.test(limpio)) return { valor: null, seguro: false };
 
-  const ultimaComa = limpio.lastIndexOf(",");
-  const ultimoPunto = limpio.lastIndexOf(".");
-  const corte = Math.max(ultimaComa, ultimoPunto);
-
-  // Sin separadores: entero limpio.
+  const corte = Math.max(limpio.lastIndexOf(","), limpio.lastIndexOf("."));
   if (corte < 0) {
     const n = Number(limpio);
     return { valor: Number.isFinite(n) ? n : null, seguro: true };
@@ -135,19 +113,15 @@ export function montoColombiano(bruto: string): { valor: number | null; seguro: 
   let entero: string;
   let fraccion = "";
 
-  if (decimales === 2 && limpio.slice(0, corte).match(/[.,]/)) {
-    // Hay otro separador antes: el último es decimal, sin duda.
+  if (decimales === 2 && /[.,]/.test(limpio.slice(0, corte))) {
     entero = limpio.slice(0, corte).replace(/[.,]/g, "");
     fraccion = limpio.slice(corte + 1);
   } else if (decimales === 3) {
-    // Tres dígitos detrás: es separador de miles.
     entero = limpio.replace(/[.,]/g, "");
   } else if (decimales === 2) {
-    // Un solo separador y dos dígitos: "176,55" puede ser 176,55 o 17.655.
-    // Se toma como decimal, que es lo habitual, pero se marca la duda.
-    entero = limpio.slice(0, corte).replace(/[.,]/g, "");
-    fraccion = limpio.slice(corte + 1);
-    const n = Number(`${entero}.${fraccion}`);
+    // Un único separador con dos dígitos detrás: «176,55» tanto puede ser
+    // 176,55 como 17.655. Se toma lo habitual pero se avisa.
+    const n = Number(`${limpio.slice(0, corte).replace(/[.,]/g, "")}.${limpio.slice(corte + 1)}`);
     return { valor: Number.isFinite(n) ? n : null, seguro: false };
   } else {
     entero = limpio.replace(/[.,]/g, "");
@@ -157,18 +131,16 @@ export function montoColombiano(bruto: string): { valor: number | null; seguro: 
   return { valor: Number.isFinite(n) ? n : null, seguro: true };
 }
 
-/** Normaliza una fecha del PDF a AAAA-MM-DD. */
-function fechaISO(bruto: string): string | null {
+/** Normaliza una fecha a AAAA-MM-DD, rechazando lo imposible. */
+export function fechaISO(bruto: string): string | null {
   const m = bruto.match(/(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
   if (m) {
     const [, d, mes, a] = m;
     const anio = a.length === 2 ? `20${a}` : a;
-    const dd = d.padStart(2, "0");
-    const mm = mes.padStart(2, "0");
-    if (Number(mm) > 12) return null;
-    return `${anio}-${mm}-${dd}`;
+    if (Number(mes) > 12 || Number(mes) < 1 || Number(d) > 31 || Number(d) < 1) return null;
+    if (Number(anio) < 1990 || Number(anio) > 2100) return null;
+    return `${anio}-${mes.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
-  // "29 de mayo de 2026"
   const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio",
     "agosto","septiembre","octubre","noviembre","diciembre"];
   const t = bruto.toLowerCase().match(/(\d{1,2})\s+de\s+([a-zñáéíóú]+)\s+de\s+(\d{4})/);
@@ -179,156 +151,293 @@ function fechaISO(bruto: string): string | null {
   return null;
 }
 
-/** Busca el primer patrón que acierte y devuelve el grupo 1 con su renglón. */
-function buscar(
-  texto: string,
-  patrones: RegExp[],
-  certeza: Certeza = "alta"
+/** Busca una etiqueta y devuelve lo que hay a su derecha, en su misma fila. */
+function porEtiqueta(filas: Fila[], etiqueta: RegExp): { valor: string; fila: Fila } | null {
+  for (const fila of filas) {
+    for (let i = 0; i < fila.fragmentos.length; i++) {
+      if (!etiqueta.test(fila.fragmentos[i].texto)) continue;
+      // El valor puede ir pegado a la etiqueta en el mismo fragmento.
+      const propio = fila.fragmentos[i].texto.replace(etiqueta, "").replace(/^[\s:.#]+/, "");
+      const derecha = valorALaDerecha(fila, i);
+      const valor = (propio || derecha).trim();
+      if (valor) return { valor, fila };
+    }
+  }
+  return null;
+}
+
+/** Busca un encabezado de tabla y devuelve la celda de debajo. */
+function porTabla(filas: Fila[], encabezado: RegExp): { valor: string; fila: Fila } | null {
+  for (let f = 0; f < filas.length; f++) {
+    for (const frag of filas[f].fragmentos) {
+      if (!encabezado.test(frag.texto.trim())) continue;
+      const abajo = valorDebajo(filas, f, frag);
+      if (abajo) return { valor: abajo, fila: filas[f] };
+    }
+  }
+  return null;
+}
+
+/** Prueba etiqueta y luego tabla; devuelve el primer valor que pase el filtro. */
+function campo(
+  filas: Fila[],
+  etiqueta: RegExp,
+  encabezado: RegExp | null,
+  validar: (v: string) => string | null
 ): CampoExtraido {
-  for (const p of patrones) {
-    const m = texto.match(p);
-    if (m && m[1] && m[1].trim()) {
-      const linea = texto
-        .slice(Math.max(0, m.index! - 40), m.index! + m[0].length + 40)
-        .replace(/\s+/g, " ")
-        .trim();
-      return { valor: m[1].trim(), certeza, evidencia: linea };
+  const porE = porEtiqueta(filas, etiqueta);
+  if (porE) {
+    const v = validar(porE.valor);
+    if (v) return { valor: v, certeza: "alta", evidencia: recortar(porE.fila.texto) };
+  }
+  if (encabezado) {
+    const porT = porTabla(filas, encabezado);
+    if (porT) {
+      const v = validar(porT.valor);
+      if (v) return { valor: v, certeza: "alta", evidencia: recortar(porT.fila.texto) };
     }
   }
   return vacio();
 }
 
-export function extraerPoliza(texto: string): PolizaExtraida {
-  const t = texto.replace(/ /g, " ");
+export function extraerPoliza(filas: Fila[]): PolizaExtraida {
+  const texto = filas.map((f) => f.texto).join("\n");
+
+  // ---- Qué clase de documento es ----------------------------------------
+  // Un PDF escaneado no trae capa de texto: pdfjs devuelve casi nada, o solo
+  // la marca del escáner. Sin OCR no hay nada que hacer, y hay que decirlo.
+  const caracteres = texto.replace(/\s/g, "").length;
+  let tipo: TipoDocumento = "poliza";
+  let aviso: string | null = null;
+  if (filas.length === 0 || caracteres < 120 || /scanned by|camscanner/i.test(texto)) {
+    tipo = "escaneado";
+    aviso =
+      "El PDF es una imagen escaneada: no tiene texto que leer. Hay que ingresar la póliza a mano, o pedirle a la compañía el PDF original.";
+  } else if (/recibo\s+de\s+pago|referencia\s+de\s+pago|documento\s+de\s+cobro/i.test(texto)) {
+    tipo = "recibo";
+    aviso =
+      "Esto parece un recibo de pago, no la póliza. Se saca lo que trae —suele venir el número y el valor—, pero conviene cargar la carátula de la póliza para tener el resto.";
+  }
 
   // ---- Número de póliza -------------------------------------------------
-  const numero = buscar(t, [
-    /p[oó]liza\s*(?:n[oº°]\.?|no\.?|n[uú]mero|num\.?)\s*[:#]?\s*([0-9][0-9\-]{4,})/i,
-    /(?:^|\n)\s*p[oó]liza\s*[:#]\s*([0-9][0-9\-]{4,})/i,
-    /certificado\s*(?:n[oº°]\.?|no\.?)\s*[:#]?\s*([0-9][0-9\-]{4,})/i,
-  ]);
+  const soloNumero = (v: string): string | null => {
+    const m = v.match(/\b(\d[\d-]{4,})\b/);
+    if (!m) return null;
+    // «023883535 / 0»: el certificado va aparte, se queda el número.
+    return m[1].replace(/-+$/, "");
+  };
+  let numero = campo(
+    filas,
+    /^p[oó]liza\s*(n[oº°]\.?|no\.?|n[uú]m(ero)?\.?)?\s*[:#]?$|^p[oó]liza\s*n[oº°]/i,
+    /^p[oó]liza$/i,
+    soloNumero
+  );
+  if (!numero.valor) {
+    // Variante frecuente: todo en una frase dentro de la misma fila.
+    for (const f of filas) {
+      const m = f.texto.match(/p[oó]liza\s*(?:n[oº°]\.?|no\.?|n[uú]mero)\s*[:#]?\s*(\d[\d-]{4,})/i);
+      if (m) { numero = { valor: m[1], certeza: "alta", evidencia: recortar(f.texto) }; break; }
+    }
+  }
 
-  // ---- Aseguradora: por marca en el documento ---------------------------
+  // ---- Aseguradora y ramo: por vocabulario del documento -----------------
   let aseguradora = vacio();
   for (const [re, nombre] of ASEGURADORAS) {
-    const m = t.match(re);
-    if (m) {
-      aseguradora = {
-        valor: nombre,
-        certeza: "alta",
-        evidencia: t.slice(Math.max(0, m.index! - 30), m.index! + 40).replace(/\s+/g, " ").trim(),
-      };
-      break;
-    }
+    const f = filas.find((x) => re.test(x.texto));
+    if (f) { aseguradora = { valor: nombre, certeza: "alta", evidencia: recortar(f.texto) }; break; }
   }
-
-  // ---- Ramo: por vocabulario del documento ------------------------------
   let ramo = vacio();
   for (const [re, nombre] of RAMOS) {
-    const m = t.match(re);
-    if (m) {
-      ramo = {
-        valor: nombre,
-        certeza: "media", // el vocabulario acierta casi siempre, pero no es un rótulo
-        evidencia: t.slice(Math.max(0, m.index! - 30), m.index! + 40).replace(/\s+/g, " ").trim(),
-      };
+    const f = filas.find((x) => re.test(x.texto));
+    if (f) { ramo = { valor: nombre, certeza: "media", evidencia: recortar(f.texto) }; break; }
+  }
+
+  // ---- Documento del cliente --------------------------------------------
+  const ccNit = campo(
+    filas,
+    /^(nit|c\.?\s?c\.?|c[eé]dula|documento)\s*[:.]?$/i,
+    /^(nit|c\.?\s?c\.?|documento)$/i,
+    (v) => {
+      const m = v.match(/\b(\d[\d.\-]{5,15})\b/);
+      return m ? m[1] : null;
+    }
+  );
+
+  // ---- Tomador / asegurado ----------------------------------------------
+  // Ojo: en Allianz «Tomador del Seguro:» tiene la CIUDAD a su derecha; el
+  // nombre está en la fila de arriba, junto al documento. Por eso se busca
+  // primero la fila que lleva el documento y se toma lo que va antes.
+  let asegurado = vacio();
+  const pareceNombre = (s: string) =>
+    /^[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s.,'-]{5,60}$/.test(s.trim()) &&
+    !/(SEGUROS|S\.?A\.?S?\b|LTDA|AGENCIA|NIT|POLIZA|PÓLIZA|CERTIFICADO|MEDELLIN|BOGOTA)/i.test(s);
+  for (const f of filas) {
+    const m = f.texto.match(/^(.{6,60}?)\s+(?:CC|C\.C\.|NIT)\s*[:.]/i);
+    if (m && pareceNombre(m[1])) {
+      asegurado = { valor: m[1].trim(), certeza: "alta", evidencia: recortar(f.texto) };
       break;
     }
   }
+  if (!asegurado.valor) {
+    const c = campo(filas, /^(tomador|asegurado)/i, /^(tomador|asegurado)$/i, (v) =>
+      pareceNombre(v) ? v.trim() : null
+    );
+    if (c.valor) asegurado = { ...c, certeza: "media" };
+  }
 
-  // ---- Tomador / asegurado ----------------------------------------------
-  const asegurado = buscar(t, [
-    /tomador\s*(?:del\s*seguro)?\s*[:]\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ .,'-]{5,60})/i,
-    /asegurado\s*(?:principal)?\s*[:]\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ .,'-]{5,60})/i,
-    /datos\s+generales\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ .,'-]{5,60})\s+(?:cc|nit)/i,
-  ], "media");
-
-  // ---- Documento del cliente --------------------------------------------
-  const ccNit = buscar(t, [
-    /\bnit\s*[:.]?\s*([0-9][0-9.\-]{6,15})/i,
-    /\bc\.?\s?c\.?\s*[:.]?\s*([0-9][0-9.\-]{5,15})/i,
-    /(?:c[eé]dula|documento)\s*[:.]?\s*([0-9][0-9.\-]{5,15})/i,
-  ]);
-
-  // ---- Placa: por forma, NUNCA por etiqueta ------------------------------
-  // En los PDF a dos columnas lo que sigue a "Placa:" suele ser otra cosa.
+  // ---- Placa: por forma, y se prefiere la que sigue a su etiqueta --------
   let placa = vacio();
-  const placas = t.match(/\b[A-Z]{3}[\s-]?\d{2,3}[A-Z]?\b/g);
-  if (placas && placas.length) {
-    // Se descartan siglas frecuentes que casan con el patrón.
-    const cand = placas.filter((p) => !/^(NIT|IVA|SOA|PDF|COL|CRA|CLL|APT)/i.test(p));
-    if (cand.length) {
-      const elegida = cand[0].replace(/[\s-]/g, "");
-      placa = {
-        valor: elegida,
-        // Si aparece más de una, hay que mirarla.
-        certeza: new Set(cand.map((c) => c.replace(/[\s-]/g, ""))).size === 1 ? "alta" : "media",
-        evidencia: `Encontrada${cand.length > 1 ? ` entre ${new Set(cand).size} posibles` : ""}: ${elegida}`,
-      };
+  const conEtiqueta = porEtiqueta(filas, /^placa\s*[:.]?$/i);
+  const formaPlaca = /\b([A-Z]{3}\s?\d{2,3}[A-Z]?)\b/;
+  if (conEtiqueta) {
+    const m = conEtiqueta.valor.match(formaPlaca);
+    if (m) placa = { valor: m[1].replace(/\s/g, ""), certeza: "alta", evidencia: recortar(conEtiqueta.fila.texto) };
+  }
+  if (!placa.valor) {
+    const encontradas = new Set<string>();
+    let filaEv: Fila | null = null;
+    for (const f of filas) {
+      const ms = f.texto.match(new RegExp(formaPlaca, "g"));
+      if (ms) for (const p of ms) {
+        if (!/^(NIT|IVA|SOA|PDF|COL|CRA|CLL|APT|CAR|DEL)/i.test(p)) {
+          encontradas.add(p.replace(/\s/g, ""));
+          filaEv ??= f;
+        }
+      }
+    }
+    if (encontradas.size === 1) {
+      const v = [...encontradas][0];
+      placa = { valor: v, certeza: "media", evidencia: filaEv ? recortar(filaEv.texto) : v };
+    } else if (encontradas.size > 1) {
+      const v = [...encontradas][0];
+      placa = { valor: v, certeza: "baja", evidencia: `Varias posibles: ${[...encontradas].slice(0,4).join(", ")}` };
     }
   }
 
   // ---- Vigencia ----------------------------------------------------------
-  const rangoVigencia = t.match(
-    /(?:vigencia|duraci[oó]n)[^\n]{0,80}?desde[^\d]{0,20}(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})[^\d]{0,40}?hasta[^\d]{0,20}(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})/i
-  );
   let vigenciaDesde = vacio();
   let vigenciaHasta = vacio();
-  if (rangoVigencia) {
-    const ev = rangoVigencia[0].replace(/\s+/g, " ").trim().slice(0, 120);
-    vigenciaDesde = { valor: fechaISO(rangoVigencia[1]), certeza: "alta", evidencia: ev };
-    vigenciaHasta = { valor: fechaISO(rangoVigencia[2]), certeza: "alta", evidencia: ev };
-  } else {
-    const d = buscar(t, [/desde[^\d]{0,20}(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})/i], "media");
-    const h = buscar(t, [/hasta[^\d]{0,20}(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})/i], "media");
-    if (d.valor) vigenciaDesde = { ...d, valor: fechaISO(d.valor) };
-    if (h.valor) vigenciaHasta = { ...h, valor: fechaISO(h.valor) };
+  for (const f of filas) {
+    // Entre «Desde» y la fecha suele haber una hora («Desde las 00:00 horas
+    // del 01/12/2016»), así que no se puede exigir que no haya dígitos: se
+    // permite cualquier cosa, corta y no codiciosa, y se ancla en la fecha.
+    const m = f.texto.match(
+      /desde.{0,40}?(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}).{0,45}?hasta.{0,40}?(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})/i
+    );
+    if (m) {
+      const d = fechaISO(m[1]);
+      const h = fechaISO(m[2]);
+      if (d && h) {
+        const ev = recortar(f.texto);
+        vigenciaDesde = { valor: d, certeza: "alta", evidencia: ev };
+        vigenciaHasta = { valor: h, certeza: "alta", evidencia: ev };
+        break;
+      }
+    }
+  }
+  if (!vigenciaHasta.valor) {
+    // Tabla con columnas DESDE / HASTA, o una fila «Vigencia» con dos fechas.
+    const d = campo(filas, /^desde\s*[:.]?$/i, /^desde$/i, (v) => fechaISO(v));
+    const h = campo(filas, /^hasta\s*[:.]?$/i, /^hasta$/i, (v) => fechaISO(v));
+    if (d.valor) vigenciaDesde = d;
+    if (h.valor) vigenciaHasta = h;
+  }
+  if (!vigenciaHasta.valor) {
+    for (const f of filas) {
+      if (!/vigencia/i.test(f.texto)) continue;
+      const fechas = f.texto.match(/\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}/g);
+      if (fechas && fechas.length >= 2) {
+        const d = fechaISO(fechas[0]);
+        const h = fechaISO(fechas[1]);
+        if (d && h) {
+          const ev = recortar(f.texto);
+          vigenciaDesde = { valor: d, certeza: "media", evidencia: ev };
+          vigenciaHasta = { valor: h, certeza: "media", evidencia: ev };
+          break;
+        }
+      }
+    }
   }
 
   // ---- Primas ------------------------------------------------------------
-  const monto = (patrones: RegExp[]): CampoExtraido<number> => {
-    for (const p of patrones) {
-      const m = t.match(p);
-      if (m && m[1]) {
-        const { valor, seguro } = montoColombiano(m[1]);
-        if (valor != null && valor > 0) {
-          return {
-            valor,
-            certeza: seguro ? "media" : "baja", // nunca "alta": el rótulo varía demasiado
-            evidencia: m[0].replace(/\s+/g, " ").trim().slice(0, 90),
-          };
-        }
+  // El rótulo varía mucho («Prima neta», «Valor a pagar», «PRIMA»…), así que
+  // la certeza nunca pasa de media: siempre hay que mirarla.
+  // Una cifra por debajo de mil pesos casi nunca es una prima (suele ser un
+  // porcentaje o un consecutivo mal cogido); se descarta.
+  const aMonto = (bruto: string): { valor: number; seguro: boolean } | null => {
+    const { valor, seguro } = montoColombiano(bruto);
+    return valor != null && valor >= 1000 ? { valor, seguro } : null;
+  };
+
+  const dinero = (etiquetas: RegExp[], encabezados: RegExp[]): CampoExtraido<number> => {
+    // 1) Etiqueta y valor en la misma fila. Los dos puntos son opcionales:
+    //    Allianz escribe «PRIMA 674.584,00», sin ellos.
+    for (const et of etiquetas) {
+      for (const f of filas) {
+        const m = f.texto.match(et);
+        if (!m || !m[1]) continue;
+        const r = aMonto(m[1]);
+        if (r) return { valor: r.valor, certeza: r.seguro ? "media" : "baja", evidencia: recortar(f.texto) };
       }
+    }
+    // 2) Tabla: encabezado arriba y la cifra debajo. Es como lo traen SEGUROS
+    //    DEL ESTADO, AXA y SBS.
+    for (const enc of encabezados) {
+      const t = porTabla(filas, enc);
+      if (!t) continue;
+      const m = t.valor.match(/([\d][\d.,]{3,})/);
+      if (!m) continue;
+      const r = aMonto(m[1]);
+      if (r) return { valor: r.valor, certeza: "baja", evidencia: recortar(`${t.fila.texto} → ${t.valor}`) };
     }
     return { valor: null, certeza: "baja", evidencia: null };
   };
 
-  const primaNeta = monto([
-    /prima\s+neta\s*[:$]?\s*([\d.,]{4,})/i,
-    /\bprima\s*[:$]\s*([\d.,]{4,})/i,
-    /subtotal\s*[:$]?\s*([\d.,]{4,})/i,
-  ]);
-  const primaTotal = monto([
-    /prima\s+total\s*[:$]?\s*([\d.,]{4,})/i,
-    /(?:valor|total)\s+a\s+pagar\s*[:$]?\s*([\d.,]{4,})/i,
-    /total\s+p[oó]liza\s*[:$]?\s*([\d.,]{4,})/i,
-  ]);
+  const primaNeta = dinero(
+    [
+      /prima\s+neta\s*[:$]?\s*([\d.,]{4,})/i,
+      /^\s*prima\s*[:$]?\s+\$?\s*([\d.,]{4,})/i,
+      /subtotal\s*[:$]?\s*([\d.,]{4,})/i,
+    ],
+    [/^prima$/i, /^valor\s+prima$/i]
+  );
+  const primaTotal = dinero(
+    [
+      /prima\s+total\s*[:$]?\s*([\d.,]{4,})/i,
+      /(?:valor|total)\s+a\s+pagar\s*[:$]?\s*([\d.,]{4,})/i,
+      /importe\s+total\s*[:$]?\s*([\d.,]{4,})/i,
+      /prima\s+con\s+iva\s*[:$]?\s*([\d.,]{4,})/i,
+      /total\s+p[oó]liza\s*[:$]?\s*([\d.,]{4,})/i,
+    ],
+    [/^total\s+a\s+pagar$/i, /^prima\s+con\s+iva$/i, /^importe\s+total$/i]
+  );
 
-  const formaPago = buscar(t, [
-    /forma\s+de\s+pago\s*[:]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ ]{4,24})/i,
-    /\b(contado|mensual|trimestral|semestral|financiado|d[eé]bito autom[aá]tico)\b/i,
-  ], "media");
+  const formaPago = (() => {
+    const c = campo(filas, /^forma\s+de\s+pago\s*[:.]?$/i, /^forma\s+de\s+pago$/i, (v) =>
+      v.trim().length > 2 ? v.trim() : null
+    );
+    if (c.valor) return c;
+    const f = filas.find((x) =>
+      /\b(contado|mensual|trimestral|semestral|financiad[oa]|d[eé]bito autom[aá]tico)\b/i.test(x.texto)
+    );
+    if (f) {
+      const m = f.texto.match(/\b(contado|mensual|trimestral|semestral|financiad[oa]|d[eé]bito autom[aá]tico)\b/i);
+      return { valor: m![1].toUpperCase(), certeza: "media" as Certeza, evidencia: recortar(f.texto) };
+    }
+    return vacio();
+  })();
 
-  const campos = [numero, aseguradora, asegurado, ccNit, placa, ramo,
+  const todos = [numero, aseguradora, asegurado, ccNit, placa, ramo,
     vigenciaDesde, vigenciaHasta, primaNeta, primaTotal, formaPago];
-  const camposSeguros = campos.filter(
-    (c) => c.valor != null && c.certeza === "alta"
-  ).length;
 
   return {
+    tipo, aviso,
     numero, aseguradora, asegurado, ccNit, placa, ramo,
     vigenciaDesde, vigenciaHasta, primaNeta, primaTotal, formaPago,
-    camposSeguros,
-    textoPlano: t.slice(0, 20000),
+    camposEncontrados: todos.filter((c) => c.valor != null).length,
+    camposDudosos: todos.filter((c) => c.valor != null && c.certeza === "baja").length,
   };
 }
+
+/** Se exporta para las pruebas. */
+export type { Fila, Fragmento };

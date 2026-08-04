@@ -17,6 +17,13 @@ const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "/funcionarios";
 const nextConfig = {
   basePath: BASE,
   eslint: { ignoreDuringBuilds: true },
+  experimental: {
+    // pdfjs resuelve su propio worker en tiempo de ejecución. Si Next lo
+    // empaqueta, esa resolución apunta dentro de .next y falla con
+    // «Cannot find module pdf.worker.mjs». Se deja fuera del empaquetado para
+    // que se cargue desde node_modules como cualquier módulo de Node.
+    serverComponentsExternalPackages: ["pdfjs-dist"],
+  },
   async redirects() {
     return [
       // Quien llegue a la raíz del despliegue de Vercel —un marcador antiguo,

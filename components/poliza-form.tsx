@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ListasFormulario } from "@/lib/queries";
 import { exigirOk } from "@/lib/respuesta";
 import { api } from "@/lib/rutas";
+import { LeerPolizaPdf } from "@/components/leer-poliza-pdf";
 
 export interface PolizaEditable {
   id?: number;
@@ -266,6 +267,12 @@ export function PolizaForm({
           Los campos derivados (mes de vencimiento, días al vence, edad) se
           recalculan automáticamente al guardar.
         </p>
+
+        {/* Al crear o renovar, el PDF de la compañía puede rellenar casi todo.
+            Solo propone: lo que traiga queda en el formulario para revisarlo. */}
+        <div className="mt-4">
+          <LeerPolizaPdf onAplicar={(datos) => setF((v) => ({ ...v, ...datos }))} />
+        </div>
 
         <div className="mt-4">
           <CamposPoliza f={f} setF={setF} listas={listas} />
