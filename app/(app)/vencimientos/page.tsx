@@ -71,8 +71,8 @@ export default async function VencimientosPage() {
   const prorrogas = anexosVencidos.filter((p) => p.anexo === "PRORROGA").length;
   const incrementos = anexosVencidos.filter((p) => p.anexo === "INCREMENTO").length;
   const detalleAnexos = [
-    prorrogas > 0 ? `${prorrogas} prórrogas` : null,
-    incrementos > 0 ? `${incrementos} incrementos` : null,
+    prorrogas > 0 ? `${prorrogas} ${prorrogas === 1 ? "prórroga" : "prórrogas"}` : null,
+    incrementos > 0 ? `${incrementos} ${incrementos === 1 ? "incremento" : "incrementos"}` : null,
   ].filter(Boolean);
 
   return (
