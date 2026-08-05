@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { diasAlVence, esProrroga, semaforoVencimiento } from "@/lib/calculos";
+import { diasAlVence, tipoAnexo, semaforoVencimiento } from "@/lib/calculos";
 import { listasParaFormularios } from "@/lib/queries";
 import { BusquedaResultados } from "@/components/busqueda-resultados";
 import { fmtCOP, fmtFecha } from "@/lib/format";
@@ -121,7 +121,7 @@ export default async function BuscarPage({
                     semaforo: semaforoVencimiento(dias),
                     gestionada: p.gestionada,
                     notaGestion: p.notaGestion,
-                    prorroga: esProrroga(p.observacion),
+                    anexo: tipoAnexo(p.observacion),
                   };
                 })}
               />

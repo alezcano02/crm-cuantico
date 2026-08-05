@@ -70,44 +70,62 @@ export function indiceMes(mes: string | null | undefined): number {
 }
 
 // ---------------------------------------------------------------------------
-// Prórrogas
+// Anexos que no se renuevan por sí mismos (prórrogas e incrementos)
 // ---------------------------------------------------------------------------
 
 /**
  * Una prórroga es la extensión temporal de una póliza que ya existe, mientras
- * se cierra la renovación de fondo. Se usa sobre todo en copropiedades.
+ * se cierra la renovación de fondo. Un incremento es un ajuste —de valor
+ * asegurado o de prima— sobre una póliza que ya existe, en mitad de su
+ * vigencia. Los dos se usan sobre todo en copropiedades, y los dos comparten
+ * el mismo problema práctico: no son una renovación, son un anexo a la
+ * póliza de base.
  *
- * NO SE RENUEVA POR SÍ MISMA, y ahí estaba el problema: al vencer su corto
- * período aparecía en «pendientes de renovar» junto a las renovaciones de
- * verdad, ensuciando la lista con trabajo que no existe. Pero su prima SÍ es
- * producción del año y SÍ entra en la base de renovación del siguiente, así
- * que sacarla de la cartera tampoco valía.
+ * NO SE RENUEVAN POR SÍ MISMOS, y ahí estaba el problema: al vencer su
+ * período —a veces corto— aparecían en «pendientes de renovar» junto a las
+ * renovaciones de verdad, ensuciando la lista con trabajo que no existe. Pero
+ * su prima SÍ es producción del año y SÍ entra en la base de renovación del
+ * siguiente, así que sacarlos de la cartera tampoco valía.
  *
- * La solución es tratarla como lo que es: una póliza más de la cartera, que
+ * La solución es tratarlos como lo que son: una póliza más de la cartera, que
  * suma en todo, pero que no se cuenta como pendiente de renovar.
  *
- * Se reconoce por la columna OBSERVACION del informe, que es donde el área
- * técnica la marca. Es texto libre, así que se acepta con y sin tilde y
- * rodeada de más texto («PRORROGA 3 MESES»).
+ * Se reconocen por la columna OBSERVACION del informe, que es donde el área
+ * técnica los marca. Es texto libre, así que se acepta con y sin tilde y
+ * rodeado de más texto («PRORROGA 3 MESES»).
  */
-const PATRON_PRORROGA = /pr[oó]rroga/i;
+export type TipoAnexo = "PRORROGA" | "INCREMENTO";
 
-export function esProrroga(observacion: string | null | undefined): boolean {
-  return !!observacion && PATRON_PRORROGA.test(observacion);
+const PATRONES_ANEXO: [RegExp, TipoAnexo][] = [
+  [/pr[oó]rroga/i, "PRORROGA"],
+  [/incremento/i, "INCREMENTO"],
+];
+
+/** Cuál de los dos es, o null si la observación no marca ninguno. */
+export function tipoAnexo(observacion: string | null | undefined): TipoAnexo | null {
+  if (!observacion) return null;
+  const hallado = PATRONES_ANEXO.find(([re]) => re.test(observacion));
+  return hallado ? hallado[1] : null;
+}
+
+export function esAnexo(observacion: string | null | undefined): boolean {
+  return tipoAnexo(observacion) != null;
 }
 
 /**
- * Fragmento de Prisma para dejar las prórrogas fuera de una consulta.
+ * Fragmento de Prisma para dejar prórrogas e incrementos fuera de una
+ * consulta.
  *
- * `contains` es literal, así que hay que preguntar por las dos grafías: en la
- * base conviven «PRORROGA» y «PRÓRROGA» según quién escribiera la fila.
+ * `contains` es literal, así que hay que preguntar por las dos grafías de
+ * prórroga: en la base conviven «PRORROGA» y «PRÓRROGA» según quién
+ * escribiera la fila. «incremento» no lleva tilde en ninguna variante vista.
  *
  * OJO CON EL NULL. La rama `observacion: null` no es adorno: en SQL
  * `NOT (NULL LIKE '%rorrog%')` no vale `true`, vale NULL, y la fila se cae de
  * la consulta. Sin ella este filtro descartaba TODAS las pólizas sin
  * observación —la inmensa mayoría— y el panel pasó de 22 vencidas a 2.
  */
-export const SIN_PRORROGAS = {
+export const SIN_ANEXOS = {
   OR: [
     { observacion: null },
     {
@@ -115,6 +133,7 @@ export const SIN_PRORROGAS = {
         OR: [
           { observacion: { contains: "rorrog", mode: "insensitive" as const } },
           { observacion: { contains: "rórrog", mode: "insensitive" as const } },
+          { observacion: { contains: "incremento", mode: "insensitive" as const } },
         ],
       },
     },

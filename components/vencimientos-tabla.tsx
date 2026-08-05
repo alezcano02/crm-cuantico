@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import type { Semaforo } from "@/lib/calculos";
+import type { Semaforo, TipoAnexo } from "@/lib/calculos";
 import type { ListasFormulario } from "@/lib/queries";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import { EstadoPagoBadge, SemaforoBadge, Td, Th } from "@/components/ui";
@@ -20,20 +20,26 @@ export interface PolizaVista extends PolizaEditable {
   semaforo: Semaforo | null;
   gestionada: boolean;
   notaGestion: string | null;
-  /** Extensión temporal: vence a propósito y no se renueva por sí misma. */
-  prorroga: boolean;
+  /** Anexo a una póliza que ya existe: vence a propósito y no se renueva. */
+  anexo: TipoAnexo | null;
 }
 
-type Pestania = "pendientes" | "proximos" | "prorrogas" | "todas";
+type Pestania = "pendientes" | "proximos" | "anexos" | "todas";
 
 const PESTANIAS: { id: Pestania; etiqueta: string }[] = [
   { id: "pendientes", etiqueta: "Pendientes de renovar (vencidas)" },
   { id: "proximos", etiqueta: "Próximos a vencer (0–30 días)" },
-  // Las prórrogas salen de las dos pestañas de renovación, pero tienen que
-  // poder verse en algún sitio: si no, desaparecerían de la pantalla.
-  { id: "prorrogas", etiqueta: "Prórrogas" },
+  // Las prórrogas y los incrementos salen de las dos pestañas de renovación,
+  // pero tienen que poder verse en algún sitio: si no, desaparecerían de la
+  // pantalla.
+  { id: "anexos", etiqueta: "Prórrogas e incrementos" },
   { id: "todas", etiqueta: "Todas las pólizas" },
 ];
+
+const ETIQUETA_ANEXO: Record<TipoAnexo, string> = {
+  PRORROGA: "Prórroga",
+  INCREMENTO: "Incremento",
+};
 
 function normalizar(v: string): string {
   return v.trim().replace(/\s+/g, " ");
@@ -77,16 +83,17 @@ export function VencimientosTabla({
 
   const filtradas = useMemo(() => {
     let lista = polizas;
-    // Las prórrogas vencen a propósito: quedan fuera de las dos pestañas de
-    // renovación y tienen la suya. En «Todas» aparecen, porque son cartera.
+    // Prórrogas e incrementos vencen a propósito: quedan fuera de las dos
+    // pestañas de renovación y tienen la suya. En «Todas» aparecen, porque
+    // son cartera.
     if (pestania === "pendientes") {
-      lista = lista.filter((p) => !p.prorroga && p.dias != null && p.dias < 0);
+      lista = lista.filter((p) => !p.anexo && p.dias != null && p.dias < 0);
     } else if (pestania === "proximos") {
       lista = lista.filter(
-        (p) => !p.prorroga && p.dias != null && p.dias >= 0 && p.dias <= 30
+        (p) => !p.anexo && p.dias != null && p.dias >= 0 && p.dias <= 30
       );
-    } else if (pestania === "prorrogas") {
-      lista = lista.filter((p) => p.prorroga);
+    } else if (pestania === "anexos") {
+      lista = lista.filter((p) => p.anexo);
     }
     // Rango de vencimiento: es como se arma el trabajo de renovación de un mes
     // («lo que vence entre el 1 y el 31»), que con solo las pestañas fijas de
@@ -314,7 +321,7 @@ export function VencimientosTabla({
             { encabezado: "Forma de pago", valor: (p) => p.formaPago ?? "" },
             { encabezado: "Estado de pago", valor: (p) => p.estadoPago ?? "" },
             { encabezado: "Observación", valor: (p) => p.observacion ?? "" },
-            { encabezado: "Prórroga", valor: (p) => (p.prorroga ? "SÍ" : "NO") },
+            { encabezado: "Anexo", valor: (p) => p.anexo ?? "" },
             { encabezado: "Celular", valor: (p) => p.celular ?? "" },
             { encabezado: "Correo", valor: (p) => p.correo ?? "" },
             { encabezado: "Gestionada", valor: (p) => (p.gestionada ? "SÍ" : "NO") },
@@ -353,11 +360,11 @@ export function VencimientosTabla({
                 className={clsx("hover:bg-surface-page", p.gestionada && "opacity-60")}
               >
                 <Td>
-                  {/* Una prórroga vencida no es un pendiente: decirlo aquí evita
-                      que el semáforo en rojo la haga parecer trabajo atrasado. */}
-                  {p.prorroga ? (
+                  {/* Un anexo vencido no es un pendiente: decirlo aquí evita
+                      que el semáforo en rojo lo haga parecer trabajo atrasado. */}
+                  {p.anexo ? (
                     <span className="inline-flex items-center rounded bg-brand-light px-1.5 py-0.5 text-[11px] font-semibold text-brand">
-                      Prórroga
+                      {ETIQUETA_ANEXO[p.anexo]}
                     </span>
                   ) : (
                     <SemaforoBadge nivel={p.semaforo} dias={p.dias} />

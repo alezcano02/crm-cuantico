@@ -7,7 +7,12 @@ import { EstadoPagoBadge, SemaforoBadge, Td, Th } from "@/components/ui";
 import { GestionarPoliza } from "@/components/gestionar-poliza";
 import type { PolizaEditable } from "@/components/poliza-form";
 import type { ListasFormulario } from "@/lib/queries";
-import type { Semaforo } from "@/lib/calculos";
+import type { Semaforo, TipoAnexo } from "@/lib/calculos";
+
+const ETIQUETA_ANEXO: Record<TipoAnexo, string> = {
+  PRORROGA: "Prórroga",
+  INCREMENTO: "Incremento",
+};
 
 export interface ResultadoPoliza extends PolizaEditable {
   id: number;
@@ -15,7 +20,7 @@ export interface ResultadoPoliza extends PolizaEditable {
   semaforo: Semaforo | null;
   gestionada: boolean;
   notaGestion: string | null;
-  prorroga: boolean;
+  anexo: TipoAnexo | null;
 }
 
 /**
@@ -107,10 +112,10 @@ export function BusquedaResultados({
                 <Td>
                   <div className="flex items-center gap-2">
                     {fmtFecha(p.vencimiento)}
-                    {/* Una prórroga vencida no es trabajo atrasado; ver lib/calculos.ts */}
-                    {p.prorroga ? (
+                    {/* Un anexo vencido no es trabajo atrasado; ver lib/calculos.ts */}
+                    {p.anexo ? (
                       <span className="rounded bg-brand-light px-1.5 py-0.5 text-[11px] font-semibold text-brand">
-                        Prórroga
+                        {ETIQUETA_ANEXO[p.anexo]}
                       </span>
                     ) : (
                       <SemaforoBadge nivel={p.semaforo} dias={p.dias} />

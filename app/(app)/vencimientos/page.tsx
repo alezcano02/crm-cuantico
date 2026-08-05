@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { diasAlVence, esProrroga, semaforoVencimiento } from "@/lib/calculos";
+import { diasAlVence, tipoAnexo, semaforoVencimiento } from "@/lib/calculos";
 import { listasParaFormularios } from "@/lib/queries";
 import { Card, PageHeader } from "@/components/ui";
 import { VencimientosTabla, PolizaVista } from "@/components/vencimientos-tabla";
@@ -49,18 +49,24 @@ export default async function VencimientosPage() {
       semaforo: semaforoVencimiento(dias),
       gestionada: p.gestionada,
       notaGestion: p.notaGestion,
-      prorroga: esProrroga(p.observacion),
+      anexo: tipoAnexo(p.observacion),
     };
   });
 
-  // Las prórrogas no se renuevan; contarlas como vencidas era el motivo de que
-  // el encabezado exagerara el trabajo pendiente (ver lib/calculos.ts).
-  const renovables = vista.filter((p) => !p.prorroga);
+  // Prórrogas e incrementos no se renuevan; contarlos como vencidos era el
+  // motivo de que el encabezado exagerara el trabajo pendiente (ver
+  // lib/calculos.ts).
+  const renovables = vista.filter((p) => !p.anexo);
   const vencidas = renovables.filter((p) => p.dias != null && p.dias < 0).length;
   const proximas = renovables.filter(
     (p) => p.dias != null && p.dias >= 0 && p.dias <= 30
   ).length;
-  const prorrogas = vista.filter((p) => p.prorroga).length;
+  const prorrogas = vista.filter((p) => p.anexo === "PRORROGA").length;
+  const incrementos = vista.filter((p) => p.anexo === "INCREMENTO").length;
+  const detalleAnexos = [
+    prorrogas > 0 ? `${prorrogas} prórrogas` : null,
+    incrementos > 0 ? `${incrementos} incrementos` : null,
+  ].filter(Boolean);
 
   return (
     <div className="space-y-6">
@@ -69,7 +75,9 @@ export default async function VencimientosPage() {
         descripcion={
           `${vencidas} pólizas vencidas pendientes de gestión · ` +
           `${proximas} vencen en los próximos 30 días` +
-          (prorrogas > 0 ? ` · ${prorrogas} prórrogas (no se renuevan)` : "")
+          (detalleAnexos.length > 0
+            ? ` · ${detalleAnexos.join(" y ")} (no se renuevan)`
+            : "")
         }
       />
 

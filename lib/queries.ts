@@ -7,7 +7,7 @@ import {
   CancelacionRow,
   HistoricaRow,
   PolizaRow,
-  SIN_PRORROGAS,
+  SIN_ANEXOS,
 } from "./calculos";
 
 export async function datosSeguimiento(): Promise<{
@@ -79,17 +79,18 @@ export async function resumenOperativo() {
     Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() + 1, 1)
   );
 
-  // Las prórrogas no se renuevan: vencen porque duran poco a propósito, y
-  // contarlas aquí llenaba el panel de trabajo inexistente. Siguen en la
-  // cartera y siguen sumando producción (ver esProrroga en lib/calculos.ts).
+  // Prórrogas e incrementos no se renuevan: vencen porque duran poco a
+  // propósito, y contarlos aquí llenaba el panel de trabajo inexistente.
+  // Siguen en la cartera y siguen sumando producción (ver tipoAnexo en
+  // lib/calculos.ts).
   const [vencidas, sinGestionar, proximas, mora, canceladasMes, primaMora] =
     await Promise.all([
-      prisma.policy.count({ where: { vencimiento: { lt: hoy }, ...SIN_PRORROGAS } }),
+      prisma.policy.count({ where: { vencimiento: { lt: hoy }, ...SIN_ANEXOS } }),
       prisma.policy.count({
-        where: { vencimiento: { lt: hoy }, gestionada: false, ...SIN_PRORROGAS },
+        where: { vencimiento: { lt: hoy }, gestionada: false, ...SIN_ANEXOS },
       }),
       prisma.policy.count({
-        where: { vencimiento: { gte: hoy, lte: en30 }, ...SIN_PRORROGAS },
+        where: { vencimiento: { gte: hoy, lte: en30 }, ...SIN_ANEXOS },
       }),
       prisma.policy.count({
         where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } },
