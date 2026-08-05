@@ -5,7 +5,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 
 export const COOKIE_SESION = "cuantico_sesion";
-const DIAS_SESION = 7;
+
+/**
+ * La sesión vence por INACTIVIDAD, no a fecha fija desde el login.
+ *
+ * Cada vez que se valida una sesión (sesionActual) se le empuja el vencimiento
+ * otras 6 horas hacia adelante; si no hay ninguna petición en ese lapso, la
+ * fila expira sola y hay que volver a entrar. Este mismo número lo usa
+ * middleware.ts para refrescar el lado del navegador (ver el comentario ahí
+ * sobre por qué está duplicado y no importado).
+ */
+export const SEGUNDOS_SESION = 6 * 60 * 60;
 
 // ---------------------------------------------------------------------------
 // Claves
@@ -43,14 +53,14 @@ export function verificarClave(clave: string, almacenado: string): boolean {
 
 export async function crearSesion(usuarioId: number) {
   const token = randomBytes(32).toString("base64url");
-  const expira = new Date(Date.now() + DIAS_SESION * 24 * 60 * 60 * 1000);
+  const expira = new Date(Date.now() + SEGUNDOS_SESION * 1000);
   await prisma.sesion.create({ data: { token, usuarioId, expira } });
   cookies().set(COOKIE_SESION, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    expires: expira,
+    maxAge: SEGUNDOS_SESION,
   });
   // Limpieza oportunista de sesiones ya vencidas
   await prisma.sesion.deleteMany({ where: { expira: { lt: new Date() } } });
@@ -72,7 +82,23 @@ export async function sesionActual(): Promise<SesionActiva | null> {
       where: { token },
       include: { usuario: true },
     });
-    if (!sesion || sesion.expira < new Date() || !sesion.usuario.activo) return null;
+    const ahora = new Date();
+    if (!sesion || sesion.expira < ahora || !sesion.usuario.activo) return null;
+
+    // Renovación por inactividad: cada petición válida empuja el vencimiento
+    // otras 6 horas. No se escribe en cada llamada —una sola carga de página
+    // puede disparar varias peticiones en paralelo, cada una pasando por
+    // aquí— sino solo cuando ya pasó más de un minuto desde la última
+    // renovación; así no se persigue la cola de escrituras sin cambiar en
+    // nada el sentido de "6 horas de inactividad".
+    const margenMs = 60 * 1000;
+    if (sesion.expira.getTime() - ahora.getTime() < SEGUNDOS_SESION * 1000 - margenMs) {
+      await prisma.sesion.update({
+        where: { token },
+        data: { expira: new Date(ahora.getTime() + SEGUNDOS_SESION * 1000) },
+      });
+    }
+
     return {
       usuarioId: sesion.usuarioId,
       usuario: sesion.usuario.usuario,
