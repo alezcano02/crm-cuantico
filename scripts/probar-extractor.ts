@@ -19,12 +19,27 @@ async function main() {
     const r = montoColombiano(bruto);
     if (r.valor !== esperado || r.seguro !== seguro) { fallos++; console.log(`FAIL monto ${bruto} → ${r.valor}`); }
   }
-  for (const [b, e] of [["29/05/2026","2026-05-29"],["1-1-26","2026-01-01"],["32/01/2026",null],["29/13/2026",null]] as [string,string|null][]) {
+  for (const [b, e] of [
+    ["29/05/2026", "2026-05-29"], ["1-1-26", "2026-01-01"],
+    ["32/01/2026", null], ["29/13/2026", null],
+    // Mes en letras abreviado, como lo imprime HDI en los dos órdenes.
+    ["25-JUL-2026", "2026-07-25"], ["2026-JUL-18", "2026-07-18"],
+    ["24-JUL-2026", "2026-07-24"], ["07-SEP-2026", "2026-09-07"],
+    ["1 de agosto de 2026", "2026-08-01"],
+    ["31-XXX-2026", null], ["25-JUL-1800", null],
+  ] as [string, string | null][]) {
     if (fechaISO(b) !== e) { fallos++; console.log(`FAIL fecha ${b} → ${fechaISO(b)}`); }
   }
   console.log(fallos === 0 ? "Montos y fechas: OK\n" : `Montos y fechas: ${fallos} fallos\n`);
 
+  // La carpeta de pólizas es opcional: sin ella se corren solo las pruebas de
+  // montos y fechas, que no necesitan documentos reales de clientes.
   const carpeta = process.argv[2];
+  if (!carpeta) {
+    console.log("Sin carpeta de PDF; solo se probaron montos y fechas.");
+    console.log('Para medir contra pólizas reales: npx tsx scripts/probar-extractor.ts "<carpeta>"');
+    process.exit(fallos === 0 ? 0 : 1);
+  }
   const archivos = readdirSync(carpeta).filter((f) => f.toLowerCase().endsWith(".pdf")).sort();
   const cuenta: Record<string, number> = {};
   const dudosos: Record<string, number> = {};

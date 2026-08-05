@@ -64,12 +64,20 @@ export function agruparEnFilas(frags: Fragmento[]): Fila[] {
     fila.fragmentos.sort((a, b) => a.x - b.x);
     // Se separa con dos espacios cuando hay un hueco ancho, para que se note
     // que son celdas distintas y no una frase.
+    //
+    // Y con NINGUNO cuando los fragmentos se tocan. SURA entrega cada vocal
+    // acentuada como fragmento aparte, pegada a la anterior: metiéndole un
+    // espacio salía «c ó digo», «seg ú n», «raz ó n», y ninguna expresión con
+    // tildes podía casar contra sus carátulas. El umbral se mide sobre la
+    // altura de la letra porque un espacio real ronda un cuarto de ella.
     fila.texto = fila.fragmentos
       .map((f, i) => {
         if (i === 0) return f.texto;
         const previo = fila.fragmentos[i - 1];
         const hueco = f.x - (previo.x + previo.ancho);
-        return (hueco > alturaTipica * 0.8 ? "  " : " ") + f.texto;
+        if (hueco > alturaTipica * 0.8) return "  " + f.texto;
+        if (hueco < alturaTipica * 0.15) return f.texto;
+        return " " + f.texto;
       })
       .join("")
       .replace(/\s+$/, "");
