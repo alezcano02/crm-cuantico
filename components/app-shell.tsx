@@ -107,6 +107,25 @@ export function AppShell({
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
+  const [colapsado, setColapsado] = useState(false);
+
+  /*
+   * El estado del menú se recuerda entre pantallas y entre sesiones: quien
+   * trabaja todo el día en la tabla de cartera lo pliega una vez y no quiere
+   * volver a hacerlo en cada navegación.
+   *
+   * Se lee después de montar y no durante el primer render porque en el
+   * servidor no existe localStorage; leerlo allí rompería la hidratación.
+   */
+  useEffect(() => {
+    setColapsado(localStorage.getItem("menu-colapsado") === "1");
+  }, []);
+  const alternarColapso = () => {
+    setColapsado((v) => {
+      localStorage.setItem("menu-colapsado", v ? "0" : "1");
+      return !v;
+    });
+  };
 
   const salir = async () => {
     setSaliendo(true);
@@ -137,7 +156,7 @@ export function AppShell({
   const esActivo = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const enlaceNav = (e: Enlace) => {
+  const enlaceNav = (e: Enlace, compacto = false) => {
     const activo = esActivo(e.href);
     const n = e.contador ? contadores[e.contador] : 0;
     return (
@@ -145,11 +164,17 @@ export function AppShell({
         key={e.href}
         href={e.href}
         aria-current={activo ? "page" : undefined}
+        // Plegado no hay texto, así que el nombre lo da el title y el
+        // aria-label; sin ellos el menú se vuelve inservible con lector de
+        // pantalla y con el ratón hay que adivinar los iconos.
+        title={compacto ? e.etiqueta : undefined}
+        aria-label={compacto ? e.etiqueta : undefined}
         className={clsx(
-          "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          "group relative flex items-center rounded-lg text-sm font-medium transition-colors",
+          compacto ? "justify-center px-0 py-2" : "gap-2.5 px-3 py-2",
           activo
             ? "bg-brand text-white"
-            : "text-ink-secondary hover:bg-surface-page hover:text-ink"
+            : "text-ink-secondary hover:bg-surface hover:text-ink"
         )}
       >
         <e.Icono
@@ -158,26 +183,36 @@ export function AppShell({
             activo ? "text-white" : "text-ink-muted group-hover:text-ink-secondary"
           )}
         />
-        <span className="truncate">{e.etiqueta}</span>
-        {n > 0 && (
-          <span
-            className={clsx(
-              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabla-num",
-              activo ? "bg-white/25 text-white" : "bg-status-critical/85 text-white"
-            )}
-            title={`${n} requieren atención`}
-          >
-            {n > 999 ? "999+" : n}
-          </span>
-        )}
+        {!compacto && <span className="truncate">{e.etiqueta}</span>}
+        {n > 0 &&
+          (compacto ? (
+            // Plegado el contador no cabe al lado: se marca en la esquina.
+            <span
+              className={clsx(
+                "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
+                activo ? "bg-white" : "bg-status-critical"
+              )}
+              aria-hidden
+            />
+          ) : (
+            <span
+              className={clsx(
+                "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabla-num",
+                activo ? "bg-white/25 text-white" : "bg-status-critical/85 text-white"
+              )}
+              title={`${n} requieren atención`}
+            >
+              {n > 999 ? "999+" : n}
+            </span>
+          ))}
       </Link>
     );
   };
 
   /** El menú entero, agrupado. Se usa igual en la columna y en el desplegable. */
-  const menu = (
-    <nav className="space-y-4">
-      {GRUPOS.map((grupo) => {
+  const construirMenu = (compacto = false) => (
+    <nav className={compacto ? "space-y-2" : "space-y-4"}>
+      {GRUPOS.map((grupo, i) => {
         const enlaces = grupo.enlaces.filter(
           (e) => !e.soloImportador || sesion?.puedeImportar
         );
@@ -187,15 +222,24 @@ export function AppShell({
         if (enlaces.length === 0) return null;
         return (
           <div key={grupo.titulo}>
-            <div className="etiqueta-marca px-3 pb-1.5 text-[10px] text-ink-muted">
-              {grupo.titulo}
+            {compacto ? (
+              // Plegado no cabe el título; una línea separa los grupos para no
+              // perder del todo la agrupación.
+              i > 0 && <div className="mx-2 mb-2 border-t border-line-axis/60" />
+            ) : (
+              <div className="etiqueta-marca px-3 pb-1.5 text-[10px] text-ink-muted">
+                {grupo.titulo}
+              </div>
+            )}
+            <div className="flex flex-col gap-0.5">
+              {enlaces.map((e) => enlaceNav(e, compacto))}
             </div>
-            <div className="flex flex-col gap-0.5">{enlaces.map(enlaceNav)}</div>
           </div>
         );
       })}
     </nav>
   );
+  const menu = construirMenu(false);
 
   return (
     <div className="min-h-screen bg-surface-page">
@@ -277,8 +321,43 @@ export function AppShell({
           Debajo: el menú a la izquierda y el contenido a la derecha.
           --------------------------------------------------------------- */}
       <div className="mx-auto flex max-w-[1600px] gap-6 px-4 py-5 sm:px-6 lg:px-8">
-        <aside className="no-imprimir sticky top-[68px] hidden h-fit w-56 shrink-0 xl:block">
-          {menu}
+        {/* El fondo hundido y el borde dan el límite del menú: sobre el crema
+            de la página la columna no se distinguía del contenido y no se veía
+            dónde acababa. */}
+        <aside
+          className={clsx(
+            "no-imprimir sticky top-[68px] hidden h-fit shrink-0 rounded-xl border border-line-grid bg-surface-sunken p-2 xl:block",
+            colapsado ? "w-[3.25rem]" : "w-56"
+          )}
+        >
+          {construirMenu(colapsado)}
+
+          <div className="mt-2 border-t border-line-axis/60 pt-2">
+            <button
+              onClick={alternarColapso}
+              title={colapsado ? "Desplegar menú" : "Plegar menú"}
+              aria-label={colapsado ? "Desplegar menú" : "Plegar menú"}
+              aria-expanded={!colapsado}
+              className={clsx(
+                "flex w-full items-center rounded-lg py-2 text-ink-muted transition-colors hover:bg-surface hover:text-ink-secondary",
+                colapsado ? "justify-center px-0" : "gap-2.5 px-3"
+              )}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className={clsx("h-4 w-4 shrink-0 transition-transform", colapsado && "rotate-180")}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              {!colapsado && <span className="text-sm font-medium">Plegar menú</span>}
+            </button>
+          </div>
         </aside>
         <main className="min-w-0 flex-1">{children}</main>
       </div>
