@@ -14,7 +14,7 @@ interface Campo<T = string> {
   evidencia: string | null;
 }
 interface Extraido {
-  tipo: "poliza" | "recibo" | "escaneado" | "desconocido";
+  tipo: "poliza" | "recibo" | "cotizacion" | "escaneado" | "desconocido";
   aviso: string | null;
   numero: Campo;
   aseguradora: Campo;
@@ -45,13 +45,25 @@ const ETIQUETAS: [keyof Extraido, string][] = [
 
 const COLOR: Record<Certeza, string> = {
   alta: "bg-status-good/12 text-status-good",
-  media: "bg-status-warning/15 text-status-warning",
+  media: "bg-status-warning/20 text-[#8a6100]",
   baja: "bg-status-critical/12 text-status-critical",
+};
+/** Lo que dice la seña. En vez del grado, lo que hay que hacer con él. */
+const SEÑA: Record<Certeza, string> = {
+  alta: "fiable",
+  media: "revisar",
+  baja: "comprobar",
 };
 const AYUDA: Record<Certeza, string> = {
   alta: "Salió de una etiqueta clara del PDF",
-  media: "Deducido del documento: conviene mirarlo",
-  baja: "Dudoso: compruébelo sí o sí",
+  media: "Deducido del documento: conviene mirarlo contra el PDF",
+  baja: "Dudoso: hay que comprobarlo contra el PDF antes de guardar",
+};
+/** Fondo de la fila, para que la seña se vea sin buscarla. */
+const FILA: Record<Certeza, string> = {
+  alta: "",
+  media: "bg-status-warning/[0.07]",
+  baja: "bg-status-critical/[0.06]",
 };
 
 /**
@@ -72,11 +84,30 @@ export function LeerPolizaPdf({
   const [error, setError] = useState<string | null>(null);
   const [r, setR] = useState<Extraido | null>(null);
   const [nombre, setNombre] = useState<string | null>(null);
+  const [comprobado, setComprobado] = useState(false);
+
+  /*
+   * Campos que hay que comprobar sí o sí antes de llevarlos al formulario.
+   *
+   * Solo los de certeza «baja»: son los que el lector saca de una conjetura, y
+   * los que hemos visto equivocarse en pólizas reales —un ramo cogido del
+   * clausulado, una prima que era un año—. Los de certeza media se marcan en
+   * la tabla pero no bloquean: avisar de todo equivale a no avisar de nada.
+   */
+  const aComprobar = r
+    ? ETIQUETAS.filter(([k]) => {
+        const c = r[k] as Campo<string | number>;
+        return c.valor != null && c.certeza === "baja";
+      })
+    : [];
 
   const leer = async (archivo: File) => {
     setLeyendo(true);
     setError(null);
     setR(null);
+    // Cada PDF nuevo vuelve a exigir la comprobación: si no, el visto bueno de
+    // la póliza anterior arrastraría a la siguiente.
+    setComprobado(false);
     setNombre(archivo.name);
     try {
       const fd = new FormData();
@@ -160,17 +191,36 @@ export function LeerPolizaPdf({
                   <tbody>
                     {ETIQUETAS.map(([k, etiqueta]) => {
                       const c = r[k] as Campo<string | number>;
+                      const marcado = c.valor != null && c.certeza !== "alta";
                       return (
-                        <tr key={k} className="border-b border-line-grid last:border-0">
+                        <tr
+                          key={k}
+                          className={clsx(
+                            "border-b border-line-grid last:border-0",
+                            c.valor != null && FILA[c.certeza]
+                          )}
+                        >
                           <td className="py-1 pr-2 text-ink-muted">{etiqueta}</td>
-                          <td className="py-1 pr-2 font-medium">{valorLegible(k, c)}</td>
+                          <td
+                            className={clsx(
+                              "py-1 pr-2 font-medium",
+                              marcado && "text-ink"
+                            )}
+                          >
+                            {marcado && (
+                              <span aria-hidden className="mr-1">
+                                ⚠
+                              </span>
+                            )}
+                            {valorLegible(k, c)}
+                          </td>
                           <td className="py-1 pr-2">
                             {c.valor != null && (
                               <span
                                 className={clsx("rounded px-1.5 py-0.5 text-[10px] font-semibold", COLOR[c.certeza])}
                                 title={AYUDA[c.certeza]}
                               >
-                                {c.certeza}
+                                {SEÑA[c.certeza]}
                               </span>
                             )}
                           </td>
@@ -187,18 +237,37 @@ export function LeerPolizaPdf({
                 </table>
               </div>
 
+              {aComprobar.length > 0 && (
+                <label className="mt-2.5 flex cursor-pointer items-start gap-2 rounded-lg border border-status-critical/30 bg-status-critical/5 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={comprobado}
+                    onChange={(e) => setComprobado(e.target.checked)}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[color:theme(colors.status.critical)]"
+                  />
+                  <span className="text-[11px] leading-relaxed text-ink-secondary">
+                    El lector no está seguro de{" "}
+                    <strong className="font-semibold text-status-critical">
+                      {aComprobar.map(([, e]) => e.toLowerCase()).join(", ")}
+                    </strong>
+                    . Confirmo que lo he comprobado contra el PDF.
+                  </span>
+                </label>
+              )}
+
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={aplicar}
-                  className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark"
+                  disabled={aComprobar.length > 0 && !comprobado}
+                  className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Llevar al formulario
                 </button>
                 <span className="text-[11px] leading-relaxed text-ink-muted">
-                  Se rellenan {r.camposEncontrados} campos. Los que estén en
-                  amarillo o rojo hay que comprobarlos contra el PDF antes de
-                  guardar.
+                  {aComprobar.length > 0 && !comprobado
+                    ? "Confirme arriba que comprobó los campos marcados."
+                    : `Se rellenan ${r.camposEncontrados} campos. Los marcados con ⚠ conviene mirarlos contra el PDF antes de guardar.`}
                 </span>
               </div>
             </>
