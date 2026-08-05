@@ -1,31 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-
-/** Id del contenedor que AppShell reserva en la columna izquierda. */
-export const ID_PANEL_FILTROS = "panel-filtros";
-
 /**
- * Manda sus hijos a la columna izquierda de la pantalla.
+ * Filtros plegables sobre el contenido del módulo.
  *
- * Los filtros de cada módulo viven dentro del componente que tiene su estado
- * (cartera-tabla, vencimientos-tabla…), y ahí deben seguir: sacarlos de ahí
- * obligaría a subir todo ese estado y a reescribir el filtrado, que ya está
- * probado. Con un portal se quedan donde están y solo se dibujan en otro sitio.
+ * Antes viajaban por un portal a una columna de la izquierda. Esa columna la
+ * ocupa ahora el menú (ver components/app-shell.tsx), así que el portal ya no
+ * tiene destino y desapareció: los filtros se dibujan donde están declarados,
+ * dentro del componente que tiene su estado.
  *
- * Si el contenedor no existe —una página sin barra, o el primer render en el
- * servidor— los hijos se pintan en su sitio de siempre y no se pierde nada.
+ * Van cerrados. Abiertos ocupan una banda alta sobre la tabla, y lo que se
+ * quiere ver al entrar es la tabla; quien va a filtrar da un clic.
  */
 export function PanelFiltros({ children }: { children: React.ReactNode }) {
-  const [destino, setDestino] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setDestino(document.getElementById(ID_PANEL_FILTROS));
-  }, []);
-
-  if (!destino) {
-    return <div className="mb-4 lg:hidden">{children}</div>;
-  }
-  return createPortal(children, destino);
+  return (
+    <details className="mb-4">
+      <summary className="etiqueta-marca inline-flex cursor-pointer select-none items-center gap-1.5 rounded-lg border border-line-grid bg-surface px-3 py-2 text-[12px] text-ink-secondary hover:bg-surface-page">
+        Filtros
+      </summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  );
 }

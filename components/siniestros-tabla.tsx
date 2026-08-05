@@ -201,7 +201,7 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
       </div>
 
       <PanelFiltros>
-      <div className="flex flex-col gap-2 rounded-lg border border-line-grid bg-white p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
         <input
           type="search"
           value={q}

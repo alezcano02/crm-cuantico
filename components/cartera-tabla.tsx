@@ -254,7 +254,10 @@ export function CarteraTabla({
       </div>
 
       <PanelFiltros>
-      <div className="flex flex-col gap-2 rounded-lg border border-line-grid bg-white p-3">
+      {/* Fluyen en horizontal porque los filtros ya no viven en una columna de
+          256px sino en una banda sobre la tabla; apilados en vertical la
+          empujarían fuera de la pantalla. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
         <input
           type="search"
           value={q}

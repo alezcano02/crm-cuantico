@@ -18,7 +18,6 @@ import {
 } from "@/components/icons";
 import { LogoCompleto } from "@/components/logo";
 import { BotonBusquedaRapida, BusquedaRapida } from "@/components/busqueda-rapida";
-import { ID_PANEL_FILTROS } from "@/components/panel-filtros";
 import { api } from "@/lib/rutas";
 
 export interface ContadoresNav {
@@ -38,30 +37,52 @@ type Enlace = {
 };
 
 /**
- * El menú va en el encabezado, en una sola fila. Antes eran tres grupos en una
- * barra lateral; en horizontal los grupos no aportan y quitan sitio, así que se
- * ordenan por uso: primero lo que se mira a diario.
+ * El menú vuelve a la columna izquierda, agrupado por secciones.
+ *
+ * En una sola fila horizontal los diez enlaces caben pero no se pueden agrupar,
+ * y sin grupos hay que leerlos todos para encontrar uno. En vertical el título
+ * de sección hace de índice. Los grupos son los mismos de antes de que el menú
+ * pasara al encabezado, para no obligar a reaprender dónde está cada cosa.
+ *
+ * Los filtros de cada módulo ya no comparten esta columna: se pliegan sobre la
+ * tabla (ver components/panel-filtros.tsx), que además le devuelve ancho a la
+ * tabla, que es donde hacía falta.
  */
-const ENLACES: Enlace[] = [
-  { href: "/", etiqueta: "Dashboard", Icono: IconDashboard },
+const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
   {
-    href: "/vencimientos",
-    etiqueta: "Vencimientos",
-    Icono: IconCalendario,
-    contador: "vencidas",
+    titulo: "Análisis",
+    enlaces: [
+      { href: "/", etiqueta: "Dashboard", Icono: IconDashboard },
+      { href: "/seguimiento", etiqueta: "Seguimiento", Icono: IconTendencia },
+      { href: "/asesores", etiqueta: "Asesores", Icono: IconPersonas },
+    ],
   },
-  { href: "/cartera", etiqueta: "Cartera", Icono: IconCartera, contador: "mora" },
-  { href: "/seguimiento", etiqueta: "Seguimiento", Icono: IconTendencia },
-  { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
-  { href: "/siniestros", etiqueta: "Siniestros", Icono: IconSiniestro },
-  { href: "/asesores", etiqueta: "Asesores", Icono: IconPersonas },
-  { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconRegalo },
-  { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
   {
-    href: "/importar",
-    etiqueta: "Importar datos",
-    Icono: IconImportar,
-    soloImportador: true,
+    titulo: "Operación",
+    enlaces: [
+      {
+        href: "/vencimientos",
+        etiqueta: "Vencimientos",
+        Icono: IconCalendario,
+        contador: "vencidas",
+      },
+      { href: "/cartera", etiqueta: "Cartera", Icono: IconCartera, contador: "mora" },
+      { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
+      { href: "/siniestros", etiqueta: "Siniestros", Icono: IconSiniestro },
+      { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconRegalo },
+    ],
+  },
+  {
+    titulo: "Datos",
+    enlaces: [
+      { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
+      {
+        href: "/importar",
+        etiqueta: "Importar datos",
+        Icono: IconImportar,
+        soloImportador: true,
+      },
+    ],
   },
 ];
 
@@ -87,10 +108,6 @@ export function AppShell({
   const [buscando, setBuscando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
 
-  const enlaces = ENLACES.filter(
-    (e) => !e.soloImportador || sesion?.puedeImportar
-  );
-
   const salir = async () => {
     setSaliendo(true);
     try {
@@ -114,22 +131,22 @@ export function AppShell({
     return () => window.removeEventListener("keydown", alTeclado);
   }, []);
 
-  // Al navegar se cierra el menú móvil.
+  // Al navegar se cierra el menú desplegado.
   useEffect(() => setMenuAbierto(false), [pathname]);
 
   const esActivo = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const enlaceNav = (e: Enlace, vertical = false) => {
+  const enlaceNav = (e: Enlace) => {
     const activo = esActivo(e.href);
     const n = e.contador ? contadores[e.contador] : 0;
     return (
       <Link
         key={e.href}
         href={e.href}
+        aria-current={activo ? "page" : undefined}
         className={clsx(
-          "group relative flex items-center gap-2 rounded-lg text-sm font-medium transition-colors",
-          vertical ? "px-3 py-2.5" : "px-2.5 py-1.5",
+          "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
           activo
             ? "bg-brand text-white"
             : "text-ink-secondary hover:bg-surface-page hover:text-ink"
@@ -145,7 +162,7 @@ export function AppShell({
         {n > 0 && (
           <span
             className={clsx(
-              "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabla-num",
+              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabla-num",
               activo ? "bg-white/25 text-white" : "bg-status-critical/85 text-white"
             )}
             title={`${n} requieren atención`}
@@ -157,17 +174,40 @@ export function AppShell({
     );
   };
 
+  /** El menú entero, agrupado. Se usa igual en la columna y en el desplegable. */
+  const menu = (
+    <nav className="space-y-4">
+      {GRUPOS.map((grupo) => {
+        const enlaces = grupo.enlaces.filter(
+          (e) => !e.soloImportador || sesion?.puedeImportar
+        );
+        // Si a un grupo no le queda ningún enlace visible —«Datos» para quien no
+        // puede importar sigue teniendo Búsqueda, pero por si acaso— no se
+        // dibuja el título huérfano.
+        if (enlaces.length === 0) return null;
+        return (
+          <div key={grupo.titulo}>
+            <div className="etiqueta-marca px-3 pb-1.5 text-[10px] text-ink-muted">
+              {grupo.titulo}
+            </div>
+            <div className="flex flex-col gap-0.5">{enlaces.map(enlaceNav)}</div>
+          </div>
+        );
+      })}
+    </nav>
+  );
+
   return (
     <div className="min-h-screen bg-surface-page">
       {/* ---------------------------------------------------------------
-          Encabezado: logo, menú y sesión. El menú pasó aquí desde la barra
-          lateral; la izquierda queda libre para los filtros de cada módulo.
+          Encabezado: logo, búsqueda y sesión. El menú ya no vive aquí.
           --------------------------------------------------------------- */}
       <header className="no-imprimir sticky top-0 z-40 border-b border-line-grid bg-surface">
         <div className="flex items-center gap-3 px-4 py-2.5 lg:px-6">
           <button
             onClick={() => setMenuAbierto((v) => !v)}
             aria-label="Abrir menú"
+            aria-expanded={menuAbierto}
             className="rounded-md p-1.5 text-ink-secondary hover:bg-surface-page xl:hidden"
           >
             <svg
@@ -189,11 +229,7 @@ export function AppShell({
             <LogoCompleto alto={36} />
           </Link>
 
-          <nav className="ml-2 hidden flex-1 flex-wrap items-center gap-0.5 xl:flex">
-            {enlaces.map((e) => enlaceNav(e))}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-2 xl:ml-0">
+          <div className="ml-auto flex items-center gap-2">
             <div className="hidden w-44 md:block">
               <BotonBusquedaRapida onAbrir={() => setBuscando(true)} />
             </div>
@@ -230,24 +266,20 @@ export function AppShell({
           </div>
         </div>
 
-        {/* Menú desplegado en pantallas donde no cabe en una fila */}
+        {/* Donde no cabe la columna, el mismo menú se despliega bajo el
+            encabezado. */}
         {menuAbierto && (
-          <nav className="grid grid-cols-2 gap-1 border-t border-line-grid px-4 py-2 sm:grid-cols-3 xl:hidden">
-            {enlaces.map((e) => enlaceNav(e, true))}
-          </nav>
+          <div className="border-t border-line-grid px-4 py-3 xl:hidden">{menu}</div>
         )}
       </header>
 
       {/* ---------------------------------------------------------------
-          Debajo: columna de filtros a la izquierda y contenido a la derecha.
-          El contenedor de filtros está siempre; cada módulo mete los suyos
-          con <PanelFiltros> (ver components/panel-filtros.tsx).
+          Debajo: el menú a la izquierda y el contenido a la derecha.
           --------------------------------------------------------------- */}
       <div className="mx-auto flex max-w-[1600px] gap-6 px-4 py-5 sm:px-6 lg:px-8">
-        <aside
-          id={ID_PANEL_FILTROS}
-          className="no-imprimir sticky top-[68px] hidden h-fit w-64 shrink-0 space-y-3 lg:block"
-        />
+        <aside className="no-imprimir sticky top-[68px] hidden h-fit w-56 shrink-0 xl:block">
+          {menu}
+        </aside>
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
