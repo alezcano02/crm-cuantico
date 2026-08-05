@@ -61,8 +61,15 @@ export default async function VencimientosPage() {
   const proximas = renovables.filter(
     (p) => p.dias != null && p.dias >= 0 && p.dias <= 30
   ).length;
-  const prorrogas = vista.filter((p) => p.anexo === "PRORROGA").length;
-  const incrementos = vista.filter((p) => p.anexo === "INCREMENTO").length;
+  // Del total en cartera, cuántos están vencidos ahora mismo: es lo que
+  // explica por qué "vencidas" no incluye lo que uno esperaría. Contar el
+  // total de la cartera (sin filtrar por vencimiento) confundía cuando la
+  // mayoría de los anexos de un tipo no estaban vencidos: "8 incrementos" al
+  // lado de "18 vencidas" sugería que los 8 pesaban ahí, cuando solo 1 lo
+  // estaba.
+  const anexosVencidos = vista.filter((p) => p.anexo && p.dias != null && p.dias < 0);
+  const prorrogas = anexosVencidos.filter((p) => p.anexo === "PRORROGA").length;
+  const incrementos = anexosVencidos.filter((p) => p.anexo === "INCREMENTO").length;
   const detalleAnexos = [
     prorrogas > 0 ? `${prorrogas} prórrogas` : null,
     incrementos > 0 ? `${incrementos} incrementos` : null,
