@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { AppShell, ContadoresNav } from "@/components/app-shell";
 import { prisma } from "@/lib/prisma";
 import { hoyUTC } from "@/lib/calculos";
-import { puedeImportar, sesionActual } from "@/lib/auth";
+import { puedeImportar, puedeVerComisiones, sesionActual } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,11 @@ export default async function AppLayout({
   return (
     <AppShell
       contadores={await contadores()}
-      sesion={{ ...sesion, puedeImportar: puedeImportar(sesion.usuario) }}
+      sesion={{
+        ...sesion,
+        puedeImportar: puedeImportar(sesion.usuario),
+        puedeVerComisiones: puedeVerComisiones(sesion.usuario),
+      }}
     >
       {children}
     </AppShell>

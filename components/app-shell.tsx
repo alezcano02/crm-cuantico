@@ -9,6 +9,7 @@ import {
   IconCalendario,
   IconCartera,
   IconDashboard,
+  IconDinero,
   IconHistorial,
   IconImportar,
   IconPersonas,
@@ -34,6 +35,8 @@ type Enlace = {
   contador?: keyof ContadoresNav;
   /** true = solo para quien puede importar. */
   soloImportador?: boolean;
+  /** true = solo para quien ve comisiones. */
+  soloComisiones?: boolean;
 };
 
 /**
@@ -77,6 +80,12 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
     enlaces: [
       { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
       {
+        href: "/comisiones",
+        etiqueta: "Comisiones",
+        Icono: IconDinero,
+        soloComisiones: true,
+      },
+      {
         href: "/importar",
         etiqueta: "Importar datos",
         Icono: IconImportar,
@@ -91,6 +100,8 @@ export interface SesionVista {
   nombre: string | null;
   /** Si no puede importar, el enlace ni siquiera se dibuja. */
   puedeImportar?: boolean;
+  /** Ídem con comisiones: es información de remuneración. */
+  puedeVerComisiones?: boolean;
 }
 
 export function AppShell({
@@ -214,7 +225,9 @@ export function AppShell({
     <nav className={compacto ? "space-y-2" : "space-y-4"}>
       {GRUPOS.map((grupo, i) => {
         const enlaces = grupo.enlaces.filter(
-          (e) => !e.soloImportador || sesion?.puedeImportar
+          (e) =>
+            (!e.soloImportador || sesion?.puedeImportar) &&
+            (!e.soloComisiones || sesion?.puedeVerComisiones)
         );
         // Si a un grupo no le queda ningún enlace visible —«Datos» para quien no
         // puede importar sigue teniendo Búsqueda, pero por si acaso— no se

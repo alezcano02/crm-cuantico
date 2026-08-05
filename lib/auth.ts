@@ -150,6 +150,32 @@ export function puedeImportar(usuario: string | null | undefined): boolean {
 }
 
 /**
+ * Quién ve las comisiones.
+ *
+ * Las comisiones son información de remuneración, no operativa: se limita a
+ * la cuenta de Alejandro. Se compara en minúsculas porque el usuario se
+ * escribe a mano al ingresar.
+ */
+const USUARIOS_COMISIONES = ["administrativo@cuanticoseguros.com"];
+
+export function puedeVerComisiones(usuario: string | null | undefined): boolean {
+  if (!usuario) return false;
+  return USUARIOS_COMISIONES.includes(usuario.trim().toLowerCase());
+}
+
+/**
+ * Guardia para la PÁGINA de comisiones. Se manda al dashboard en vez de al
+ * login: quien llega aquí sí tiene sesión, solo que no es su módulo, y
+ * mandarlo a iniciar sesión otra vez sería desconcertante.
+ */
+export async function exigirComisionesPagina(): Promise<SesionActiva> {
+  const sesion = await sesionActual();
+  if (!sesion) redirect("/login");
+  if (!puedeVerComisiones(sesion.usuario)) redirect("/");
+  return sesion;
+}
+
+/**
  * Guardia para las rutas de API que solo puede usar quien importa. Devuelve
  * 401 si no hay sesión y 403 si la hay pero no es de quien corresponde, para
  * que el cliente pueda distinguir "vuelva a entrar" de "no es para usted".

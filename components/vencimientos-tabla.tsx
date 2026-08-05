@@ -13,6 +13,8 @@ import { BotonExportar } from "@/components/boton-exportar";
 import { GestionarPoliza } from "@/components/gestionar-poliza";
 import { Paginacion, usePaginacion } from "@/components/paginacion";
 import { PanelFiltros } from "@/components/panel-filtros";
+import { BuscadorTabla } from "@/components/buscador-tabla";
+import { FiltroMes } from "@/components/filtro-mes";
 
 export interface PolizaVista extends PolizaEditable {
   id: number;
@@ -68,6 +70,7 @@ export function VencimientosTabla({
   const [estadoPago, setEstadoPago] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [mes, setMes] = useState("");
   const [soloSinGestionar, setSoloSinGestionar] = useState(false);
   const [orden, setOrden] = useState<"dias" | "prima">("dias");
   const [gestionando, setGestionando] = useState<PolizaVista | null>(null);
@@ -80,6 +83,19 @@ export function VencimientosTabla({
   const ramos = useMemo(() => opciones(polizas.map((p) => p.ramo)), [polizas]);
   const aseguradoras = useMemo(() => opciones(polizas.map((p) => p.aseguradora)), [polizas]);
   const tiposNegocio = useMemo(() => opciones(polizas.map((p) => p.tipoNegocio)), [polizas]);
+  // Meses que existen en los datos, no un rango fijo: así no se ofrecen meses
+  // vacíos.
+  const meses = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          polizas
+            .map((p) => p.vencimiento?.slice(0, 7))
+            .filter((m): m is string => !!m)
+        )
+      ).sort(),
+    [polizas]
+  );
 
   const filtradas = useMemo(() => {
     let lista = polizas;
@@ -100,6 +116,8 @@ export function VencimientosTabla({
     // 0–30 días no se podía acotar.
     if (desde) lista = lista.filter((p) => p.vencimiento && p.vencimiento.slice(0, 10) >= desde);
     if (hasta) lista = lista.filter((p) => p.vencimiento && p.vencimiento.slice(0, 10) <= hasta);
+    // Atajo del rango anterior para el caso más común: un mes entero.
+    if (mes) lista = lista.filter((p) => p.vencimiento?.slice(0, 7) === mes);
     // Buscador libre: mismo criterio que la pantalla de Búsqueda
     // (número de póliza, nombre del asegurado o CC/NIT).
     if (q.trim()) {
@@ -133,7 +151,7 @@ export function VencimientosTabla({
     });
   }, [
     polizas, pestania, q, asesor, ramo, aseguradora, tipoNegocio,
-    estadoPago, desde, hasta, soloSinGestionar, orden,
+    estadoPago, desde, hasta, mes, soloSinGestionar, orden,
   ]);
 
   const enRiesgo = filtradas.filter(
@@ -155,12 +173,13 @@ export function VencimientosTabla({
     setEstadoPago("");
     setDesde("");
     setHasta("");
+    setMes("");
     setSoloSinGestionar(false);
   };
 
   const hayFiltros =
     q || asesor || ramo || aseguradora || tipoNegocio || estadoPago ||
-    desde || hasta || soloSinGestionar;
+    desde || hasta || mes || soloSinGestionar;
 
   const claseSelect =
     "rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
@@ -196,15 +215,15 @@ export function VencimientosTabla({
         </button>
       </div>
 
+      {/* Buscador y mes fuera del panel plegable: son los dos controles que se
+          usan a diario, y dentro del panel costaban un clic y no se veían. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <BuscadorTabla valor={q} onCambiar={setQ} />
+        <FiltroMes valor={mes} onCambiar={setMes} meses={meses} etiqueta="Mes de vencimiento: todos" />
+      </div>
+
       <PanelFiltros>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar póliza / asegurado / NIT"
-          className={clsx(claseSelect, "min-w-[220px]")}
-        />
         <select className={claseSelect} value={ramo} onChange={(e) => setRamo(e.target.value)}>
           <option value="">Ramo: todos</option>
           {ramos.map((r) => (
