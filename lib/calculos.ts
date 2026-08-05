@@ -70,6 +70,58 @@ export function indiceMes(mes: string | null | undefined): number {
 }
 
 // ---------------------------------------------------------------------------
+// Prórrogas
+// ---------------------------------------------------------------------------
+
+/**
+ * Una prórroga es la extensión temporal de una póliza que ya existe, mientras
+ * se cierra la renovación de fondo. Se usa sobre todo en copropiedades.
+ *
+ * NO SE RENUEVA POR SÍ MISMA, y ahí estaba el problema: al vencer su corto
+ * período aparecía en «pendientes de renovar» junto a las renovaciones de
+ * verdad, ensuciando la lista con trabajo que no existe. Pero su prima SÍ es
+ * producción del año y SÍ entra en la base de renovación del siguiente, así
+ * que sacarla de la cartera tampoco valía.
+ *
+ * La solución es tratarla como lo que es: una póliza más de la cartera, que
+ * suma en todo, pero que no se cuenta como pendiente de renovar.
+ *
+ * Se reconoce por la columna OBSERVACION del informe, que es donde el área
+ * técnica la marca. Es texto libre, así que se acepta con y sin tilde y
+ * rodeada de más texto («PRORROGA 3 MESES»).
+ */
+const PATRON_PRORROGA = /pr[oó]rroga/i;
+
+export function esProrroga(observacion: string | null | undefined): boolean {
+  return !!observacion && PATRON_PRORROGA.test(observacion);
+}
+
+/**
+ * Fragmento de Prisma para dejar las prórrogas fuera de una consulta.
+ *
+ * `contains` es literal, así que hay que preguntar por las dos grafías: en la
+ * base conviven «PRORROGA» y «PRÓRROGA» según quién escribiera la fila.
+ *
+ * OJO CON EL NULL. La rama `observacion: null` no es adorno: en SQL
+ * `NOT (NULL LIKE '%rorrog%')` no vale `true`, vale NULL, y la fila se cae de
+ * la consulta. Sin ella este filtro descartaba TODAS las pólizas sin
+ * observación —la inmensa mayoría— y el panel pasó de 22 vencidas a 2.
+ */
+export const SIN_PRORROGAS = {
+  OR: [
+    { observacion: null },
+    {
+      NOT: {
+        OR: [
+          { observacion: { contains: "rorrog", mode: "insensitive" as const } },
+          { observacion: { contains: "rórrog", mode: "insensitive" as const } },
+        ],
+      },
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
 // Semáforo de vencimientos
 // ---------------------------------------------------------------------------
 

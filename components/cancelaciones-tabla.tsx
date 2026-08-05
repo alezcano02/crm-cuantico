@@ -22,6 +22,7 @@ export interface CancelacionVista {
   tipoNegocio: string | null;
   asegurado: string | null;
   ccNit: string | null;
+  placa: string | null;
   asesor: string | null;
   aseguradora: string | null;
   primaNeta: number;
@@ -325,8 +326,11 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
               <Th>Tipo</Th>
               <Th>Fecha renovación</Th>
               <Th>Fecha cancelación</Th>
+              <Th>Placa</Th>
               <Th derecha>Prima neta</Th>
+              <Th derecha>Prima total</Th>
               <Th derecha>No causada</Th>
+              <Th>Motivo</Th>
               <Th />
             </tr>
           </thead>
@@ -358,15 +362,30 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
                 </Td>
                 <Td>{fmtFecha(c.fechaRenovacion)}</Td>
                 <Td>{fmtFecha(c.fechaCancelacion)}</Td>
+                <Td>
+                  {c.placa ? (
+                    <span className="rounded bg-surface-sunken px-1.5 py-0.5 text-[11px] font-semibold tracking-wide">
+                      {c.placa}
+                    </span>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
+                </Td>
                 <Td derecha className="font-semibold">
                   {fmtCOP(c.primaNeta)}
                 </Td>
+                <Td derecha>{fmtCOP(c.primaTotal)}</Td>
                 <Td
                   derecha
                   className="text-status-critical"
                   title="Devolución al cliente por los días que faltaban de vigencia"
                 >
                   {c.fechaCancelacion ? fmtCOP(noCausadaDe(c)) : "—"}
+                </Td>
+                <Td>
+                  <div className="max-w-[200px] truncate text-xs" title={c.motivo ?? ""}>
+                    {c.motivo ?? <span className="text-ink-muted">—</span>}
+                  </div>
                 </Td>
                 <Td>
                   <button
@@ -382,7 +401,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={11}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={14}>
                   No hay cancelaciones que cumplan los filtros.
                 </Td>
               </tr>

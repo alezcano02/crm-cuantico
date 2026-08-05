@@ -43,6 +43,8 @@ export interface CarteraVista {
   celular: string | null;
   valorCuota: number | null;
   notaCartera: string | null;
+  /** Nota del área técnica del informe (distinta de notaCartera, que es cobranza). */
+  observacion: string | null;
   estado: EstadoCartera;
   diasCartera: number | null;
 }
@@ -52,7 +54,7 @@ type Pestania = "pendientes" | "mora" | "todas";
 const PESTANIAS: { id: Pestania; etiqueta: string }[] = [
   { id: "pendientes", etiqueta: "Pendientes de cobro" },
   { id: "mora", etiqueta: "En mora" },
-  { id: "todas", etiqueta: "Toda la cartera" },
+  { id: "todas", etiqueta: "Todas las pólizas" },
 ];
 
 const PENDIENTES: EstadoCartera[] = ["EN_MORA", "POR_COBRAR", "PENDIENTE", "SIN_FECHA"];
@@ -396,7 +398,10 @@ export function CarteraTabla({
               <Th>Aseguradora</Th>
               <Th>Asesor</Th>
               <Th>Forma pago</Th>
+              <Th derecha>Prima neta</Th>
               <Th derecha>Prima total</Th>
+              <Th>Vencimiento</Th>
+              <Th>Observación</Th>
               <Th />
             </tr>
           </thead>
@@ -440,6 +445,14 @@ export function CarteraTabla({
                 </Td>
                 <Td>
                   <div className="text-xs">{p.celular ?? "—"}</div>
+                  {p.correo && (
+                    <div
+                      className="max-w-[160px] truncate text-[11px] text-ink-muted"
+                      title={p.correo}
+                    >
+                      {p.correo}
+                    </div>
+                  )}
                 </Td>
                 <Td>{p.aseguradora ?? "—"}</Td>
                 <Td>
@@ -453,8 +466,15 @@ export function CarteraTabla({
                     </div>
                   )}
                 </Td>
+                <Td derecha>{fmtCOP(p.primaNeta)}</Td>
                 <Td derecha className="font-semibold">
                   {fmtCOP(p.primaTotal)}
+                </Td>
+                <Td>{fmtFecha(p.vencimiento)}</Td>
+                <Td>
+                  <div className="max-w-[180px] truncate text-xs" title={p.observacion ?? ""}>
+                    {p.observacion ?? <span className="text-ink-muted">—</span>}
+                  </div>
                 </Td>
                 <Td>
                   <button
@@ -469,7 +489,7 @@ export function CarteraTabla({
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={13}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={16}>
                   No hay pólizas que cumplan los filtros.
                 </Td>
               </tr>

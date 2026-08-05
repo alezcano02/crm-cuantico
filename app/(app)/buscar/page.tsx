@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { diasAlVence, semaforoVencimiento } from "@/lib/calculos";
+import { diasAlVence, esProrroga, semaforoVencimiento } from "@/lib/calculos";
+import { listasParaFormularios } from "@/lib/queries";
+import { BusquedaResultados } from "@/components/busqueda-resultados";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import { exigirSesionPagina } from "@/lib/auth";
 import {
@@ -37,6 +39,10 @@ export default async function BuscarPage({
         ]),
       }
     : undefined;
+
+  // Las listas hacen falta para el modal de gestionar, que ahora se abre desde
+  // aquí; se piden siempre porque no dependen del término buscado.
+  const listas = await listasParaFormularios();
 
   const [polizas, otras, canceladas] = q
     ? await Promise.all([
@@ -83,48 +89,42 @@ export default async function BuscarPage({
             {polizas.length === 0 ? (
               <p className="text-sm text-ink-muted">Sin coincidencias en la cartera activa.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr>
-                      <Th>Asegurado</Th>
-                      <Th>CC/NIT</Th>
-                      <Th>Ramo</Th>
-                      <Th>Aseguradora</Th>
-                      <Th>Póliza</Th>
-                      <Th derecha>Prima neta</Th>
-                      <Th derecha>Prima total</Th>
-                      <Th>Vencimiento</Th>
-                      <Th>Estado</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {polizas.map((p) => {
-                      const dias = diasAlVence(p.vencimiento);
-                      return (
-                        <tr key={p.id} className="hover:bg-surface-page">
-                          <Td className="font-medium">{p.asegurado}</Td>
-                          <Td>{p.ccNit ?? "—"}</Td>
-                          <Td>{p.ramo}</Td>
-                          <Td>{p.aseguradora ?? "—"}</Td>
-                          <Td>{p.numero}</Td>
-                          <Td derecha>{fmtCOP(p.primaNeta)}</Td>
-                          <Td derecha>{fmtCOP(p.primaTotal)}</Td>
-                          <Td>
-                            <div className="flex items-center gap-2">
-                              {fmtFecha(p.vencimiento)}
-                              <SemaforoBadge nivel={semaforoVencimiento(dias)} dias={dias} />
-                            </div>
-                          </Td>
-                          <Td>
-                            <EstadoPagoBadge estado={p.estadoPago} />
-                          </Td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <BusquedaResultados
+                listas={listas}
+                polizas={polizas.map((p) => {
+                  const dias = diasAlVence(p.vencimiento);
+                  return {
+                    id: p.id,
+                    numero: p.numero,
+                    ramo: p.ramo,
+                    asegurado: p.asegurado,
+                    ccNit: p.ccNit,
+                    placa: p.placa,
+                    aseguradora: p.aseguradora,
+                    tipoNegocio: p.tipoNegocio,
+                    asesor1: p.asesor1,
+                    asesor2: p.asesor2,
+                    primaNeta: p.primaNeta,
+                    primaTotal: p.primaTotal,
+                    formaPago: p.formaPago,
+                    estadoPago: p.estadoPago,
+                    fechaPago: p.fechaPago?.toISOString() ?? null,
+                    fechaMaxPago: p.fechaMaxPago?.toISOString() ?? null,
+                    vencimiento: p.vencimiento?.toISOString() ?? null,
+                    fechaNacimiento: p.fechaNacimiento?.toISOString() ?? null,
+                    correo: p.correo,
+                    celular: p.celular,
+                    valorCuota: p.valorCuota,
+                    notaCartera: p.notaCartera,
+                    observacion: p.observacion,
+                    dias,
+                    semaforo: semaforoVencimiento(dias),
+                    gestionada: p.gestionada,
+                    notaGestion: p.notaGestion,
+                    prorroga: esProrroga(p.observacion),
+                  };
+                })}
+              />
             )}
           </Card>
 

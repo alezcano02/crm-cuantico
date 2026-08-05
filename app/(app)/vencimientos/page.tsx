@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { diasAlVence, semaforoVencimiento } from "@/lib/calculos";
+import { diasAlVence, esProrroga, semaforoVencimiento } from "@/lib/calculos";
 import { listasParaFormularios } from "@/lib/queries";
 import { Card, PageHeader } from "@/components/ui";
 import { VencimientosTabla, PolizaVista } from "@/components/vencimientos-tabla";
@@ -42,21 +42,35 @@ export default async function VencimientosPage() {
       celular: p.celular,
       valorCuota: p.valorCuota,
       notaCartera: p.notaCartera,
+      observacion: p.observacion,
+      mesVencimiento: p.mesVencimiento,
+      vtoSoat: p.vtoSoat?.toISOString() ?? null,
       dias,
       semaforo: semaforoVencimiento(dias),
       gestionada: p.gestionada,
       notaGestion: p.notaGestion,
+      prorroga: esProrroga(p.observacion),
     };
   });
 
-  const vencidas = vista.filter((p) => p.dias != null && p.dias < 0).length;
-  const proximas = vista.filter((p) => p.dias != null && p.dias >= 0 && p.dias <= 30).length;
+  // Las prórrogas no se renuevan; contarlas como vencidas era el motivo de que
+  // el encabezado exagerara el trabajo pendiente (ver lib/calculos.ts).
+  const renovables = vista.filter((p) => !p.prorroga);
+  const vencidas = renovables.filter((p) => p.dias != null && p.dias < 0).length;
+  const proximas = renovables.filter(
+    (p) => p.dias != null && p.dias >= 0 && p.dias <= 30
+  ).length;
+  const prorrogas = vista.filter((p) => p.prorroga).length;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        titulo="Vencimientos y cartera"
-        descripcion={`${vencidas} pólizas vencidas pendientes de gestión · ${proximas} vencen en los próximos 30 días`}
+        titulo="Vencimientos"
+        descripcion={
+          `${vencidas} pólizas vencidas pendientes de gestión · ` +
+          `${proximas} vencen en los próximos 30 días` +
+          (prorrogas > 0 ? ` · ${prorrogas} prórrogas (no se renuevan)` : "")
+        }
       />
 
       {vista.length === 0 ? (

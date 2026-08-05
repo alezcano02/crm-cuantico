@@ -39,6 +39,7 @@ export default async function CarteraPage() {
       vencimiento: p.vencimiento?.toISOString() ?? null,
       fechaNacimiento: p.fechaNacimiento?.toISOString() ?? null,
       correo: p.correo,
+      observacion: p.observacion,
       celular: p.celular,
       valorCuota: p.valorCuota,
       notaCartera: p.notaCartera,

@@ -20,14 +20,19 @@ export interface PolizaVista extends PolizaEditable {
   semaforo: Semaforo | null;
   gestionada: boolean;
   notaGestion: string | null;
+  /** Extensión temporal: vence a propósito y no se renueva por sí misma. */
+  prorroga: boolean;
 }
 
-type Pestania = "pendientes" | "proximos" | "todas";
+type Pestania = "pendientes" | "proximos" | "prorrogas" | "todas";
 
 const PESTANIAS: { id: Pestania; etiqueta: string }[] = [
   { id: "pendientes", etiqueta: "Pendientes de renovar (vencidas)" },
   { id: "proximos", etiqueta: "Próximos a vencer (0–30 días)" },
-  { id: "todas", etiqueta: "Toda la cartera" },
+  // Las prórrogas salen de las dos pestañas de renovación, pero tienen que
+  // poder verse en algún sitio: si no, desaparecerían de la pantalla.
+  { id: "prorrogas", etiqueta: "Prórrogas" },
+  { id: "todas", etiqueta: "Todas las pólizas" },
 ];
 
 function normalizar(v: string): string {
@@ -55,6 +60,8 @@ export function VencimientosTabla({
   const [aseguradora, setAseguradora] = useState("");
   const [tipoNegocio, setTipoNegocio] = useState("");
   const [estadoPago, setEstadoPago] = useState("");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
   const [soloSinGestionar, setSoloSinGestionar] = useState(false);
   const [orden, setOrden] = useState<"dias" | "prima">("dias");
   const [gestionando, setGestionando] = useState<PolizaVista | null>(null);
@@ -70,11 +77,22 @@ export function VencimientosTabla({
 
   const filtradas = useMemo(() => {
     let lista = polizas;
+    // Las prórrogas vencen a propósito: quedan fuera de las dos pestañas de
+    // renovación y tienen la suya. En «Todas» aparecen, porque son cartera.
     if (pestania === "pendientes") {
-      lista = lista.filter((p) => p.dias != null && p.dias < 0);
+      lista = lista.filter((p) => !p.prorroga && p.dias != null && p.dias < 0);
     } else if (pestania === "proximos") {
-      lista = lista.filter((p) => p.dias != null && p.dias >= 0 && p.dias <= 30);
+      lista = lista.filter(
+        (p) => !p.prorroga && p.dias != null && p.dias >= 0 && p.dias <= 30
+      );
+    } else if (pestania === "prorrogas") {
+      lista = lista.filter((p) => p.prorroga);
     }
+    // Rango de vencimiento: es como se arma el trabajo de renovación de un mes
+    // («lo que vence entre el 1 y el 31»), que con solo las pestañas fijas de
+    // 0–30 días no se podía acotar.
+    if (desde) lista = lista.filter((p) => p.vencimiento && p.vencimiento.slice(0, 10) >= desde);
+    if (hasta) lista = lista.filter((p) => p.vencimiento && p.vencimiento.slice(0, 10) <= hasta);
     // Buscador libre: mismo criterio que la pantalla de Búsqueda
     // (número de póliza, nombre del asegurado o CC/NIT).
     if (q.trim()) {
@@ -108,7 +126,7 @@ export function VencimientosTabla({
     });
   }, [
     polizas, pestania, q, asesor, ramo, aseguradora, tipoNegocio,
-    estadoPago, soloSinGestionar, orden,
+    estadoPago, desde, hasta, soloSinGestionar, orden,
   ]);
 
   const enRiesgo = filtradas.filter(
@@ -128,11 +146,14 @@ export function VencimientosTabla({
     setAseguradora("");
     setTipoNegocio("");
     setEstadoPago("");
+    setDesde("");
+    setHasta("");
     setSoloSinGestionar(false);
   };
 
   const hayFiltros =
-    q || asesor || ramo || aseguradora || tipoNegocio || estadoPago || soloSinGestionar;
+    q || asesor || ramo || aseguradora || tipoNegocio || estadoPago ||
+    desde || hasta || soloSinGestionar;
 
   const claseSelect =
     "rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
@@ -218,6 +239,25 @@ export function VencimientosTabla({
           <option value="OK PAGO">OK PAGO</option>
           <option value="PENDIENTE">PENDIENTE</option>
         </select>
+        {/* Rango de vencimiento: para armar el trabajo de un mes concreto. */}
+        <label className="flex items-center gap-1.5 text-sm text-ink-secondary">
+          Vence desde
+          <input
+            type="date"
+            value={desde}
+            onChange={(e) => setDesde(e.target.value)}
+            className={claseSelect}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-ink-secondary">
+          hasta
+          <input
+            type="date"
+            value={hasta}
+            onChange={(e) => setHasta(e.target.value)}
+            className={claseSelect}
+          />
+        </label>
         <select
           className={claseSelect}
           value={orden}
@@ -271,7 +311,10 @@ export function VencimientosTabla({
             { encabezado: "Asesor 2", valor: (p) => p.asesor2 ?? "" },
             { encabezado: "Prima neta", valor: (p) => p.primaNeta },
             { encabezado: "Prima total", valor: (p) => p.primaTotal },
+            { encabezado: "Forma de pago", valor: (p) => p.formaPago ?? "" },
             { encabezado: "Estado de pago", valor: (p) => p.estadoPago ?? "" },
+            { encabezado: "Observación", valor: (p) => p.observacion ?? "" },
+            { encabezado: "Prórroga", valor: (p) => (p.prorroga ? "SÍ" : "NO") },
             { encabezado: "Celular", valor: (p) => p.celular ?? "" },
             { encabezado: "Correo", valor: (p) => p.correo ?? "" },
             { encabezado: "Gestionada", valor: (p) => (p.gestionada ? "SÍ" : "NO") },
@@ -296,7 +339,10 @@ export function VencimientosTabla({
               <Th>Aseguradora</Th>
               <Th>Asesor</Th>
               <Th derecha>Prima neta</Th>
+              <Th derecha>Prima total</Th>
+              <Th>Forma de pago</Th>
               <Th>Pago</Th>
+              <Th>Observación</Th>
               <Th />
             </tr>
           </thead>
@@ -307,7 +353,15 @@ export function VencimientosTabla({
                 className={clsx("hover:bg-surface-page", p.gestionada && "opacity-60")}
               >
                 <Td>
-                  <SemaforoBadge nivel={p.semaforo} dias={p.dias} />
+                  {/* Una prórroga vencida no es un pendiente: decirlo aquí evita
+                      que el semáforo en rojo la haga parecer trabajo atrasado. */}
+                  {p.prorroga ? (
+                    <span className="inline-flex items-center rounded bg-brand-light px-1.5 py-0.5 text-[11px] font-semibold text-brand">
+                      Prórroga
+                    </span>
+                  ) : (
+                    <SemaforoBadge nivel={p.semaforo} dias={p.dias} />
+                  )}
                 </Td>
                 <Td>{fmtFecha(p.vencimiento)}</Td>
                 <Td className="font-medium">{p.numero}</Td>
@@ -355,8 +409,15 @@ export function VencimientosTabla({
                   </div>
                 </Td>
                 <Td derecha>{fmtCOP(p.primaNeta)}</Td>
+                <Td derecha>{fmtCOP(p.primaTotal)}</Td>
+                <Td>{p.formaPago ?? "—"}</Td>
                 <Td>
                   <EstadoPagoBadge estado={p.estadoPago} />
+                </Td>
+                <Td>
+                  <div className="max-w-[200px] truncate text-xs" title={p.observacion ?? ""}>
+                    {p.observacion ?? <span className="text-ink-muted">—</span>}
+                  </div>
                 </Td>
                 <Td>
                   <div className="flex items-center gap-2">
@@ -381,7 +442,7 @@ export function VencimientosTabla({
             ))}
             {filtradas.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={13}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={16}>
                   No hay pólizas que cumplan los filtros.
                 </Td>
               </tr>

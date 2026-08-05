@@ -23,6 +23,7 @@ export default async function CancelacionesPage() {
     tipoNegocio: c.tipoNegocio,
     asegurado: c.asegurado,
     ccNit: c.ccNit,
+    placa: c.placa,
     asesor: c.asesor,
     aseguradora: c.aseguradora,
     primaNeta: c.primaNeta,

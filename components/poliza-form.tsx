@@ -29,6 +29,11 @@ export interface PolizaEditable {
   celular: string | null;
   valorCuota?: number | null;
   notaCartera?: string | null;
+  /* Columnas del informe que las tablas muestran pero el formulario no edita:
+     el área técnica las escribe en el Excel. */
+  observacion?: string | null;
+  mesVencimiento?: string | null;
+  vtoSoat?: string | null;
 }
 
 const VACIA: PolizaEditable = {
