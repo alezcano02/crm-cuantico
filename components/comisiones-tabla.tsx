@@ -51,10 +51,17 @@ export function ComisionesTabla({
     [filas]
   );
 
-  const filtradas = useMemo(() => {
+  /*
+   * Filtrado SIN la pestaña, para las tarjetas de arriba.
+   *
+   * «Causada» y «por causar» son dos caras de lo mismo y se leen juntas. Si se
+   * calcularan sobre la lista de la pestaña activa, estando en «Causadas» la
+   * segunda saldría siempre en $0 y parecería que no hay nada por cobrar.
+   * Las tarjetas responden a los filtros de verdad (mes, ramo, aseguradora,
+   * asesor); la pestaña solo decide qué filas se listan abajo.
+   */
+  const enFiltros = useMemo(() => {
     let lista = filas;
-    if (pestania === "causadas") lista = lista.filter((f) => f.pagada);
-    else if (pestania === "porCausar") lista = lista.filter((f) => !f.pagada);
     if (mes) lista = lista.filter((f) => f.mes === mes);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
@@ -70,14 +77,21 @@ export function ComisionesTabla({
       lista = lista.filter((f) => f.aseguradora && normalizar(f.aseguradora) === aseguradora);
     if (asesor) lista = lista.filter((f) => f.asesor1 && normalizar(f.asesor1) === asesor);
     return lista;
-  }, [filas, pestania, q, mes, ramo, aseguradora, asesor]);
+  }, [filas, q, mes, ramo, aseguradora, asesor]);
+
+  /** Lo de arriba, ya acotado por la pestaña: es lo que se lista en la tabla. */
+  const filtradas = useMemo(() => {
+    if (pestania === "causadas") return enFiltros.filter((f) => f.pagada);
+    if (pestania === "porCausar") return enFiltros.filter((f) => !f.pagada);
+    return enFiltros;
+  }, [enFiltros, pestania]);
 
   const totales = useMemo(() => {
     let causada = 0;
     let porCausar = 0;
     let sinTarifa = 0;
     let primaCausada = 0;
-    for (const f of filtradas) {
+    for (const f of enFiltros) {
       if (f.comision == null) {
         sinTarifa++;
         continue;
@@ -88,7 +102,7 @@ export function ComisionesTabla({
       } else porCausar += f.comision;
     }
     return { causada, porCausar, sinTarifa, primaCausada };
-  }, [filtradas]);
+  }, [enFiltros]);
 
   // Resumen por ramo: es como se revisa una liquidación, no póliza por póliza.
   const porRamo = useMemo(() => {
@@ -133,7 +147,11 @@ export function ComisionesTabla({
           detalle="Pólizas todavía sin pagar"
           acento="amarillo"
         />
-        <StatCard etiqueta="Pólizas en el filtro" valor={String(filtradas.length)} />
+        <StatCard
+          etiqueta="Pólizas listadas"
+          valor={String(filtradas.length)}
+          detalle={`de ${enFiltros.length} en el filtro`}
+        />
         <StatCard
           etiqueta="Sin tarifa de comisión"
           valor={String(totales.sinTarifa)}
