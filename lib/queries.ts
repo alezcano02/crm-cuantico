@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { pareceEmpresa, proximoCumpleanos } from "./cumpleanos";
 import {
+  PRIMER_ANIO,
   calcularSeguimiento,
   hoyUTC,
   Seguimiento,
@@ -58,13 +59,29 @@ export async function aniosDisponibles(): Promise<number[]> {
     where: { vencimiento: { not: null } },
   });
   const anioActual = new Date().getUTCFullYear();
-  const anios = new Set<number>([2026, 2027, anioActual, anioActual + 1]);
+
+  /*
+   * El rango se rellena entero, de 2026 al último año con datos. Antes se
+   * armaba con un puñado de años sueltos (2026, 2027, el actual y el
+   * siguiente) más los que aparecieran en la cartera, y eso deja huecos en
+   * cuanto pasa el tiempo: en 2030 el desplegable habría mostrado 2026, 2027,
+   * 2030 y 2031, saltándose 2028 y 2029 salvo que quedara alguna póliza
+   * venciendo en esos años. Un año sin producción debe poder consultarse y
+   * salir en cero, no desaparecer del selector.
+   *
+   * 2026 es el piso porque es el primer año que el CRM puede calcular: su base
+   * es la hoja BASE 2025 y no hay nada anterior.
+   */
+  let ultimo = Math.max(2027, anioActual + 1);
   for (const p of polizas) {
-    if (p.vencimiento) anios.add(p.vencimiento.getUTCFullYear() - 1);
+    if (!p.vencimiento) continue;
+    // Producción del año N = pólizas que vencen en N+1.
+    ultimo = Math.max(ultimo, p.vencimiento.getUTCFullYear() - 1);
   }
-  return Array.from(anios)
-    .filter((a) => a >= 2026)
-    .sort();
+
+  const anios: number[] = [];
+  for (let a = PRIMER_ANIO; a <= ultimo; a++) anios.push(a);
+  return anios;
 }
 
 /**

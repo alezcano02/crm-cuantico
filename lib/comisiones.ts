@@ -104,27 +104,56 @@ export interface FilaComision {
   comision: number | null;
   /** true si está «OK PAGO»: la comisión ya se causó. */
   pagada: boolean;
-  /** Fecha que se usa para agrupar por mes. Ver `mesDeComision`. */
+  /** Período de la comisión (AAAA-MM), tomado del vencimiento. */
   mes: string | null;
+  /** Año del vencimiento: el eje por el que se filtra el módulo. */
+  anio: number | null;
+  /** Mes en que entra la plata (AAAA-MM). Informativo. Ver `mesDeCobro`. */
+  mesCobro: string | null;
   fechaMaxPago: string | null;
   vencimiento: string | null;
 }
 
 /**
- * Mes al que se imputa una comisión, en formato AAAA-MM.
+ * PERÍODO DE UNA COMISIÓN: el VENCIMIENTO de la póliza, en formato AAAA-MM.
  *
- * Se usa la fecha máxima de pago porque es el dato de cobranza con cobertura
- * real (524 de 698 pólizas). La fecha de pago efectiva sería lo correcto, pero
- * está registrada en 2 pólizas: filtrar por ella dejaría el módulo vacío.
+ * Es el mismo eje con que el CRM cuenta la producción (seguimiento, metas,
+ * dashboard), así que la comisión de un mes se puede cruzar contra la
+ * producción de ese mes sin traducir nada. Y el vencimiento está en 697 de las
+ * 698 pólizas, frente a 524 con fecha máxima de pago: no deja huecos.
  *
- * Las que no tienen ninguna de las dos quedan sin mes y se ven con el filtro
- * en «todos los meses», que es lo honesto: es preferible que se noten a que
- * desaparezcan de un informe de dinero.
+ * Ojo con lo que este mes NO es: no es cuándo entra la plata. Para eso está
+ * `mesDeCobro`, que se muestra aparte.
  */
-export function mesDeComision(
-  fechaPago: Date | null,
-  fechaMaxPago: Date | null
-): string | null {
-  const f = fechaPago ?? fechaMaxPago;
-  return f ? f.toISOString().slice(0, 7) : null;
+export function mesDeComision(vencimiento: Date | null): string | null {
+  return vencimiento ? vencimiento.toISOString().slice(0, 7) : null;
+}
+
+/** Año al que pertenece la comisión, que es el del vencimiento. */
+export function anioDeComision(vencimiento: Date | null): number | null {
+  return vencimiento ? vencimiento.getUTCFullYear() : null;
+}
+
+/**
+ * Mes en que la aseguradora liquida la plata, en formato AAAA-MM.
+ *
+ * Se liquida al MES SIGUIENTE del pago: lo recaudado en marzo se ve reflejado
+ * en abril, así que no basta el mes de la fecha, hay que correrlo uno.
+ *
+ * La base es la FECHA MÁXIMA DE PAGO. La fecha de pago efectiva sería lo
+ * correcto, pero está registrada en 2 de 698 pólizas: usarla dejaría la
+ * columna vacía. La fecha máxima está en 524.
+ *
+ * Es dato informativo, no el eje del módulo: una póliza que vence en marzo de
+ * 2026 pertenece a marzo de 2026 aunque su plata entre en mayo. Sin fecha
+ * máxima de pago no hay mes de cobro, y se dice en vez de inventarlo.
+ */
+export function mesDeCobro(fechaMaxPago: Date | null): string | null {
+  if (!fechaMaxPago) return null;
+  // Diciembre se cobra en enero del año siguiente; Date lo resuelve solo al
+  // pasarle mes 12.
+  const siguiente = new Date(
+    Date.UTC(fechaMaxPago.getUTCFullYear(), fechaMaxPago.getUTCMonth() + 1, 1)
+  );
+  return siguiente.toISOString().slice(0, 7);
 }

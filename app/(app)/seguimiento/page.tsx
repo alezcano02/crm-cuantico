@@ -1,5 +1,11 @@
 import { aniosDisponibles, datosSeguimiento, listaValores } from "@/lib/queries";
-import { calcularSeguimiento, hoyUTC, indiceMes, nivelCumplimiento } from "@/lib/calculos";
+import {
+  PRIMER_ANIO,
+  calcularSeguimiento,
+  hoyUTC,
+  indiceMes,
+  nivelCumplimiento,
+} from "@/lib/calculos";
 import { MESES_CORTO } from "@/lib/constants";
 import { fmtCOPCompact, fmtPct } from "@/lib/format";
 import { Card, CardTitle, PageHeader, StatCard } from "@/components/ui";
@@ -48,8 +54,8 @@ export default async function SeguimientoPage({
 
   // La hoja BASE 2025 no registra aseguradora: con ese filtro activo, la base
   // (y por tanto meta y % cumplimiento) solo es calculable para años cuya base
-  // proviene de la propia cartera (anio > 2026).
-  const mostrarBase = !aseguradora || anio > 2026;
+  // proviene de la propia cartera (anio > PRIMER_ANIO).
+  const mostrarBase = !aseguradora || anio > PRIMER_ANIO;
 
   const seguimiento = calcularSeguimiento(datosFiltrados, anio);
 

@@ -4,10 +4,13 @@ import { PageHeader } from "@/components/ui";
 import { ComisionesTabla } from "@/components/comisiones-tabla";
 import {
   FilaComision,
+  anioDeComision,
+  mesDeCobro,
   mesDeComision,
   porcentajeComision,
   tarifario,
 } from "@/lib/comisiones";
+import { hoyUTC } from "@/lib/calculos";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +45,9 @@ export default async function ComisionesPage() {
       pct,
       comision: pct == null ? null : (p.primaNeta * pct) / 100,
       pagada: p.estadoPago === "OK PAGO",
-      mes: mesDeComision(p.fechaPago, p.fechaMaxPago),
+      mes: mesDeComision(p.vencimiento),
+      anio: anioDeComision(p.vencimiento),
+      mesCobro: mesDeCobro(p.fechaMaxPago),
       fechaMaxPago: p.fechaMaxPago?.toISOString() ?? null,
       vencimiento: p.vencimiento?.toISOString() ?? null,
     };
@@ -52,9 +57,13 @@ export default async function ComisionesPage() {
     <div className="space-y-6">
       <PageHeader
         titulo="Comisiones"
-        descripcion="Sobre la prima neta recaudada. Una póliza sin pagar todavía no ha causado comisión."
+        descripcion="Sobre la prima neta recaudada, agrupada por el mes de vencimiento de la póliza. Una póliza sin pagar todavía no ha causado comisión."
       />
-      <ComisionesTabla filas={filas} tarifas={tarifario()} />
+      <ComisionesTabla
+        filas={filas}
+        tarifas={tarifario()}
+        anioDefecto={hoyUTC().getUTCFullYear()}
+      />
     </div>
   );
 }

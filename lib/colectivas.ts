@@ -22,6 +22,10 @@ export const PARENTESCOS: Record<string, string> = {
   HI: "Hijo/a",
   PR: "Padre/Madre",
   HE: "Hermano/a",
+  DE: "Dependiente",
+  // No toda colectiva ampara personas: las de AUTOS amparan vehículos, y el
+  // amparado es la placa. Ver el campo `placa` de AmparadoColectiva.
+  VE: "Vehículo",
 };
 
 export function nombreParentesco(codigo: string | null | undefined): string {

@@ -29,15 +29,27 @@ function opciones(valores: (string | null)[]): string[] {
   ).sort((a, b) => a.localeCompare(b, "es"));
 }
 
+/** Valor del selector de año que agrupa las pólizas sin fecha de vencimiento. */
+const SIN_FECHA = "sin";
+
 export function ComisionesTabla({
   filas,
   tarifas,
+  anioDefecto,
 }: {
   filas: FilaComision[];
   tarifas: { ramo: string; pct: number }[];
+  /** Año en curso, calculado en el servidor. */
+  anioDefecto: number;
 }) {
   const [pestania, setPestania] = useState<Pestania>("causadas");
   const [q, setQ] = useState("");
+  /*
+   * El año arranca en el actual y no en «todos» a propósito. Una liquidación
+   * es de un ejercicio: mezclar los pagos de 2025 con los de 2026 daba un total
+   * que no cuadra con nada que la aseguradora vaya a pagar.
+   */
+  const [anio, setAnio] = useState(String(anioDefecto));
   const [mes, setMes] = useState("");
   const [ramo, setRamo] = useState("");
   const [aseguradora, setAseguradora] = useState("");
@@ -46,10 +58,30 @@ export function ComisionesTabla({
   const ramos = useMemo(() => opciones(filas.map((f) => f.ramo)), [filas]);
   const aseguradoras = useMemo(() => opciones(filas.map((f) => f.aseguradora)), [filas]);
   const asesores = useMemo(() => opciones(filas.map((f) => f.asesor1)), [filas]);
-  const meses = useMemo(
-    () => Array.from(new Set(filas.map((f) => f.mes).filter((m): m is string => !!m))).sort().reverse(),
+
+  const anios = useMemo(
+    () =>
+      Array.from(new Set(filas.map((f) => f.anio).filter((a): a is number => a != null))).sort(
+        (a, b) => b - a
+      ),
     [filas]
   );
+  const sinFecha = useMemo(() => filas.filter((f) => f.anio == null).length, [filas]);
+
+  /** Solo los meses del año elegido: si no, el desplegable mezcla ejercicios. */
+  const meses = useMemo(() => {
+    const delAnio = anio === "" ? filas : filas.filter((f) => String(f.anio ?? SIN_FECHA) === anio);
+    return Array.from(new Set(delAnio.map((f) => f.mes).filter((m): m is string => !!m)))
+      .sort()
+      .reverse();
+  }, [filas, anio]);
+
+  // Cambiar de año deja huérfano el mes elegido, y la tabla saldría vacía sin
+  // que se vea por qué.
+  const cambiarAnio = (v: string) => {
+    setAnio(v);
+    setMes("");
+  };
 
   /*
    * Filtrado SIN la pestaña, para las tarjetas de arriba.
@@ -62,6 +94,7 @@ export function ComisionesTabla({
    */
   const enFiltros = useMemo(() => {
     let lista = filas;
+    if (anio) lista = lista.filter((f) => String(f.anio ?? SIN_FECHA) === anio);
     if (mes) lista = lista.filter((f) => f.mes === mes);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
@@ -77,7 +110,7 @@ export function ComisionesTabla({
       lista = lista.filter((f) => f.aseguradora && normalizar(f.aseguradora) === aseguradora);
     if (asesor) lista = lista.filter((f) => f.asesor1 && normalizar(f.asesor1) === asesor);
     return lista;
-  }, [filas, q, mes, ramo, aseguradora, asesor]);
+  }, [filas, q, anio, mes, ramo, aseguradora, asesor]);
 
   /** Lo de arriba, ya acotado por la pestaña: es lo que se lista en la tabla. */
   const filtradas = useMemo(() => {
@@ -185,8 +218,42 @@ export function ComisionesTabla({
           onCambiar={setQ}
           marcador="Buscar póliza / asegurado / ramo"
         />
+        <select
+          className={claseSelect}
+          value={anio}
+          onChange={(e) => cambiarAnio(e.target.value)}
+          title="Año de vencimiento de la póliza"
+        >
+          <option value="">Todos los años</option>
+          {anios.map((a) => (
+            <option key={a} value={String(a)}>
+              {a}
+            </option>
+          ))}
+          {sinFecha > 0 && (
+            <option value={SIN_FECHA}>Sin vencimiento ({sinFecha})</option>
+          )}
+        </select>
         <FiltroMes valor={mes} onCambiar={setMes} meses={meses} />
       </div>
+
+      {/* Las pólizas sin vencimiento no caben en ningún mes, así que quedan
+          fuera de cualquier año y desaparecerían sin dejar rastro de un informe
+          de dinero. Se dicen aquí, con el atajo para verlas. */}
+      {anio !== "" && anio !== SIN_FECHA && sinFecha > 0 && (
+        <p className="text-sm text-ink-secondary">
+          {sinFecha === 1
+            ? "Hay 1 póliza sin fecha de vencimiento: no se puede imputar a ningún mes y queda"
+            : `Hay ${sinFecha} pólizas sin fecha de vencimiento: no se pueden imputar a ningún mes y quedan`}{" "}
+          fuera de {anio}.{" "}
+          <button
+            onClick={() => cambiarAnio(SIN_FECHA)}
+            className="font-medium text-brand underline underline-offset-2"
+          >
+            Verlas
+          </button>
+        </p>
+      )}
 
       <PanelFiltros>
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
@@ -235,7 +302,8 @@ export function ComisionesTabla({
               { encabezado: "% comisión", valor: (f) => f.pct ?? "" },
               { encabezado: "Comisión", valor: (f) => f.comision ?? "" },
               { encabezado: "Causada", valor: (f) => (f.pagada ? "SÍ" : "NO") },
-              { encabezado: "Mes", valor: (f) => f.mes ?? "" },
+              { encabezado: "Mes (vencimiento)", valor: (f) => f.mes ?? "" },
+              { encabezado: "Mes de cobro", valor: (f) => f.mesCobro ?? "" },
             ]}
           />
         </div>
@@ -252,6 +320,7 @@ export function ComisionesTabla({
                 <Th>Aseguradora</Th>
                 <Th>Forma de pago</Th>
                 <Th>Pago</Th>
+                <Th>Cobro</Th>
                 <Th derecha>Prima neta</Th>
                 <Th derecha>%</Th>
                 <Th derecha>Comisión</Th>
@@ -281,6 +350,10 @@ export function ComisionesTabla({
                       {f.pagada ? "Causada" : "Por causar"}
                     </span>
                   </Td>
+                  {/* Cuándo entra la plata, que no es el mes al que pertenece
+                      la comisión. Se muestra para poder cuadrar la liquidación
+                      de la aseguradora. */}
+                  <Td className="text-ink-muted">{f.mesCobro ?? "—"}</Td>
                   <Td derecha>{fmtCOP(f.primaNeta)}</Td>
                   <Td derecha>
                     {f.pct == null ? (
@@ -301,7 +374,7 @@ export function ComisionesTabla({
               ))}
               {filtradas.length === 0 && (
                 <tr>
-                  <Td className="py-6 text-center text-ink-muted" colSpan={9}>
+                  <Td className="py-6 text-center text-ink-muted" colSpan={10}>
                     No hay pólizas que cumplan los filtros.
                   </Td>
                 </tr>

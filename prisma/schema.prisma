@@ -286,9 +286,16 @@ model AmparadoColectiva {
   docAmparado    String
   nombreAmparado String
   // AF = afiliado (el propio empleado) · CO = cónyuge · HI = hijo ·
-  // PR = padre/madre · HE = hermano
+  // PR = padre/madre · HE = hermano · DE = dependiente · VE = vehículo
+  //
+  // VE existe porque no todas las colectivas son de personas: las de AUTOS
+  // (Logiter, y las de Cristica y Espumas Medellín) amparan vehículos. El
+  // amparado es entonces la placa, y el «empleado» es su propietario.
   parentesco     String
   sexo           String?
+
+  // Solo en colectivas de autos (parentesco VE).
+  placa          String?
 
   valorAsegurado Float?
   primaMensual   Float?
@@ -306,6 +313,11 @@ model AmparadoColectiva {
 
   novedades NovedadColectiva[]
 
+  // Reimportar el listado de la aseguradora no debe duplicar gente. No se usa
+  // el documento porque los beneficiarios vienen sin él en los débitos: solo
+  // nombre y parentesco. Dentro de una póliza, el empleado más el nombre del
+  // amparado sí identifican la fila.
+  @@unique([polizaNumero, docEmpleado, nombreAmparado])
   @@index([empresaId])
   @@index([polizaNumero])
   @@index([docAmparado])

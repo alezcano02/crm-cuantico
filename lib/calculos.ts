@@ -362,12 +362,27 @@ interface Datos {
 }
 
 /**
+ * Primer año que el CRM puede calcular.
+ *
+ * No es una preferencia: es el primero cuya base para renovar existe. La base
+ * de un año sale de la producción del anterior, y de 2025 no hay cartera sino
+ * la hoja BASE 2025 (tabla `HistoricalPolicy2025`). Hacia atrás no hay nada
+ * con qué comparar.
+ *
+ * De 2027 en adelante la cadena se sostiene sola —cada año se apoya en la
+ * producción real del anterior— así que esta constante no vuelve a moverse
+ * aunque pasen los años.
+ */
+export const PRIMER_ANIO = 2026;
+
+/**
  * BASE PARA RENOVAR del año N:
- *  - N = 2026 → hoja BASE 2025 agrupada por su columna MES.
- *  - N > 2026 → producción real del año N−1 (pólizas con vencimiento en N).
+ *  - N = PRIMER_ANIO → hoja BASE 2025 agrupada por su columna MES.
+ *  - N > PRIMER_ANIO → producción real del año N−1 (pólizas con vencimiento
+ *    en N).
  */
 export function baseParaAnio(datos: Datos, anio: number): MatrizRamoMes {
-  if (anio <= 2026) return baseHistorica(datos.historicas2025);
+  if (anio <= PRIMER_ANIO) return baseHistorica(datos.historicas2025);
   return produccionAnio(datos.polizas, anio - 1);
 }
 
