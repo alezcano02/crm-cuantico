@@ -104,56 +104,117 @@ export interface FilaComision {
   comision: number | null;
   /** true si está «OK PAGO»: la comisión ya se causó. */
   pagada: boolean;
-  /** Período de la comisión (AAAA-MM), tomado del vencimiento. */
-  mes: string | null;
-  /** Año del vencimiento: el eje por el que se filtra el módulo. */
-  anio: number | null;
-  /** Mes en que entra la plata (AAAA-MM). Informativo. Ver `mesDeCobro`. */
-  mesCobro: string | null;
+  /** En cuántas cuotas se recauda, según la forma de pago. */
+  cuotas: number;
+  /** Cómo se reparte la comisión en el tiempo. Ver `cronogramaComision`. */
+  cronograma: CuotaComision[];
   fechaMaxPago: string | null;
   vencimiento: string | null;
+  /** Inicio de vigencia (ISO), del que cuelga todo el cronograma. */
+  inicioVigencia: string | null;
 }
 
 /**
- * PERÍODO DE UNA COMISIÓN: el VENCIMIENTO de la póliza, en formato AAAA-MM.
+ * CRONOGRAMA DE COMISIONES
  *
- * Es el mismo eje con que el CRM cuenta la producción (seguimiento, metas,
- * dashboard), así que la comisión de un mes se puede cruzar contra la
- * producción de ese mes sin traducir nada. Y el vencimiento está en 697 de las
- * 698 pólizas, frente a 524 con fecha máxima de pago: no deja huecos.
+ * Una comisión no se cobra de golpe: se cobra a medida que la aseguradora
+ * recauda. Por eso una póliza no pertenece a «un mes», sino que reparte su
+ * comisión en varios, y ese reparto es lo que permite saber qué se espera
+ * cobrar en los meses que vienen.
  *
- * Ojo con lo que este mes NO es: no es cuándo entra la plata. Para eso está
- * `mesDeCobro`, que se muestra aparte.
+ * El cronograma se calcula desde la VIGENCIA, no desde la fecha de pago
+ * registrada. Suena a rodeo pero es al revés: la fecha de pago solo existe
+ * cuando ya ocurrió, así que no sirve para proyectar; la vigencia se conoce
+ * desde que se emite la póliza. Además está en 697 de 698 pólizas frente a
+ * 524 con fecha máxima de pago.
+ *
+ * Las reglas, tal como funciona la operación:
+ *
+ *  - El inicio de vigencia es el vencimiento menos un año. El CRM no guarda la
+ *    fecha de inicio, y las pólizas son anuales: es la misma convención con
+ *    que se cuenta la producción (producción del año N = vencimientos de N+1).
+ *  - MENSUAL va a 12 cuotas, ACUERDO DE PAGO a 3, y todo lo demás —contado,
+ *    servicrédito, finesa, anual, financiada— a una sola.
+ *  - Las cuotas se recaudan mes a mes empezando UN MES después del inicio de
+ *    la vigencia. El pago único se recauda al inicio.
+ *  - La comisión se liquida SIEMPRE al mes siguiente del recaudo. Para el pago
+ *    único eso da el mes siguiente al inicio de la vigencia.
  */
-export function mesDeComision(vencimiento: Date | null): string | null {
-  return vencimiento ? vencimiento.toISOString().slice(0, 7) : null;
+
+/** Cuotas en que se fracciona el recaudo según la forma de pago. */
+export function cuotasDeFormaPago(formaPago: string | null | undefined): number {
+  const f = normalizarRamo(formaPago ?? "");
+  if (f.includes("MENSUAL")) return 12;
+  // «ACUERDO DE PAGO/SERVICREDITO» también son 3: manda el acuerdo.
+  if (f.includes("ACUERDO DE PAGO")) return 3;
+  return 1;
 }
 
-/** Año al que pertenece la comisión, que es el del vencimiento. */
-export function anioDeComision(vencimiento: Date | null): number | null {
-  return vencimiento ? vencimiento.getUTCFullYear() : null;
-}
-
-/**
- * Mes en que la aseguradora liquida la plata, en formato AAAA-MM.
- *
- * Se liquida al MES SIGUIENTE del pago: lo recaudado en marzo se ve reflejado
- * en abril, así que no basta el mes de la fecha, hay que correrlo uno.
- *
- * La base es la FECHA MÁXIMA DE PAGO. La fecha de pago efectiva sería lo
- * correcto, pero está registrada en 2 de 698 pólizas: usarla dejaría la
- * columna vacía. La fecha máxima está en 524.
- *
- * Es dato informativo, no el eje del módulo: una póliza que vence en marzo de
- * 2026 pertenece a marzo de 2026 aunque su plata entre en mayo. Sin fecha
- * máxima de pago no hay mes de cobro, y se dice en vez de inventarlo.
- */
-export function mesDeCobro(fechaMaxPago: Date | null): string | null {
-  if (!fechaMaxPago) return null;
-  // Diciembre se cobra en enero del año siguiente; Date lo resuelve solo al
-  // pasarle mes 12.
-  const siguiente = new Date(
-    Date.UTC(fechaMaxPago.getUTCFullYear(), fechaMaxPago.getUTCMonth() + 1, 1)
+/** Inicio de vigencia: el vencimiento menos un año. */
+export function inicioVigencia(vencimiento: Date | null): Date | null {
+  if (!vencimiento) return null;
+  return new Date(
+    Date.UTC(
+      vencimiento.getUTCFullYear() - 1,
+      vencimiento.getUTCMonth(),
+      vencimiento.getUTCDate()
+    )
   );
-  return siguiente.toISOString().slice(0, 7);
+}
+
+export interface CuotaComision {
+  /** 1..n */
+  numero: number;
+  /** Mes en que se recauda la cuota (AAAA-MM). */
+  mesRecaudo: string;
+  /** Mes en que se cobra la comisión de esa cuota (AAAA-MM). */
+  mes: string;
+  /** Año de `mes`: el eje por el que se filtra el módulo. */
+  anio: number;
+  /** Comisión que corresponde a esta cuota. */
+  valor: number;
+}
+
+/** Suma meses a un AAAA-MM sin pelearse con los días ni con los diciembres. */
+function mesMas(anio: number, mes0: number, suma: number): string {
+  const d = new Date(Date.UTC(anio, mes0 + suma, 1));
+  return d.toISOString().slice(0, 7);
+}
+
+/**
+ * Reparte la comisión de una póliza en las cuotas en que se va a recaudar.
+ *
+ * Devuelve lista vacía si no hay vencimiento o no hay tarifa: sin una de las
+ * dos no se puede afirmar nada, y es preferible que la póliza salga marcada
+ * como pendiente de revisar a que aporte una cifra inventada.
+ */
+export function cronogramaComision(
+  vencimiento: Date | null,
+  formaPago: string | null | undefined,
+  comisionTotal: number | null
+): CuotaComision[] {
+  const inicio = inicioVigencia(vencimiento);
+  if (!inicio || comisionTotal == null) return [];
+
+  const n = cuotasDeFormaPago(formaPago);
+  const anio = inicio.getUTCFullYear();
+  const mes0 = inicio.getUTCMonth();
+  const valor = comisionTotal / n;
+
+  const cuotas: CuotaComision[] = [];
+  for (let k = 1; k <= n; k++) {
+    // Pago único: se recauda al inicio de la vigencia (desplazamiento 0).
+    // Fraccionado: la cuota k se recauda k meses después del inicio.
+    const desplazamiento = n === 1 ? 0 : k;
+    const mesRecaudo = mesMas(anio, mes0, desplazamiento);
+    const mes = mesMas(anio, mes0, desplazamiento + 1);
+    cuotas.push({
+      numero: k,
+      mesRecaudo,
+      mes,
+      anio: Number(mes.slice(0, 4)),
+      valor,
+    });
+  }
+  return cuotas;
 }

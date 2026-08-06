@@ -8,15 +8,43 @@ import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function VencimientosPage() {
+export default async function VencimientosPage({
+  searchParams,
+}: {
+  searchParams: { anio?: string };
+}) {
   // Antes de tocar la base: el layout no alcanza a cortar el render.
   await exigirSesionPagina();
 
-  const [polizas, listas] = await Promise.all([
-    prisma.policy.findMany({ orderBy: { vencimiento: "asc" } }),
+  /*
+   * Sin ?anio se ve la cartera viva, que es para lo que sirve esta pantalla:
+   * qué hay que renovar. Con ?anio se ve la FOTO de ese año de producción, que
+   * es la única forma de revisar un año ya cerrado: las pólizas de 2025 siguen
+   * existiendo en `Policy`, pero con el vencimiento ya movido a 2027 por la
+   * renovación, así que preguntarle a la cartera qué venció en 2026 devuelve
+   * un año mutilado. Ver el modelo `FotoPoliza`.
+   */
+  const anioFoto = /^\d{4}$/.test(searchParams.anio ?? "") ? Number(searchParams.anio) : null;
+
+  const [polizas, listas, aniosConFoto] = await Promise.all([
+    anioFoto != null
+      ? prisma.fotoPoliza.findMany({
+          where: { anioProduccion: anioFoto },
+          orderBy: { vencimiento: "asc" },
+        })
+      : prisma.policy.findMany({ orderBy: { vencimiento: "asc" } }),
     listasParaFormularios(),
+    prisma.fotoPoliza
+      .groupBy({ by: ["anioProduccion"], orderBy: { anioProduccion: "desc" } })
+      .then((r) => r.map((x) => x.anioProduccion)),
   ]);
 
+  /*
+   * La foto no guarda los campos de gestión ni los de contacto: es un registro
+   * de producción, no la ficha viva de la póliza. Se rellenan en null en vez de
+   * inventarlos, y la pantalla avisa de que está mirando un año cerrado.
+   */
+  const esFoto = anioFoto != null;
   const vista: PolizaVista[] = polizas.map((p) => {
     const dias = diasAlVence(p.vencimiento);
     return {
@@ -34,21 +62,22 @@ export default async function VencimientosPage() {
       primaTotal: p.primaTotal,
       formaPago: p.formaPago,
       estadoPago: p.estadoPago,
-      fechaPago: p.fechaPago?.toISOString() ?? null,
-      fechaMaxPago: p.fechaMaxPago?.toISOString() ?? null,
+      fechaPago: "fechaPago" in p ? (p.fechaPago?.toISOString() ?? null) : null,
+      fechaMaxPago: "fechaMaxPago" in p ? (p.fechaMaxPago?.toISOString() ?? null) : null,
       vencimiento: p.vencimiento?.toISOString() ?? null,
-      fechaNacimiento: p.fechaNacimiento?.toISOString() ?? null,
-      correo: p.correo,
-      celular: p.celular,
-      valorCuota: p.valorCuota,
-      notaCartera: p.notaCartera,
+      fechaNacimiento:
+        "fechaNacimiento" in p ? (p.fechaNacimiento?.toISOString() ?? null) : null,
+      correo: "correo" in p ? p.correo : null,
+      celular: "celular" in p ? p.celular : null,
+      valorCuota: "valorCuota" in p ? p.valorCuota : null,
+      notaCartera: "notaCartera" in p ? p.notaCartera : null,
       observacion: p.observacion,
-      mesVencimiento: p.mesVencimiento,
-      vtoSoat: p.vtoSoat?.toISOString() ?? null,
+      mesVencimiento: "mesVencimiento" in p ? p.mesVencimiento : null,
+      vtoSoat: "vtoSoat" in p ? (p.vtoSoat?.toISOString() ?? null) : null,
       dias,
       semaforo: semaforoVencimiento(dias),
-      gestionada: p.gestionada,
-      notaGestion: p.notaGestion,
+      gestionada: "gestionada" in p ? p.gestionada : false,
+      notaGestion: "notaGestion" in p ? p.notaGestion : null,
       anexo: tipoAnexo(p.observacion),
     };
   });
@@ -80,13 +109,56 @@ export default async function VencimientosPage() {
       <PageHeader
         titulo="Vencimientos"
         descripcion={
-          `${vencidas} pólizas vencidas pendientes de gestión · ` +
-          `${proximas} vencen en los próximos 30 días` +
-          (detalleAnexos.length > 0
-            ? ` · ${detalleAnexos.join(" y ")} (no se renuevan)`
-            : "")
+          esFoto
+            ? `Foto de la producción ${anioFoto}: ${vista.length} pólizas que vencieron en ${anioFoto! + 1}`
+            : `${vencidas} pólizas vencidas pendientes de gestión · ` +
+              `${proximas} vencen en los próximos 30 días` +
+              (detalleAnexos.length > 0
+                ? ` · ${detalleAnexos.join(" y ")} (no se renuevan)`
+                : "")
         }
       />
+
+      {/* Años cerrados. Solo aparecen los que tienen foto: sin ella la consulta
+          daría un año mutilado por las renovaciones, y es mejor no ofrecerla
+          que ofrecer una cifra falsa. */}
+      {aniosConFoto.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-ink-secondary">Ver:</span>
+          <Link
+            href="/vencimientos"
+            className={
+              esFoto
+                ? "rounded-lg border border-line-axis px-2.5 py-1.5 text-ink-secondary hover:bg-surface-page"
+                : "rounded-lg bg-brand px-2.5 py-1.5 font-medium text-white"
+            }
+          >
+            Cartera actual
+          </Link>
+          {aniosConFoto.map((a) => (
+            <Link
+              key={a}
+              href={`/vencimientos?anio=${a}`}
+              className={
+                anioFoto === a
+                  ? "rounded-lg bg-brand px-2.5 py-1.5 font-medium text-white"
+                  : "rounded-lg border border-line-axis px-2.5 py-1.5 text-ink-secondary hover:bg-surface-page"
+              }
+            >
+              Producción {a}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {esFoto && (
+        <div className="rounded-md border border-status-warning/40 bg-status-warning/5 px-4 py-2.5 text-sm text-ink-secondary">
+          Está viendo un año ya cerrado. La foto guarda la producción —póliza,
+          ramo, asegurado, prima, vencimiento— pero no los datos de gestión ni
+          de contacto, así que esas columnas salen vacías y los botones de
+          gestión no aplican.
+        </div>
+      )}
 
       {vista.length === 0 ? (
         <Card>

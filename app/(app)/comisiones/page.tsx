@@ -4,9 +4,9 @@ import { PageHeader } from "@/components/ui";
 import { ComisionesTabla } from "@/components/comisiones-tabla";
 import {
   FilaComision,
-  anioDeComision,
-  mesDeCobro,
-  mesDeComision,
+  cronogramaComision,
+  cuotasDeFormaPago,
+  inicioVigencia,
   porcentajeComision,
   tarifario,
 } from "@/lib/comisiones";
@@ -32,6 +32,7 @@ export default async function ComisionesPage() {
 
   const filas: FilaComision[] = polizas.map((p) => {
     const pct = porcentajeComision(p.ramo);
+    const comision = pct == null ? null : (p.primaNeta * pct) / 100;
     return {
       id: p.id,
       numero: p.numero,
@@ -43,13 +44,13 @@ export default async function ComisionesPage() {
       estadoPago: p.estadoPago,
       primaNeta: p.primaNeta,
       pct,
-      comision: pct == null ? null : (p.primaNeta * pct) / 100,
+      comision,
       pagada: p.estadoPago === "OK PAGO",
-      mes: mesDeComision(p.vencimiento),
-      anio: anioDeComision(p.vencimiento),
-      mesCobro: mesDeCobro(p.fechaMaxPago),
+      cuotas: cuotasDeFormaPago(p.formaPago),
+      cronograma: cronogramaComision(p.vencimiento, p.formaPago, comision),
       fechaMaxPago: p.fechaMaxPago?.toISOString() ?? null,
       vencimiento: p.vencimiento?.toISOString() ?? null,
+      inicioVigencia: inicioVigencia(p.vencimiento)?.toISOString() ?? null,
     };
   });
 
@@ -57,12 +58,13 @@ export default async function ComisionesPage() {
     <div className="space-y-6">
       <PageHeader
         titulo="Comisiones"
-        descripcion="Sobre la prima neta recaudada, agrupada por el mes de vencimiento de la póliza. Una póliza sin pagar todavía no ha causado comisión."
+        descripcion="Repartida por cuotas desde la vigencia: mensuales a 12, acuerdos de pago a 3, el resto de contado. La comisión se cobra al mes siguiente de cada recaudo."
       />
       <ComisionesTabla
         filas={filas}
         tarifas={tarifario()}
         anioDefecto={hoyUTC().getUTCFullYear()}
+        mesActual={hoyUTC().toISOString().slice(0, 7)}
       />
     </div>
   );

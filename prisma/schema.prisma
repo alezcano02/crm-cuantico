@@ -250,6 +250,54 @@ model ListValue {
 // falta el detalle por persona.
 // ---------------------------------------------------------------------------
 
+// Foto de la cartera al cierre de un año de producción.
+//
+// POR QUÉ EXISTE
+//
+// `Policy` guarda la cartera de HOY, y una póliza renovada mueve su
+// vencimiento al año siguiente. Como la producción del año N se mide por las
+// pólizas que vencen en N+1, renovar una póliza la borra de la producción del
+// año en que se vendió. Medido sobre la cartera viva, 2025 rinde $2.752M
+// cuando la hoja BASE 2025 dice $6.138M: la diferencia son las 352 pólizas
+// que ya se renovaron y se llevaron su vencimiento a 2027. Sin esta foto,
+// cada año cerrado se desvanece a lo largo del año siguiente.
+//
+// Es lo que `HistoricalPolicy2025` hacía para 2025, pero sin una tabla nueva
+// por año: aquí el año es un dato, no un nombre de tabla.
+//
+// Se guarda fila por fila, no el agregado por ramo y mes, para que el listado
+// de vencimientos de un año pasado también se pueda consultar.
+model FotoPoliza {
+  id Int @id @default(autoincrement())
+  // Año de PRODUCCIÓN al que pertenece la foto (las pólizas que vencen en
+  // anioProduccion + 1).
+  anioProduccion Int
+  tomadaEn       DateTime @default(now())
+
+  numero      String
+  ramo        String
+  asegurado   String
+  ccNit       String?
+  placa       String?
+  aseguradora String?
+  tipoNegocio String?
+  observacion String?
+  asesor1     String?
+  asesor2     String?
+  primaNeta   Float    @default(0)
+  primaTotal  Float    @default(0)
+  formaPago   String?
+  estadoPago  String?
+  vencimiento DateTime?
+
+  // Sin llave única: el informe trae pólizas repetidas (mismo número y ramo en
+  // dos filas, p. ej. una colectiva con dos formas de pago) y la foto debe
+  // reflejar la cartera tal como estaba, no una versión depurada. La toma
+  // borra y reescribe el año entero.
+  @@index([anioProduccion])
+  @@index([vencimiento])
+}
+
 model EmpresaColectiva {
   id            Int      @id @default(autoincrement())
   nombre        String   @unique

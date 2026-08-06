@@ -11,12 +11,20 @@ import { BuscadorTabla } from "@/components/buscador-tabla";
 import { FiltroMes } from "@/components/filtro-mes";
 import type { FilaComision } from "@/lib/comisiones";
 
-type Pestania = "causadas" | "porCausar" | "todas";
+/*
+ * Las pestañas parten por TIEMPO, no por estado de pago.
+ *
+ * Con el cronograma de cuotas, la pregunta útil dejó de ser «¿está pagada?» y
+ * pasó a ser «¿ya se cobró o está por cobrarse?»: una póliza mensual está a la
+ * vez causada por las cuotas que ya corrieron y esperada por las que faltan.
+ * El estado de pago sigue viéndose en cada fila.
+ */
+type Pestania = "causadas" | "esperadas" | "todas";
 
 const PESTANIAS: { id: Pestania; etiqueta: string }[] = [
-  { id: "causadas", etiqueta: "Causadas (prima recaudada)" },
-  { id: "porCausar", etiqueta: "Por causar (sin pagar)" },
-  { id: "todas", etiqueta: "Todas las pólizas" },
+  { id: "causadas", etiqueta: "Ya causadas" },
+  { id: "esperadas", etiqueta: "Esperadas (por venir)" },
+  { id: "todas", etiqueta: "Todas" },
 ];
 
 function normalizar(v: string): string {
@@ -32,15 +40,31 @@ function opciones(valores: (string | null)[]): string[] {
 /** Valor del selector de año que agrupa las pólizas sin fecha de vencimiento. */
 const SIN_FECHA = "sin";
 
+/**
+ * Resume los meses de cobro de una fila para que quepan en una celda.
+ *
+ * Una mensual vista sin filtro de mes tiene doce; listarlos todos rompe la
+ * tabla y no dice nada. Se muestra el rango y cuántos son.
+ */
+function resumenMeses(cuotas: { mes: string }[]): string {
+  if (!cuotas.length) return "—";
+  const meses = cuotas.map((c) => c.mes).sort();
+  if (meses.length === 1) return meses[0];
+  return `${meses[0]} → ${meses[meses.length - 1]} (${meses.length})`;
+}
+
 export function ComisionesTabla({
   filas,
   tarifas,
   anioDefecto,
+  mesActual,
 }: {
   filas: FilaComision[];
   tarifas: { ramo: string; pct: number }[];
   /** Año en curso, calculado en el servidor. */
   anioDefecto: number;
+  /** Mes en curso (AAAA-MM): separa lo ya causado de lo esperado. */
+  mesActual: string;
 }) {
   const [pestania, setPestania] = useState<Pestania>("causadas");
   const [q, setQ] = useState("");
@@ -61,19 +85,19 @@ export function ComisionesTabla({
 
   const anios = useMemo(
     () =>
-      Array.from(new Set(filas.map((f) => f.anio).filter((a): a is number => a != null))).sort(
+      Array.from(new Set(filas.flatMap((f) => f.cronograma.map((c) => c.anio)))).sort(
         (a, b) => b - a
       ),
     [filas]
   );
-  const sinFecha = useMemo(() => filas.filter((f) => f.anio == null).length, [filas]);
+  /** Sin vencimiento no hay vigencia y por tanto no hay cronograma posible. */
+  const sinFecha = useMemo(() => filas.filter((f) => f.cronograma.length === 0).length, [filas]);
 
   /** Solo los meses del año elegido: si no, el desplegable mezcla ejercicios. */
   const meses = useMemo(() => {
-    const delAnio = anio === "" ? filas : filas.filter((f) => String(f.anio ?? SIN_FECHA) === anio);
-    return Array.from(new Set(delAnio.map((f) => f.mes).filter((m): m is string => !!m)))
-      .sort()
-      .reverse();
+    const todos = filas.flatMap((f) => f.cronograma);
+    const delAnio = anio === "" || anio === SIN_FECHA ? todos : todos.filter((c) => String(c.anio) === anio);
+    return Array.from(new Set(delAnio.map((c) => c.mes))).sort().reverse();
   }, [filas, anio]);
 
   // Cambiar de año deja huérfano el mes elegido, y la tabla saldría vacía sin
@@ -94,8 +118,14 @@ export function ComisionesTabla({
    */
   const enFiltros = useMemo(() => {
     let lista = filas;
-    if (anio) lista = lista.filter((f) => String(f.anio ?? SIN_FECHA) === anio);
-    if (mes) lista = lista.filter((f) => f.mes === mes);
+    /*
+     * Una póliza entra en un año o un mes si ALGUNA de sus cuotas cae ahí. Una
+     * mensual que arranca en octubre reparte comisión sobre dos ejercicios, y
+     * exigirle un único año la dejaría fuera de uno de los dos.
+     */
+    if (anio === SIN_FECHA) lista = lista.filter((f) => f.cronograma.length === 0);
+    else if (anio) lista = lista.filter((f) => f.cronograma.some((c) => String(c.anio) === anio));
+    if (mes) lista = lista.filter((f) => f.cronograma.some((c) => c.mes === mes));
     if (q.trim()) {
       const t = q.trim().toLowerCase();
       lista = lista.filter(
@@ -112,16 +142,33 @@ export function ComisionesTabla({
     return lista;
   }, [filas, q, anio, mes, ramo, aseguradora, asesor]);
 
+  /*
+   * Cuotas de una póliza que caen dentro del período elegido.
+   *
+   * Es la pieza central del módulo. Sin filtro de mes, una mensual aporta sus
+   * 12 cuotas; con «marzo 2026» aporta solo la que se cobra ese mes. Antes se
+   * sumaba la comisión entera de la póliza en cualquier mes en que apareciera,
+   * lo que multiplicaba por doce el total de una liquidación mensual.
+   */
+  const cuotasEnPeriodo = (f: FilaComision) =>
+    f.cronograma.filter(
+      (c) => (!anio || anio === SIN_FECHA || String(c.anio) === anio) && (!mes || c.mes === mes)
+    );
+
   /** Lo de arriba, ya acotado por la pestaña: es lo que se lista en la tabla. */
   const filtradas = useMemo(() => {
-    if (pestania === "causadas") return enFiltros.filter((f) => f.pagada);
-    if (pestania === "porCausar") return enFiltros.filter((f) => !f.pagada);
-    return enFiltros;
-  }, [enFiltros, pestania]);
+    if (pestania === "todas") return enFiltros;
+    return enFiltros.filter((f) =>
+      cuotasEnPeriodo(f).some((c) =>
+        pestania === "causadas" ? c.mes <= mesActual : c.mes > mesActual
+      )
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enFiltros, pestania, anio, mes, mesActual]);
 
   const totales = useMemo(() => {
     let causada = 0;
-    let porCausar = 0;
+    let esperada = 0;
     let sinTarifa = 0;
     let primaCausada = 0;
     for (const f of enFiltros) {
@@ -129,28 +176,36 @@ export function ComisionesTabla({
         sinTarifa++;
         continue;
       }
-      if (f.pagada) {
-        causada += f.comision;
-        primaCausada += f.primaNeta;
-      } else porCausar += f.comision;
+      for (const c of cuotasEnPeriodo(f)) {
+        if (c.mes <= mesActual) {
+          causada += c.valor;
+          // La prima que respalda esa comisión, en la misma proporción que la
+          // cuota: si no, una mensual con una cuota corrida mostraría la prima
+          // anual completa como recaudada.
+          primaCausada += f.primaNeta / f.cuotas;
+        } else esperada += c.valor;
+      }
     }
-    return { causada, porCausar, sinTarifa, primaCausada };
-  }, [enFiltros]);
+    return { causada, esperada, sinTarifa, primaCausada };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enFiltros, anio, mes, mesActual]);
 
   // Resumen por ramo: es como se revisa una liquidación, no póliza por póliza.
   const porRamo = useMemo(() => {
     const m = new Map<string, { pct: number | null; prima: number; comision: number; n: number }>();
     for (const f of filtradas) {
       const v = m.get(f.ramo) ?? { pct: f.pct, prima: 0, comision: 0, n: 0 };
-      v.prima += f.primaNeta;
-      v.comision += f.comision ?? 0;
+      const cuotas = cuotasEnPeriodo(f);
+      v.prima += (f.primaNeta / f.cuotas) * cuotas.length;
+      v.comision += cuotas.reduce((s, c) => s + c.valor, 0);
       v.n++;
       m.set(f.ramo, v);
     }
     return [...m.entries()]
       .map(([ramo, v]) => ({ ramo, ...v }))
       .sort((a, b) => b.comision - a.comision);
-  }, [filtradas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtradas, anio, mes]);
 
   const limpiar = () => {
     setMes("");
@@ -171,13 +226,13 @@ export function ComisionesTabla({
         <StatCard
           etiqueta="Comisión causada"
           valor={fmtCOP(totales.causada)}
-          detalle={`Sobre ${fmtCOP(totales.primaCausada)} de prima recaudada`}
+          detalle={`Cuotas ya cobradas · sobre ${fmtCOP(totales.primaCausada)} de prima`}
           acento="verde"
         />
         <StatCard
-          etiqueta="Comisión por causar"
-          valor={fmtCOP(totales.porCausar)}
-          detalle="Pólizas todavía sin pagar"
+          etiqueta="Comisión esperada"
+          valor={fmtCOP(totales.esperada)}
+          detalle="Cuotas que faltan por cobrarse"
           acento="amarillo"
         />
         <StatCard
@@ -300,10 +355,16 @@ export function ComisionesTabla({
               { encabezado: "Estado de pago", valor: (f) => f.estadoPago ?? "" },
               { encabezado: "Prima neta", valor: (f) => f.primaNeta },
               { encabezado: "% comisión", valor: (f) => f.pct ?? "" },
-              { encabezado: "Comisión", valor: (f) => f.comision ?? "" },
-              { encabezado: "Causada", valor: (f) => (f.pagada ? "SÍ" : "NO") },
-              { encabezado: "Mes (vencimiento)", valor: (f) => f.mes ?? "" },
-              { encabezado: "Mes de cobro", valor: (f) => f.mesCobro ?? "" },
+              { encabezado: "Comisión año", valor: (f) => f.comision ?? "" },
+              { encabezado: "Cuotas", valor: (f) => f.cuotas },
+              {
+                encabezado: "Comisión del período",
+                valor: (f) => cuotasEnPeriodo(f).reduce((s, c) => s + c.valor, 0),
+              },
+              {
+                encabezado: "Meses de cobro",
+                valor: (f) => cuotasEnPeriodo(f).map((c) => c.mes).join(" · "),
+              },
             ]}
           />
         </div>
@@ -323,7 +384,8 @@ export function ComisionesTabla({
                 <Th>Cobro</Th>
                 <Th derecha>Prima neta</Th>
                 <Th derecha>%</Th>
-                <Th derecha>Comisión</Th>
+                <Th derecha>Comisión año</Th>
+                <Th derecha>Del período</Th>
               </tr>
             </thead>
             <tbody>
@@ -347,13 +409,13 @@ export function ComisionesTabla({
                           : "bg-status-warning/15 text-[#8a6100]"
                       )}
                     >
-                      {f.pagada ? "Causada" : "Por causar"}
+                      {f.pagada ? "OK PAGO" : "Pendiente"}
                     </span>
                   </Td>
-                  {/* Cuándo entra la plata, que no es el mes al que pertenece
-                      la comisión. Se muestra para poder cuadrar la liquidación
-                      de la aseguradora. */}
-                  <Td className="text-ink-muted">{f.mesCobro ?? "—"}</Td>
+                  {/* Meses en que se cobra la comisión dentro del período
+                      elegido. Una mensual sin filtro de mes tiene doce, así que
+                      se resumen como «primero … último (n)». */}
+                  <Td className="text-ink-muted">{resumenMeses(cuotasEnPeriodo(f))}</Td>
                   <Td derecha>{fmtCOP(f.primaNeta)}</Td>
                   <Td derecha>
                     {f.pct == null ? (
@@ -367,15 +429,36 @@ export function ComisionesTabla({
                       `${f.pct}%`
                     )}
                   </Td>
-                  <Td derecha className={f.pagada ? "font-semibold" : "text-ink-muted"}>
+                  <Td derecha className="text-ink-muted">
                     {f.comision == null ? "—" : fmtCOP(f.comision)}
+                  </Td>
+                  <Td derecha className="font-semibold">
+                    {fmtCOP(cuotasEnPeriodo(f).reduce((s, c) => s + c.valor, 0))}
                   </Td>
                 </tr>
               ))}
               {filtradas.length === 0 && (
                 <tr>
-                  <Td className="py-6 text-center text-ink-muted" colSpan={10}>
-                    No hay pólizas que cumplan los filtros.
+                  <Td className="py-6 text-center text-ink-muted" colSpan={11}>
+                    {/* Caso típico: se elige un mes futuro estando en «Ya
+                        causadas». Las tarjetas sí muestran cifras y la tabla
+                        vacía parece un error; se dice dónde están. */}
+                    {enFiltros.length > 0 ? (
+                      <>
+                        Ninguna cuota de este período está{" "}
+                        {pestania === "causadas" ? "ya causada" : "todavía por venir"}.{" "}
+                        <button
+                          onClick={() =>
+                            setPestania(pestania === "causadas" ? "esperadas" : "causadas")
+                          }
+                          className="font-medium text-brand underline underline-offset-2"
+                        >
+                          Ver las {pestania === "causadas" ? "esperadas" : "ya causadas"}
+                        </button>
+                      </>
+                    ) : (
+                      "No hay pólizas que cumplan los filtros."
+                    )}
                   </Td>
                 </tr>
               )}

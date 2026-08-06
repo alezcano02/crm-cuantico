@@ -114,6 +114,59 @@ export function leerFamiliares(detalle: string): { nombre: string; parentesco: s
 }
 
 /**
+ * Lee un «listado de asegurados» de una colectiva de autos.
+ *
+ * Es el otro formato con que llegan las colectivas: una cabecera con TOMADOR y
+ * PÓLIZA, y luego una fila por vehículo con placa, recibo, vigencia y prima.
+ * Lo usan las colectivas de flota (Logiter) y no tiene nada que ver con los
+ * débitos de Sura, salvo que acaba en la misma tabla de amparados.
+ *
+ * Devuelve un único «mes» porque un listado de estos es una foto de la flota,
+ * no una serie mensual; el mes se toma de la fecha de inicio de vigencia.
+ */
+export function leerListadoPlacas(texto: string): MesLeido {
+  const lineas = texto.split(/\r?\n/);
+  let tomador = "";
+  let poliza = "";
+  const amparados: AmparadoLeido[] = [];
+  let enTabla = false;
+  let inicio = "";
+
+  for (const linea of lineas) {
+    const c = linea.split("\t").map((x) => x.trim());
+    if (/^tomador$/i.test(c[0] ?? "")) { tomador = c[1] ?? ""; continue; }
+    if (/^p[oó]liza$/i.test(c[0] ?? "")) { poliza = c[1] ?? ""; continue; }
+    if (/^aplica$/i.test(c[0] ?? "")) { enTabla = true; continue; }
+    // La sección GPS de abajo repite placas con el detalle del vehículo; si se
+    // siguiera leyendo entrarían dos veces.
+    if (/^gps$/i.test(c[0] ?? "") || /^placa$/i.test(c[0] ?? "")) { enTabla = false; continue; }
+    if (!enTabla) continue;
+
+    const placa = c[1] ?? "";
+    if (!placa || !/^\d+$/.test(c[0] ?? "")) continue;
+    if (!inicio) inicio = c[3] ?? "";
+    amparados.push({
+      empresa: tomador,
+      polizaNumero: poliza,
+      plan: "AUTOS",
+      // En una flota el titular es la propia empresa: los vehículos son suyos.
+      docEmpleado: poliza,
+      nombreEmpleado: tomador,
+      nombreAmparado: placa,
+      docAmparado: "",
+      parentesco: "VE",
+      placa,
+    });
+  }
+
+  // «4/28/2025» -> «Abril 2025», para que el importador lo feche igual que los
+  // débitos.
+  const m = inicio.match(/^(\d{1,2})\/\d{1,2}\/(\d{4})$/);
+  const nombre = m ? `${MESES[Number(m[1]) - 1][0].toUpperCase()}${MESES[Number(m[1]) - 1].slice(1)} ${m[2]}` : "Listado";
+  return { nombre, amparados };
+}
+
+/**
  * Lee todas las hojas mensuales del volcado de texto del libro.
  *
  * Recibe texto y no el .xlsx a propósito: así el mismo lector sirve para el

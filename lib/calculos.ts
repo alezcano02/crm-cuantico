@@ -220,6 +220,18 @@ function sumar(matriz: MatrizRamoMes, ramo: string, mes: number, valor: number) 
   fila[mes] += valor;
 }
 
+/**
+ * Pólizas con que se mide la producción de un año.
+ *
+ * Si hay foto de ese año, manda la foto: es la cartera tal como estaba al
+ * cerrarlo, antes de que las renovaciones se llevaran los vencimientos al año
+ * siguiente. Si no la hay —el año en curso y los futuros— se mide sobre la
+ * cartera viva, que es lo correcto mientras el año no haya terminado.
+ */
+export function polizasDeAnio(datos: Datos, anio: number): PolizaRow[] {
+  return datos.fotos?.get(anio) ?? datos.polizas;
+}
+
 export function produccionAnio(
   polizas: PolizaRow[],
   anio: number,
@@ -359,6 +371,12 @@ interface Datos {
   polizas: PolizaRow[];
   cancelaciones: CancelacionRow[];
   historicas2025: HistoricaRow[];
+  /**
+   * Fotos de años ya cerrados, por año de producción. Ver el modelo
+   * `FotoPoliza`: sin ellas, la producción de un año pasado se desvanece a
+   * medida que sus pólizas se renuevan.
+   */
+  fotos?: Map<number, PolizaRow[]>;
 }
 
 /**
@@ -383,14 +401,16 @@ export const PRIMER_ANIO = 2026;
  */
 export function baseParaAnio(datos: Datos, anio: number): MatrizRamoMes {
   if (anio <= PRIMER_ANIO) return baseHistorica(datos.historicas2025);
-  return produccionAnio(datos.polizas, anio - 1);
+  return produccionAnio(polizasDeAnio(datos, anio - 1), anio - 1);
 }
 
 export function calcularSeguimiento(datos: Datos, anio: number): Seguimiento {
   const base = baseParaAnio(datos, anio);
-  const real = produccionAnio(datos.polizas, anio);
-  const nuevos = produccionAnio(datos.polizas, anio, (t) => !!t && TIPOS_NUEVO.includes(t));
-  const renov = produccionAnio(datos.polizas, anio, (t) => t === TIPO_RENOVACION);
+  // Un año ya cerrado se mide contra su foto, no contra la cartera de hoy.
+  const fuente = polizasDeAnio(datos, anio);
+  const real = produccionAnio(fuente, anio);
+  const nuevos = produccionAnio(fuente, anio, (t) => !!t && TIPOS_NUEVO.includes(t));
+  const renov = produccionAnio(fuente, anio, (t) => t === TIPO_RENOVACION);
   const prodCancelada = cancelacionesPorMes(datos.cancelaciones, anio, "fechaRenovacion");
   const cancel = cancelacionesPorMes(datos.cancelaciones, anio, "fechaCancelacion");
 

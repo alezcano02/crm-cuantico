@@ -15,8 +15,9 @@ export async function datosSeguimiento(): Promise<{
   polizas: PolizaRow[];
   cancelaciones: CancelacionRow[];
   historicas2025: HistoricaRow[];
+  fotos: Map<number, PolizaRow[]>;
 }> {
-  const [polizas, cancelaciones, historicas2025] = await Promise.all([
+  const [polizas, cancelaciones, historicas2025, fotoFilas] = await Promise.all([
     prisma.policy.findMany({
       select: {
         ramo: true,
@@ -38,8 +39,28 @@ export async function datosSeguimiento(): Promise<{
     prisma.historicalPolicy2025.findMany({
       select: { ramo: true, primaNeta: true, mes: true, vencimiento: true },
     }),
+    prisma.fotoPoliza.findMany({
+      select: {
+        anioProduccion: true,
+        ramo: true,
+        tipoNegocio: true,
+        primaNeta: true,
+        vencimiento: true,
+        aseguradora: true,
+      },
+    }),
   ]);
-  return { polizas, cancelaciones, historicas2025 };
+
+  // Agrupadas por año: `polizasDeAnio` las prefiere sobre la cartera viva para
+  // los años ya cerrados.
+  const fotos = new Map<number, PolizaRow[]>();
+  for (const f of fotoFilas) {
+    const lista = fotos.get(f.anioProduccion) ?? [];
+    lista.push(f);
+    fotos.set(f.anioProduccion, lista);
+  }
+
+  return { polizas, cancelaciones, historicas2025, fotos };
 }
 
 export async function seguimientoAnio(anio: number): Promise<Seguimiento> {

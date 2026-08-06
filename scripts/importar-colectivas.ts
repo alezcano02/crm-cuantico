@@ -19,7 +19,7 @@
  * borrado se lleva por delante su historia de novedades.
  */
 import { prisma } from "../lib/prisma";
-import { leerDebitos, ordenDeMes, type AmparadoLeido } from "../lib/debitos";
+import { leerDebitos, leerListadoPlacas, ordenDeMes, type AmparadoLeido } from "../lib/debitos";
 import { readFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
@@ -37,6 +37,7 @@ const MES_PEDIDO = args.includes("--mes") ? args[args.indexOf("--mes") + 1] : nu
 const EMPRESAS: [RegExp, string][] = [
   [/espumas\s+medell/i, "ESPUMAS MEDELLIN"],
   [/cristica/i, "CRISTICA S.A.S"],
+  [/log[ií]stica\s+terrestre/i, "LOGISTICA TERRESTRE LIMITADA"],
 ];
 
 function empresaCRM(nombreSura: string): string | null {
@@ -56,7 +57,10 @@ async function main() {
     process.exit(1);
   }
 
-  const meses = leerDebitos(readFileSync(RUTA, "utf8"));
+  const texto = readFileSync(RUTA, "utf8");
+  // Dos formatos de origen distintos: los débitos mensuales de Sura (personas)
+  // y el listado de flota de una colectiva de autos (placas).
+  const meses = args.includes("--placas") ? [leerListadoPlacas(texto)] : leerDebitos(texto);
   if (!meses.length) {
     console.error("No se reconoció ninguna hoja mensual en el archivo.");
     process.exit(1);
