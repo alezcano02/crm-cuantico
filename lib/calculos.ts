@@ -13,6 +13,8 @@ import {
 // ---------------------------------------------------------------------------
 
 export interface PolizaRow {
+  /** Necesario para agrupar los recibos de una misma póliza colectiva. */
+  numero?: string;
   ramo: string;
   tipoNegocio: string | null;
   primaNeta: number;
@@ -221,6 +223,61 @@ function sumar(matriz: MatrizRamoMes, ramo: string, mes: number, valor: number) 
 }
 
 /**
+ * Ramos cuyas pólizas son de empresa y se gestionan por amparado.
+ * Duplicado a propósito de lib/colectivas.ts: este archivo no importa nada,
+ * para que el cálculo no arrastre dependencias.
+ */
+const RAMOS_COLECTIVOS_CALC = ["COLECTIVA", "VIDA GRUPO"];
+
+/**
+ * Deja UN SOLO RECIBO por póliza colectiva.
+ *
+ * El informe trae varias filas por colectiva: el recibo principal —la
+ * renovación o la emisión del año— y uno o más recibos de INCLUSIÓN, que son
+ * las personas o vehículos que entraron durante la vigencia. En el informe de
+ * producción eso hace que una misma póliza aparezca dos y tres veces.
+ *
+ * Las inclusiones no desaparecen: viven en el módulo de colectivas, que es
+ * donde se les hace seguimiento amparado por amparado. Aquí solo se decide
+ * cuál de los recibos representa a la póliza:
+ *
+ *  1. Manda el que NO es una inclusión (RENOVACION antes que NUEVO).
+ *  2. Si empatan, el de mayor prima, que es el recibo principal.
+ *
+ * El desempate por prima también resuelve los duplicados de verdad —misma
+ * póliza, misma prima, misma fecha, cargada dos veces con distinta forma de
+ * pago—, que si no se contarían dos veces.
+ */
+export function unRecibopPorColectiva<T extends PolizaRow>(polizas: T[]): T[] {
+  const principal = new Map<string, T>();
+  const salida: T[] = [];
+
+  for (const p of polizas) {
+    if (!p.numero || !RAMOS_COLECTIVOS_CALC.includes(p.ramo.trim().toUpperCase())) {
+      salida.push(p);
+      continue;
+    }
+    const llave = `${p.numero}|${p.ramo.trim().toUpperCase()}`;
+    const previo = principal.get(llave);
+    if (!previo) {
+      principal.set(llave, p);
+      continue;
+    }
+    principal.set(llave, mandaSobre(p, previo) ? p : previo);
+  }
+
+  return [...salida, ...principal.values()];
+}
+
+/** ¿`a` representa mejor a la póliza que `b`? Ver `unRecibopPorColectiva`. */
+function mandaSobre(a: PolizaRow, b: PolizaRow): boolean {
+  const inclusionA = normalizarTipo(a.tipoNegocio) === "NUEVO";
+  const inclusionB = normalizarTipo(b.tipoNegocio) === "NUEVO";
+  if (inclusionA !== inclusionB) return !inclusionA;
+  return (a.primaNeta || 0) > (b.primaNeta || 0);
+}
+
+/**
  * Pólizas con que se mide la producción de un año.
  *
  * Si hay foto de ese año, manda la foto: es la cartera tal como estaba al
@@ -229,7 +286,9 @@ function sumar(matriz: MatrizRamoMes, ramo: string, mes: number, valor: number) 
  * cartera viva, que es lo correcto mientras el año no haya terminado.
  */
 export function polizasDeAnio(datos: Datos, anio: number): PolizaRow[] {
-  return datos.fotos?.get(anio) ?? datos.polizas;
+  // Un solo recibo por colectiva, aquí y no en cada llamador: así ninguna
+  // pantalla de producción puede olvidarse de hacerlo y contar de más.
+  return unRecibopPorColectiva(datos.fotos?.get(anio) ?? datos.polizas);
 }
 
 export function produccionAnio(

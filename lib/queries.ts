@@ -20,6 +20,7 @@ export async function datosSeguimiento(): Promise<{
   const [polizas, cancelaciones, historicas2025, fotoFilas] = await Promise.all([
     prisma.policy.findMany({
       select: {
+        numero: true,
         ramo: true,
         tipoNegocio: true,
         primaNeta: true,
@@ -42,6 +43,7 @@ export async function datosSeguimiento(): Promise<{
     prisma.fotoPoliza.findMany({
       select: {
         anioProduccion: true,
+        numero: true,
         ramo: true,
         tipoNegocio: true,
         primaNeta: true,
