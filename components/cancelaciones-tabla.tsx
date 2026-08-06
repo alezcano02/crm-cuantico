@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
 import { fmtCOP, fmtCOPCompact, fmtFecha, fmtNum } from "@/lib/format";
-import { MESES } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { StatCard, Td, Th } from "@/components/ui";
 import { BotonExportar } from "@/components/boton-exportar";
@@ -12,6 +11,8 @@ import { IconEditar } from "@/components/icons";
 import { exigirOk } from "@/lib/respuesta";
 import { api } from "@/lib/rutas";
 import { PanelFiltros } from "@/components/panel-filtros";
+import { BuscadorTabla } from "@/components/buscador-tabla";
+import { FiltroMes } from "@/components/filtro-mes";
 
 export interface CancelacionVista {
   id: number;
@@ -60,7 +61,6 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
   const router = useRouter();
   const [editando, setEditando] = useState<CancelacionVista | null>(null);
   const [campo, setCampo] = useState<CampoFecha>("fechaCancelacion");
-  const [anio, setAnio] = useState("");
   const [mes, setMes] = useState("");
   const [ramo, setRamo] = useState("");
   const [aseguradora, setAseguradora] = useState("");
@@ -75,11 +75,16 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
     [cancelaciones]
   );
   const asesores = useMemo(() => opciones(cancelaciones.map((c) => c.asesor)), [cancelaciones]);
-  const anios = useMemo(() => {
+  /*
+   * Meses disponibles según el campo de fecha activo: al alternar entre fecha
+   * de cancelación y de renovación cambian las filas que tienen dato, así que
+   * los meses ofrecidos tienen que cambiar con ellas.
+   */
+  const meses = useMemo(() => {
     const set = new Set<string>();
     for (const c of cancelaciones) {
       const f = c[campo];
-      if (f) set.add(f.slice(0, 4));
+      if (f) set.add(f.slice(0, 7));
     }
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [cancelaciones, campo]);
@@ -88,8 +93,10 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
     let lista = cancelaciones;
     // Solo filas que tengan la fecha del campo elegido
     lista = lista.filter((c) => !!c[campo]);
-    if (anio) lista = lista.filter((c) => c[campo]!.slice(0, 4) === anio);
-    if (mes) lista = lista.filter((c) => Number(c[campo]!.slice(5, 7)) === Number(mes));
+    // Un solo control año-mes en vez de año y mes por separado. Para períodos
+    // más largos que un mes está el rango desde/hasta, que además permite
+    // cortes que no coinciden con el calendario.
+    if (mes) lista = lista.filter((c) => c[campo]!.slice(0, 7) === mes);
     if (desde) lista = lista.filter((c) => c[campo]!.slice(0, 10) >= desde);
     if (hasta) lista = lista.filter((c) => c[campo]!.slice(0, 10) <= hasta);
     if (ramo) lista = lista.filter((c) => normalizar(c.ramo) === ramo);
@@ -106,7 +113,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
       );
     }
     return [...lista].sort((a, b) => (b[campo] ?? "").localeCompare(a[campo] ?? ""));
-  }, [cancelaciones, campo, anio, mes, desde, hasta, ramo, aseguradora, asesor, q]);
+  }, [cancelaciones, campo, mes, desde, hasta, ramo, aseguradora, asesor, q]);
 
   const totalPrima = filtradas.reduce((s, c) => s + c.primaNeta, 0);
   const totalNoCausada = filtradas.reduce((s, c) => s + noCausadaDe(c), 0);
@@ -128,10 +135,9 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
     "rounded-md border border-line-axis bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
   const etiquetaCampo =
     campo === "fechaCancelacion" ? "fecha de cancelación" : "fecha de renovación";
-  const hayFiltros = anio || mes || ramo || aseguradora || asesor || desde || hasta || q;
+  const hayFiltros = mes || ramo || aseguradora || asesor || desde || hasta || q;
 
   const limpiar = () => {
-    setAnio("");
     setMes("");
     setRamo("");
     setAseguradora("");
@@ -213,29 +219,20 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
         </span>
       </div>
 
+      {/* Buscador y mes fuera del panel plegable: son los dos controles de uso
+          diario, y dentro costaban un clic y no se veían. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <BuscadorTabla valor={q} onCambiar={setQ} />
+        <FiltroMes
+          valor={mes}
+          onCambiar={setMes}
+          meses={meses}
+          etiqueta={`Mes de ${etiquetaCampo.replace("fecha de ", "")}: todos`}
+        />
+      </div>
+
       <PanelFiltros>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar póliza / asegurado / NIT"
-          className={clsx(claseSelect, "min-w-[220px]")}
-        />
-        <select className={claseSelect} value={anio} onChange={(e) => setAnio(e.target.value)}>
-          <option value="">Año: todos</option>
-          {anios.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
-        <select className={claseSelect} value={mes} onChange={(e) => setMes(e.target.value)}>
-          <option value="">Mes: todos</option>
-          {MESES.map((m, i) => (
-            <option key={m} value={i + 1}>
-              {m.charAt(0) + m.slice(1).toLowerCase()}
-            </option>
-          ))}
-        </select>
         <select className={claseSelect} value={ramo} onChange={(e) => setRamo(e.target.value)}>
           <option value="">Ramo: todos</option>
           {ramos.map((r) => (

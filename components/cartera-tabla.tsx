@@ -7,13 +7,14 @@ import clsx from "clsx";
 import type { EstadoCartera } from "@/lib/calculos";
 import type { ListasFormulario } from "@/lib/queries";
 import { fmtCOP, fmtCOPCompact, fmtFecha } from "@/lib/format";
-import { MESES } from "@/lib/constants";
 import { CarteraBadge, StatCard, Td, Th } from "@/components/ui";
 import { IconDescargar, IconDinero } from "@/components/icons";
 import { BotonExportar } from "@/components/boton-exportar";
 import { GestionarPoliza } from "@/components/gestionar-poliza";
 import { Paginacion, usePaginacion } from "@/components/paginacion";
 import { PanelFiltros } from "@/components/panel-filtros";
+import { BuscadorTabla } from "@/components/buscador-tabla";
+import { FiltroMes } from "@/components/filtro-mes";
 
 /** Las fechas viajan como ISO; el CSV las quiere como Date para formatearlas. */
 function fechaCSV(iso: string | null): Date | null {
@@ -90,6 +91,16 @@ export function CarteraTabla({
   const [orden, setOrden] = useState<"mora" | "prima" | "fecha">("mora");
   const [gestionando, setGestionando] = useState<CarteraVista | null>(null);
 
+  // Meses que existen en los datos, para no ofrecer meses vacíos.
+  const meses = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          polizas.map((p) => p.fechaMaxPago?.slice(0, 7)).filter((m): m is string => !!m)
+        )
+      ).sort(),
+    [polizas]
+  );
   const ramos = useMemo(() => opciones(polizas.map((p) => p.ramo)), [polizas]);
   const aseguradoras = useMemo(() => opciones(polizas.map((p) => p.aseguradora)), [polizas]);
   const asesores = useMemo(
@@ -116,10 +127,9 @@ export function CarteraTabla({
       lista = lista.filter((p) => p.tipoNegocio && normalizar(p.tipoNegocio) === tipoNegocio);
     if (formaPago)
       lista = lista.filter((p) => p.formaPago && normalizar(p.formaPago) === formaPago);
-    if (mes)
-      lista = lista.filter(
-        (p) => p.fechaMaxPago && Number(p.fechaMaxPago.slice(5, 7)) === Number(mes)
-      );
+    // Año y mes, no solo el mes: la cartera abarca más de un año y filtrar por
+    // «marzo» a secas mezclaba marzo de 2025 con marzo de 2026.
+    if (mes) lista = lista.filter((p) => p.fechaMaxPago?.slice(0, 7) === mes);
     if (desde) lista = lista.filter((p) => p.fechaMaxPago && p.fechaMaxPago.slice(0, 10) >= desde);
     if (hasta) lista = lista.filter((p) => p.fechaMaxPago && p.fechaMaxPago.slice(0, 10) <= hasta);
     if (q.trim()) {
@@ -255,18 +265,23 @@ export function CarteraTabla({
         </Link>
       </div>
 
+      {/* Buscador y mes fuera del panel plegable: son los dos controles de uso
+          diario, y dentro costaban un clic y no se veían. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <BuscadorTabla valor={q} onCambiar={setQ} />
+        <FiltroMes
+          valor={mes}
+          onCambiar={setMes}
+          meses={meses}
+          etiqueta="Mes de pago: todos"
+        />
+      </div>
+
       <PanelFiltros>
       {/* Fluyen en horizontal porque los filtros ya no viven en una columna de
           256px sino en una banda sobre la tabla; apilados en vertical la
           empujarían fuera de la pantalla. */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar póliza / asegurado / NIT"
-          className={clsx(claseSelect, "min-w-[220px]")}
-        />
         <select className={claseSelect} value={ramo} onChange={(e) => setRamo(e.target.value)}>
           <option value="">Ramo: todos</option>
           {ramos.map((r) => (
@@ -307,14 +322,6 @@ export function CarteraTabla({
           <option value="">Forma de pago: todas</option>
           {formasPago.map((f) => (
             <option key={f}>{f}</option>
-          ))}
-        </select>
-        <select className={claseSelect} value={mes} onChange={(e) => setMes(e.target.value)}>
-          <option value="">Mes pago: todos</option>
-          {MESES.map((m, i) => (
-            <option key={m} value={i + 1}>
-              {m.charAt(0) + m.slice(1).toLowerCase()}
-            </option>
           ))}
         </select>
         <label className="flex items-center gap-1 text-sm text-ink-secondary">

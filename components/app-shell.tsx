@@ -37,6 +37,8 @@ type Enlace = {
   soloImportador?: boolean;
   /** true = solo para quien ve comisiones. */
   soloComisiones?: boolean;
+  /** true = solo para quien gestiona colectivas. */
+  soloColectivas?: boolean;
 };
 
 /**
@@ -73,6 +75,12 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
       { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
       { href: "/siniestros", etiqueta: "Siniestros", Icono: IconSiniestro },
       { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconRegalo },
+      {
+        href: "/colectivas",
+        etiqueta: "Colectivas",
+        Icono: IconPersonas,
+        soloColectivas: true,
+      },
     ],
   },
   {
@@ -102,6 +110,8 @@ export interface SesionVista {
   puedeImportar?: boolean;
   /** Ídem con comisiones: es información de remuneración. */
   puedeVerComisiones?: boolean;
+  /** Ídem con colectivas. */
+  puedeVerColectivas?: boolean;
 }
 
 export function AppShell({
@@ -227,7 +237,8 @@ export function AppShell({
         const enlaces = grupo.enlaces.filter(
           (e) =>
             (!e.soloImportador || sesion?.puedeImportar) &&
-            (!e.soloComisiones || sesion?.puedeVerComisiones)
+            (!e.soloComisiones || sesion?.puedeVerComisiones) &&
+            (!e.soloColectivas || sesion?.puedeVerColectivas)
         );
         // Si a un grupo no le queda ningún enlace visible —«Datos» para quien no
         // puede importar sigue teniendo Búsqueda, pero por si acaso— no se

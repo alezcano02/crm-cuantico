@@ -176,6 +176,40 @@ export async function exigirComisionesPagina(): Promise<SesionActiva> {
 }
 
 /**
+ * Quién gestiona las colectivas. Por ahora una sola cuenta, como se pidió;
+ * la lista está aparte de la de comisiones para poder abrirla a más gente sin
+ * darles de paso acceso a la remuneración.
+ */
+const USUARIOS_COLECTIVAS = ["administrativo@cuanticoseguros.com"];
+
+export function puedeVerColectivas(usuario: string | null | undefined): boolean {
+  if (!usuario) return false;
+  return USUARIOS_COLECTIVAS.includes(usuario.trim().toLowerCase());
+}
+
+export async function exigirColectivasPagina(): Promise<SesionActiva> {
+  const sesion = await sesionActual();
+  if (!sesion) redirect("/login");
+  if (!puedeVerColectivas(sesion.usuario)) redirect("/");
+  return sesion;
+}
+
+/** Guardia para las rutas de API de colectivas. */
+export async function exigirColectivas(): Promise<NextResponse | null> {
+  const sesion = await sesionActual();
+  if (!sesion) {
+    return NextResponse.json({ error: "Sesión requerida." }, { status: 401 });
+  }
+  if (!puedeVerColectivas(sesion.usuario)) {
+    return NextResponse.json(
+      { error: "Este módulo está limitado a la cuenta administrativa." },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+/**
  * Guardia para las rutas de API que solo puede usar quien importa. Devuelve
  * 401 si no hay sesión y 403 si la hay pero no es de quien corresponde, para
  * que el cliente pueda distinguir "vuelva a entrar" de "no es para usted".

@@ -16,51 +16,51 @@ datasource db {
 // (vencimiento pasado o próximo). DÍAS AL VENCE y EDAD no se almacenan: se
 // recalculan en cada consulta a partir de vencimiento / fechaNacimiento.
 model Policy {
-  id              Int       @id @default(autoincrement())
-  numero          String // PÓLIZA
-  ramo            String
-  asegurado       String
-  ccNit           String?
-  placa           String?
-  aseguradora     String?
-  tipoNegocio     String? // NUEVO, RENOVACION, COASEGURO, INCLUSIÓN, ...
+  id                Int       @id @default(autoincrement())
+  numero            String // PÓLIZA
+  ramo              String
+  asegurado         String
+  ccNit             String?
+  placa             String?
+  aseguradora       String?
+  tipoNegocio       String? // NUEVO, RENOVACION, COASEGURO, INCLUSIÓN, ...
   // Columna OBSERVACION del informe (añadida en julio de 2026). Es la nota
   // que escribe el área técnica; no confundir con notaCartera, que es la
   // observación de cobranza que se edita dentro de la aplicación.
-  observacion     String?
-  asesor1         String?
-  asesor2         String?
-  primaNeta       Float     @default(0)
-  primaTotal      Float     @default(0)
-  formaPago       String?
-  fechaPago       DateTime? // fecha del último pago recibido
-  fechaMaxPago    DateTime? // fecha límite del próximo pago (o de la próxima cuota)
-  estadoPago      String? // OK PAGO / PENDIENTE
+  observacion       String?
+  asesor1           String?
+  asesor2           String?
+  primaNeta         Float     @default(0)
+  primaTotal        Float     @default(0)
+  formaPago         String?
+  fechaPago         DateTime? // fecha del último pago recibido
+  fechaMaxPago      DateTime? // fecha límite del próximo pago (o de la próxima cuota)
+  estadoPago        String? // OK PAGO / PENDIENTE
   // Pagos fraccionados (MENSUAL, ACUERDO DE PAGO, FINANCIADO…): valor de la
   // cuota pactada. El informe de cartera lo muestra como "Cuota: $…".
-  valorCuota      Float?
+  valorCuota        Float?
   // Observación de cobranza que aparece en el informe de cartera
   // (p. ej. "PENDIENTE AMPLIACIÓN", "BLIN SE ENCARGA DE LOS RECAUDOS").
-  notaCartera     String?
+  notaCartera       String?
   // Cuándo se tocó la cobranza DENTRO de la aplicación (registrar un pago,
   // pactar una cuota, escribir una observación de cartera). Mientras esté
   // puesta, la reimportación del Excel NO pisa los campos de cobranza de esta
   // póliza: manda el CRM, que es donde se registra el recaudo al día. Con la
   // fecha en null la póliza sigue tomando la cobranza del informe.
   cobranzaEditadaEn DateTime?
-  vencimiento     DateTime?
-  mesVencimiento  String? // derivado del vencimiento al importar
-  fechaNacimiento DateTime?
-  correo          String?
-  celular         String?
-  mensajeResumen  String?
-  vtoSoat         DateTime?
+  vencimiento       DateTime?
+  mesVencimiento    String? // derivado del vencimiento al importar
+  fechaNacimiento   DateTime?
+  correo            String?
+  celular           String?
+  mensajeResumen    String?
+  vtoSoat           DateTime?
   // Gestión interna de renovación (no viene del Excel)
-  gestionada      Boolean   @default(false)
-  notaGestion     String?
-  gestionadaEn    DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  gestionada        Boolean   @default(false)
+  notaGestion       String?
+  gestionadaEn      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([vencimiento])
   @@index([ramo])
@@ -228,5 +228,115 @@ model ListValue {
   valor String
 
   @@unique([tipo, valor])
+  @@index([tipo])
+}
+
+// ---------------------------------------------------------------------------
+// Colectivas
+//
+// Una póliza colectiva la contrata una EMPRESA para sus empleados, y lo que se
+// gestiona a diario no es la póliza sino el movimiento de personas dentro de
+// ella: quién entra (inclusión) y quién sale (retiro).
+//
+// La estructura sale de cómo se lleva hoy en el SharePoint
+// (4. Asesores/Oficina/<EMPRESA>): un empleado AFILIADO puede traer
+// beneficiarios —cónyuge, hijos, padres— y cada persona cubierta tiene su
+// propio valor asegurado y su propia prima. Por eso el afiliado no es la
+// unidad: la unidad es la PERSONA cubierta, colgada del empleado que le da
+// derecho.
+//
+// Estas tablas NO las toca la importación del informe de producción: se
+// alimentan aparte, porque el informe trae la póliza como un total y aquí hace
+// falta el detalle por persona.
+// ---------------------------------------------------------------------------
+
+model EmpresaColectiva {
+  id            Int      @id @default(autoincrement())
+  nombre        String   @unique
+  nit           String?
+  // Carpeta del SharePoint, para saltar al expediente sin buscarlo.
+  carpeta       String?
+  activa        Boolean  @default(true)
+  nota          String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  amparados AmparadoColectiva[]
+  novedades NovedadColectiva[]
+}
+
+// Una persona cubierta por una póliza colectiva.
+model AmparadoColectiva {
+  id        Int              @id @default(autoincrement())
+  empresaId Int
+  empresa   EmpresaColectiva @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  // Póliza a la que pertenece. Se guarda el número tal cual, sin relación con
+  // Policy: la reimportación del informe borra y recrea esa tabla, y una
+  // llave foránea dejaría huérfanos los amparados en cada carga.
+  polizaNumero String
+  ramo         String // VIDA GRUPO | COLECTIVA | SALUD…
+  plan         String? // CLASICA, GLOBAL, PREFERENCIAL…
+
+  // El empleado que da derecho a la cobertura.
+  docEmpleado    String
+  nombreEmpleado String
+
+  // La persona cubierta. Coincide con el empleado cuando parentesco = AF.
+  docAmparado    String
+  nombreAmparado String
+  // AF = afiliado (el propio empleado) · CO = cónyuge · HI = hijo ·
+  // PR = padre/madre · HE = hermano
+  parentesco     String
+  sexo           String?
+
+  valorAsegurado Float?
+  primaMensual   Float?
+
+  // Trámite ante la aseguradora.
+  estado      String  @default("EN EXPEDICION") // EXPEDIDO, EN EXPEDICION, EN EVALUACION, RETIRADO…
+  radicado    String?
+  observacion String?
+
+  fechaIngreso DateTime?
+  fechaRetiro  DateTime?
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  novedades NovedadColectiva[]
+
+  @@index([empresaId])
+  @@index([polizaNumero])
+  @@index([docAmparado])
+  @@index([estado])
+}
+
+// Bitácora de movimientos. Se guarda aparte del amparado porque lo que se
+// audita es el HISTORIAL: cuándo se pidió un retiro, cuándo lo confirmó la
+// aseguradora y con qué radicado. Un solo campo de estado en el amparado
+// perdería eso en cuanto se sobrescribe.
+model NovedadColectiva {
+  id         Int                @id @default(autoincrement())
+  empresaId  Int
+  empresa    EmpresaColectiva   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  amparadoId Int?
+  amparado   AmparadoColectiva? @relation(fields: [amparadoId], references: [id], onDelete: SetNull)
+
+  tipo           String // INCLUSION | RETIRO | MODIFICACION
+  fecha          DateTime // fecha efectiva del movimiento
+  estado         String   @default("SOLICITADA") // SOLICITADA | CONFIRMADA | RECHAZADA
+  radicado       String?
+  // Se copian nombre y documento para que la bitácora siga siendo legible
+  // aunque el amparado se borre después.
+  nombreAmparado String
+  docAmparado    String
+  nota           String?
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([empresaId])
+  @@index([fecha])
   @@index([tipo])
 }
