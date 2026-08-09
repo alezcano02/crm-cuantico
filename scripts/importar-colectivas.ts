@@ -19,7 +19,14 @@
  * borrado se lleva por delante su historia de novedades.
  */
 import { prisma } from "../lib/prisma";
-import { leerDebitos, leerListadoPlacas, ordenDeMes, type AmparadoLeido } from "../lib/debitos";
+import {
+  leerDebitos,
+  leerListadoLibre,
+  leerListadoPlacas,
+  libroATexto,
+  ordenDeMes,
+  type AmparadoLeido,
+} from "../lib/debitos";
 import { readFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
@@ -38,6 +45,11 @@ const EMPRESAS: [RegExp, string][] = [
   [/espumas\s+medell/i, "ESPUMAS MEDELLIN"],
   [/cristica/i, "CRISTICA S.A.S"],
   [/log[ií]stica\s+terrestre/i, "LOGISTICA TERRESTRE LIMITADA"],
+  // Las dos grafías del informe («JYM O SAS» y «JYMO») son la misma empresa.
+  [/inversiones\s+jym/i, "INVERSIONES JYMO S.A.S"],
+  [/munera\s+sierra/i, "TRANSPORTES MUNERA SIERRA"],
+  [/carrillos/i, "CARRILLOS S.A.S"],
+  [/espumados\s+del\s+litoral/i, "ESPUMADOS DEL LITORAL S.A"],
 ];
 
 function empresaCRM(nombreSura: string): string | null {
@@ -45,9 +57,19 @@ function empresaCRM(nombreSura: string): string | null {
   return null;
 }
 
-/** Fecha efectiva del movimiento: el primer día del mes del listado. */
+/**
+ * Fecha efectiva del movimiento: el primer día del mes del listado.
+ *
+ * Un listado libre no trae mes en el nombre de la hoja («Listado» a secas), y
+ * entonces vale hoy: lo que dice ese archivo es quién está cubierto ahora. Sin
+ * esta salida, `ordenDeMes` devolvía −1 y salía la fecha del año −2.
+ */
 function fechaDelMes(nombreMes: string): Date {
   const n = ordenDeMes(nombreMes);
+  if (n < 0) {
+    const h = new Date();
+    return new Date(Date.UTC(h.getUTCFullYear(), h.getUTCMonth(), 1));
+  }
   return new Date(Date.UTC(Math.floor(n / 100), (n % 100) - 1, 1));
 }
 
@@ -57,10 +79,24 @@ async function main() {
     process.exit(1);
   }
 
-  const texto = readFileSync(RUTA, "utf8");
+  // El .xlsx de la carpeta sincronizada es la fuente buena: el volcado de
+  // texto del conector viene cortado en los libros grandes.
+  const texto = /\.xlsx?$/i.test(RUTA) ? libroATexto(RUTA) : readFileSync(RUTA, "utf8");
   // Dos formatos de origen distintos: los débitos mensuales de Sura (personas)
   // y el listado de flota de una colectiva de autos (placas).
-  const meses = args.includes("--placas") ? [leerListadoPlacas(texto)] : leerDebitos(texto);
+  const opcion = (n: string) => (args.includes(n) ? args[args.indexOf(n) + 1] : null);
+  const meses = args.includes("--placas")
+    ? [leerListadoPlacas(texto)]
+    : args.includes("--listado")
+      ? [
+          leerListadoLibre(
+            texto,
+            opcion("--empresa") ?? "",
+            opcion("--poliza") ?? "",
+            opcion("--plan") ?? "COLECTIVA"
+          ),
+        ]
+      : leerDebitos(texto);
   if (!meses.length) {
     console.error("No se reconoció ninguna hoja mensual en el archivo.");
     process.exit(1);

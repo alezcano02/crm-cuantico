@@ -30,6 +30,33 @@
  * la forma de las filas.
  */
 
+import * as XLSX from "xlsx";
+
+/**
+ * Convierte el libro real al mismo texto que devuelve el conector.
+ *
+ * Se traduce en vez de escribir un segundo lector porque el de texto ya está
+ * probado contra los recibos de Sura, y porque el volcado del conector sigue
+ * siendo la única vía cuando el archivo no está sincronizado en el equipo.
+ * Un solo parser, dos orígenes.
+ */
+export function libroATexto(ruta: string): string {
+  const libro = XLSX.readFile(ruta, { cellDates: true });
+  const partes: string[] = [];
+  for (const nombre of libro.SheetNames) {
+    const hoja = libro.Sheets[nombre];
+    const filas: unknown[][] = XLSX.utils.sheet_to_json(hoja, {
+      header: 1,
+      blankrows: true,
+      defval: "",
+      raw: false,
+    });
+    partes.push(`## Sheet: ${nombre} — ${filas.length} rows`);
+    for (const f of filas) partes.push(f.map((c) => String(c ?? "").trim()).join("\t"));
+  }
+  return partes.join("\n");
+}
+
 /** Parentescos tal como los escribe Sura, ya normalizados a los códigos del CRM. */
 const PARENTESCO_TEXTO: [RegExp, string][] = [
   [/^hijo/i, "HI"],
@@ -164,6 +191,118 @@ export function leerListadoPlacas(texto: string): MesLeido {
   const m = inicio.match(/^(\d{1,2})\/\d{1,2}\/(\d{4})$/);
   const nombre = m ? `${MESES[Number(m[1]) - 1][0].toUpperCase()}${MESES[Number(m[1]) - 1].slice(1)} ${m[2]}` : "Listado";
   return { nombre, amparados };
+}
+
+/**
+ * Lector genérico de listados de asegurados.
+ *
+ * Cada empresa manda su listado con las columnas que le da la gana: Carrillos
+ * parte el nombre en cuatro (APELLIDO 1, APELLIDO 2, NOMBRE 1, NOMBRE 2), JYMO
+ * manda una hoja de vehículos con Placa y Valor Asegurado, y Sura escribe
+ * «Asegurado» a secas. Escribir un lector por empresa envejece mal: en cuanto
+ * alguien añade una columna hay que volver aquí.
+ *
+ * Así que se localiza la fila de encabezados —la primera que contenga algo
+ * reconocible— y se mapean las columnas por su nombre. Lo que no se reconoce
+ * se ignora en vez de romper.
+ *
+ * Si aparece una columna de placa, el listado es de vehículos; si no, de
+ * personas.
+ */
+const COLUMNAS: [string, RegExp][] = [
+  // En plural o singular: cada empresa titula la columna a su manera.
+  ["placa", /^placas?$/i],
+  ["doc", /^(n[uú]mero de documento|documento|c[eé]dula|cc|identificaci[oó]n|n\.? ?º? ?identificaci[oó]n)$/i],
+  ["nombre", /^(nombre completo|asegurado|nombre del asegurado|empleado)$/i],
+  ["nombre1", /^nombre ?1$/i],
+  ["nombre2", /^nombre ?2$/i],
+  ["apellido1", /^apellido ?1$/i],
+  ["apellido2", /^apellido ?2$/i],
+  ["valor", /^valor asegurado$/i],
+  ["prima", /^prima( base| mensual)?$/i],
+  ["nacimiento", /^fecha de nacimiento/i],
+];
+
+export function leerListadoLibre(
+  texto: string,
+  empresa: string,
+  poliza: string,
+  plan: string
+): MesLeido {
+  const filas = texto.split(/\r?\n/).map((l) => l.split("\t").map((c) => c.trim()));
+
+  // Fila de encabezados: la que reconozca más columnas, y al menos dos.
+  let mejor = -1;
+  let mapa: Record<string, number> = {};
+  for (let i = 0; i < filas.length; i++) {
+    const m: Record<string, number> = {};
+    filas[i].forEach((celda, j) => {
+      for (const [clave, re] of COLUMNAS) if (m[clave] === undefined && re.test(celda)) m[clave] = j;
+    });
+    if (Object.keys(m).length > Object.keys(mapa).length) {
+      mapa = m;
+      mejor = i;
+    }
+  }
+  /*
+   * Con la columna de placa basta: un listado de flota puede no traer nada más
+   * reconocible («PLACAS · VALOR POLIZA · VALOR MENSUAL»), y exigir dos
+   * columnas lo dejaba fuera. Para personas sí se piden dos, porque un único
+   * encabezado suelto suele ser una coincidencia y no una tabla.
+   */
+  const suficiente = mapa.placa !== undefined || Object.keys(mapa).length >= 2;
+  if (mejor < 0 || !suficiente) return { nombre: "Listado", amparados: [] };
+
+  const dePlacas = mapa.placa !== undefined;
+  const amparados: AmparadoLeido[] = [];
+
+  for (const f of filas.slice(mejor + 1)) {
+    const en = (k: string) => (mapa[k] === undefined ? "" : (f[mapa[k]] ?? "").trim());
+
+    if (dePlacas) {
+      const placa = en("placa");
+      // Las placas colombianas son tres letras y tres dígitos (o dos y una
+      // letra en motos). Este filtro deja fuera los totales y las notas al pie.
+      if (!/^[A-Z]{3}[0-9]{2,3}[A-Z]?$/i.test(placa)) continue;
+      amparados.push({
+        empresa,
+        polizaNumero: poliza,
+        plan,
+        docEmpleado: poliza,
+        nombreEmpleado: empresa,
+        nombreAmparado: placa.toUpperCase(),
+        docAmparado: "",
+        parentesco: "VE",
+        placa: placa.toUpperCase(),
+      });
+      continue;
+    }
+
+    const nombre =
+      en("nombre") ||
+      [en("nombre1"), en("nombre2"), en("apellido1"), en("apellido2")]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const doc = en("doc");
+    // Sin nombre no hay amparado; sin documento sí puede haberlo (los
+    // beneficiarios suelen venir sin él).
+    if (!nombre || nombre.length < 4) continue;
+    amparados.push({
+      empresa,
+      polizaNumero: poliza,
+      plan,
+      docEmpleado: doc || poliza,
+      nombreEmpleado: nombre,
+      nombreAmparado: nombre.toUpperCase(),
+      docAmparado: doc,
+      parentesco: "AF",
+      placa: null,
+    });
+  }
+
+  return { nombre: "Listado", amparados };
 }
 
 /**
