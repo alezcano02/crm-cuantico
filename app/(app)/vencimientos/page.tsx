@@ -32,7 +32,13 @@ export default async function VencimientosPage({
           where: { anioProduccion: anioFoto },
           orderBy: { vencimiento: "asc" },
         })
-      : prisma.policy.findMany({ orderBy: { vencimiento: "asc" } }),
+      : // Los recibos de una colectiva no se renuevan uno a uno —se renueva la
+        // colectiva—, así que no son trabajo pendiente y no salen aquí. Viven
+        // en el módulo de colectivas. Ver lib/mapa-colectivas.ts.
+        prisma.policy.findMany({
+          where: { colectivaDe: null },
+          orderBy: { vencimiento: "asc" },
+        }),
     listasParaFormularios(),
     prisma.fotoPoliza
       .groupBy({ by: ["anioProduccion"], orderBy: { anioProduccion: "desc" } })

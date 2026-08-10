@@ -20,7 +20,7 @@ async function contadores(): Promise<ContadoresNav> {
   try {
     const hoy = hoyUTC();
     const [vencidas, mora] = await Promise.all([
-      prisma.policy.count({ where: { vencimiento: { lt: hoy } } }),
+      prisma.policy.count({ where: { vencimiento: { lt: hoy }, colectivaDe: null } }),
       prisma.policy.count({
         where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } },
       }),

@@ -26,6 +26,7 @@ import {
   porcentajeComision,
 } from "../lib/comisiones";
 import { RAMOS_COLECTIVOS } from "../lib/colectivas";
+import { normalizarNumero } from "../lib/mapa-colectivas";
 
 const cop = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 let fallas = 0;
@@ -156,6 +157,52 @@ async function main() {
       col.reduce((s, p) => s + p.primaNeta, 0) - colFiltradas.reduce((s, p) => s + p.primaNeta, 0);
     if (primaFuera > 0)
       aviso("Prima de recibos de inclusión excluida", `${cop(primaFuera)} pasa al módulo de colectivas`);
+
+    // --- Mapa de colectivas ---------------------------------------------
+    const madres = await prisma.colectivaMadre.findMany();
+    const recibos = await prisma.reciboColectiva.findMany();
+    const marcadas = polizas.filter((p) => p.colectivaDe);
+    ok("Colectivas declaradas", `${madres.length} madres · ${recibos.length} recibos`);
+    comprobar(
+      marcadas.length >= recibos.length,
+      "Todo recibo declarado está marcado en la cartera",
+      `${marcadas.length} filas marcadas para ${recibos.length} recibos`
+    );
+
+    // Ningún recibo puede colgar de una colectiva que no existe.
+    const numerosMadre = new Set(madres.map((m) => normalizarNumero(m.numero)));
+    const colgando = recibos.filter((r) => !numerosMadre.has(normalizarNumero(r.colectivaNumero)));
+    comprobar(colgando.length === 0, "Ningún recibo cuelga de una colectiva inexistente", `${colgando.length}`);
+
+    // Una madre nunca puede estar marcada como recibo de otra: sería un ciclo
+    // y su prima desaparecería de la producción.
+    const madresMarcadas = marcadas.filter(
+      (p) => numerosMadre.has(normalizarNumero(p.numero)) && !recibos.some(
+        (r) => normalizarNumero(r.numero) === normalizarNumero(p.numero) &&
+               (r.placa ?? "") === (p.placa ?? "")
+      )
+    );
+    comprobar(madresMarcadas.length === 0, "Ninguna colectiva madre quedó absorbida", `${madresMarcadas.length}`);
+
+    // El ramo de cada madre debe ser el declarado, en toda la cartera.
+    const ramoDe = new Map(madres.map((m) => [normalizarNumero(m.numero), m.ramo]));
+    const malRamo = polizas.filter((p) => {
+      const r = ramoDe.get(normalizarNumero(p.numero));
+      return r && !p.colectivaDe && p.ramo !== r;
+    });
+    comprobar(malRamo.length === 0, "Las colectivas llevan su nombre de ramo", `${malRamo.length} sin renombrar`);
+
+    // Lo absorbido no puede aparecer en vencimientos.
+    const enVencimientos = await prisma.policy.count({
+      where: { colectivaDe: { not: null }, vencimiento: { not: null } },
+    });
+    const salenEnVencimientos = await prisma.policy.count({
+      where: { colectivaDe: null, vencimiento: { not: null } },
+    });
+    ok(
+      "Recibos fuera de vencimientos",
+      `${enVencimientos} absorbidos · ${salenEnVencimientos} pólizas siguen listándose`
+    );
 
     const amparados = await prisma.amparadoColectiva.count({ where: { estado: { not: "RETIRADO" } } });
     const empresas = await prisma.empresaColectiva.count();

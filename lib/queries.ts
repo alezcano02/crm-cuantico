@@ -18,7 +18,11 @@ export async function datosSeguimiento(): Promise<{
   fotos: Map<number, PolizaRow[]>;
 }> {
   const [polizas, cancelaciones, historicas2025, fotoFilas] = await Promise.all([
+    // Los recibos de una colectiva no cuentan aparte: su prima ya está
+    // representada por la póliza madre, y sumarlos otra vez inflaría la
+    // producción con la misma plata dos veces. Ver lib/mapa-colectivas.ts.
     prisma.policy.findMany({
+      where: { colectivaDe: null },
       select: {
         numero: true,
         ramo: true,
@@ -132,12 +136,12 @@ export async function resumenOperativo() {
   // lib/calculos.ts).
   const [vencidas, sinGestionar, proximas, mora, canceladasMes, primaMora] =
     await Promise.all([
-      prisma.policy.count({ where: { vencimiento: { lt: hoy }, ...SIN_ANEXOS } }),
+      prisma.policy.count({ where: { vencimiento: { lt: hoy }, colectivaDe: null, ...SIN_ANEXOS } }),
       prisma.policy.count({
-        where: { vencimiento: { lt: hoy }, gestionada: false, ...SIN_ANEXOS },
+        where: { vencimiento: { lt: hoy }, gestionada: false, colectivaDe: null, ...SIN_ANEXOS },
       }),
       prisma.policy.count({
-        where: { vencimiento: { gte: hoy, lte: en30 }, ...SIN_ANEXOS },
+        where: { vencimiento: { gte: hoy, lte: en30 }, colectivaDe: null, ...SIN_ANEXOS },
       }),
       prisma.policy.count({
         where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } },

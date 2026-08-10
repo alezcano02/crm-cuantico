@@ -15,6 +15,7 @@
 import { readFileSync } from "node:fs";
 import { prisma } from "../lib/prisma";
 import { parsearLibro } from "../lib/excel";
+import { aplicarMapaColectivas } from "../lib/mapa-colectivas";
 
 async function main() {
   const ruta = process.argv[2];
@@ -94,6 +95,23 @@ async function main() {
   );
 
   console.log(`\nImportado. Cobranza conservada en ${cobranzaConservada} pólizas.`);
+
+  /*
+   * La importación borra y recrea la cartera, así que se lleva por delante los
+   * nombres de ramo de las colectivas y las marcas de recibo. Se vuelven a
+   * aplicar aquí mismo: si no, entre la importación y el siguiente arreglo
+   * manual el dashboard contaría cada inclusión como producción propia.
+   */
+  const mapa = await aplicarMapaColectivas();
+  console.log(
+    `Mapa de colectivas: ${mapa.madresRenombradas} renombradas, ` +
+      `${mapa.recibosMarcados} recibos absorbidos.`
+  );
+  if (mapa.recibosSinPoliza.length)
+    console.log(`  Recibos declarados que ya no están en el informe: ${mapa.recibosSinPoliza.join(", ")}`);
+  if (mapa.madresSinPoliza.length)
+    console.log(`  Colectivas declaradas que ya no están en el informe: ${mapa.madresSinPoliza.join(", ")}`);
+
   console.log("Ahora en la base:");
   for (const [k, v] of [
     ["cartera", await prisma.policy.count()],

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parsearLibro } from "@/lib/excel";
 import { exigirImportador } from "@/lib/auth";
+import { aplicarMapaColectivas } from "@/lib/mapa-colectivas";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -128,5 +129,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ok: true, resumen: datos.resumen, cobranzaConservada });
+  /*
+   * La importación borra y recrea la cartera, así que se lleva por delante los
+   * nombres de ramo de las colectivas y las marcas de recibo. Se reaplican aquí
+   * para que la pantalla nunca quede mostrando cada inclusión como una póliza
+   * propia. Va fuera de la transacción a propósito: es una corrección posterior
+   * y no debe alargar el bloqueo de la carga.
+   */
+  const mapa = await aplicarMapaColectivas();
+
+  return NextResponse.json({
+    ok: true,
+    resumen: datos.resumen,
+    cobranzaConservada,
+    colectivas: {
+      renombradas: mapa.madresRenombradas,
+      recibosAbsorbidos: mapa.recibosMarcados,
+      recibosSinPoliza: mapa.recibosSinPoliza,
+      madresSinPoliza: mapa.madresSinPoliza,
+    },
+  });
 }

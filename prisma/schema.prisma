@@ -48,6 +48,11 @@ model Policy {
   // póliza: manda el CRM, que es donde se registra el recaudo al día. Con la
   // fecha en null la póliza sigue tomando la cobranza del informe.
   cobranzaEditadaEn DateTime?
+  // Número de la póliza colectiva madre cuando esta fila es un recibo suyo
+  // (una inclusión). Lo escribe `aplicarMapaColectivas` a partir de
+  // ReciboColectiva, no viene del Excel. Con valor, la póliza NO sale en
+  // vencimientos ni cuenta aparte en producción: se gestiona desde colectivas.
+  colectivaDe       String?
   vencimiento       DateTime?
   mesVencimiento    String? // derivado del vencimiento al importar
   fechaNacimiento   DateTime?
@@ -62,6 +67,7 @@ model Policy {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  @@index([colectivaDe])
   @@index([vencimiento])
   @@index([ramo])
   @@index([numero])
@@ -298,6 +304,57 @@ model FotoPoliza {
   @@index([vencimiento])
 }
 
+// Una póliza COLECTIVA MADRE: la que representa a todo el grupo.
+//
+// Existe para dos cosas que el informe de producción no sabe hacer:
+//
+//  1. Darle un nombre de ramo propio («Colectiva Salud», «Colectiva Autos»,
+//     «Colectiva Vida»). El informe las mete todas bajo COLECTIVA, VIDA GRUPO
+//     o SALUD, y así no se pueden separar en el dashboard ni en vencimientos.
+//  2. Ser el punto al que se cuelgan los recibos de inclusión.
+model ColectivaMadre {
+  numero String @id
+  // Nombre con el que la póliza aparece en TODA la aplicación.
+  ramo   String
+
+  empresaId Int?
+  empresa   EmpresaColectiva? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  recibos ReciboColectiva[]
+
+  @@index([empresaId])
+}
+
+// Un recibo que pertenece a una colectiva y NO es una póliza independiente.
+//
+// En el informe cada inclusión llega como su propia fila, con su número y su
+// prima, y acaba apareciendo en vencimientos como si hubiera que renovarla una
+// a una. No hay que renovarla: se renueva la colectiva. Estas filas se
+// absorben en su madre y se gestionan desde el módulo de colectivas.
+//
+// La PLACA hace falta para desempatar: hay números de póliza que aparecen dos
+// veces, una como madre y otra como inclusión de un vehículo concreto
+// (2000691934 y su PWY867). Se guarda cadena vacía cuando no aplica, y no
+// null, porque en Postgres dos NULL no chocan entre sí y la llave única
+// dejaría de servir.
+model ReciboColectiva {
+  id     Int    @id @default(autoincrement())
+  numero String
+  placa  String @default("")
+
+  colectivaNumero String
+  colectiva       ColectivaMadre @relation(fields: [colectivaNumero], references: [numero], onDelete: Cascade)
+
+  nota     String?
+  creadoEn DateTime @default(now())
+
+  @@unique([numero, placa])
+  @@index([colectivaNumero])
+}
+
 model EmpresaColectiva {
   id            Int      @id @default(autoincrement())
   nombre        String   @unique
@@ -311,6 +368,7 @@ model EmpresaColectiva {
 
   amparados AmparadoColectiva[]
   novedades NovedadColectiva[]
+  madres    ColectivaMadre[]
 }
 
 // Una persona cubierta por una póliza colectiva.
