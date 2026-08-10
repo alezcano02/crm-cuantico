@@ -230,7 +230,14 @@ function sumar(matriz: MatrizRamoMes, ramo: string, mes: number, valor: number) 
  * Duplicado a propósito de lib/colectivas.ts: este archivo no importa nada,
  * para que el cálculo no arrastre dependencias.
  */
-const RAMOS_COLECTIVOS_CALC = ["COLECTIVA", "VIDA GRUPO"];
+// Se aceptan tanto los nombres del informe como los del mapa de colectivas
+// («Colectiva Autos», «Colectiva Salud»…). Duplicado a propósito de
+// lib/colectivas.ts: este archivo no importa nada, para que el cálculo no
+// arrastre dependencias.
+function esColectivo(ramo: string): boolean {
+  const r = ramo.trim().toUpperCase();
+  return r === "COLECTIVA" || r === "VIDA GRUPO" || r.startsWith("COLECTIVA");
+}
 
 /**
  * Deja UN SOLO RECIBO por póliza colectiva.
@@ -264,7 +271,7 @@ export function unRecibopPorColectiva<T extends FilaConsolidable>(polizas: T[]):
   const salida: T[] = [];
 
   for (const p of polizas) {
-    if (!p.numero || !RAMOS_COLECTIVOS_CALC.includes(p.ramo.trim().toUpperCase())) {
+    if (!p.numero || !esColectivo(p.ramo)) {
       salida.push(p);
       continue;
     }

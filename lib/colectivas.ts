@@ -81,6 +81,22 @@ export const ETIQUETA_NOVEDAD: Record<string, string> = {
  * producción no siempre trae el mismo número.
  */
 export const RAMOS_COLECTIVOS = ["COLECTIVA", "VIDA GRUPO"];
+
+/**
+ * ¿Este ramo es de una póliza de empresa?
+ *
+ * Hay que preguntarlo con una función y no con `RAMOS_COLECTIVOS.includes`
+ * porque las colectivas declaradas en el mapa llevan nombre propio —«Colectiva
+ * Autos», «Colectiva Salud», «Colectiva Vida»— y una comparación exacta contra
+ * la lista vieja las dejaba fuera justo después de renombrarlas: el módulo de
+ * colectivas se quedaba sin pólizas y la consolidación de producción dejaba de
+ * aplicarse. Se aceptan las dos formas, la del informe y la del mapa.
+ */
+export function esRamoColectivo(ramo: string | null | undefined): boolean {
+  if (!ramo) return false;
+  const r = ramo.trim().toUpperCase();
+  return RAMOS_COLECTIVOS.includes(r) || r.startsWith("COLECTIVA");
+}
 const EXCLUIDAS = [/financrea/i];
 
 export function empresaExcluida(nombre: string | null | undefined): boolean {

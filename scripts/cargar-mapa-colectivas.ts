@@ -105,22 +105,38 @@ async function main() {
   }
 
   /*
-   * El mapa se reemplaza entero, no se acumula: el Excel es la declaración
-   * completa de qué es colectiva y qué cuelga de qué. Añadir sin borrar dejaría
-   * vivos los recibos de una versión anterior del archivo.
+   * Por defecto se FUNDE con lo que ya hay, no se reemplaza.
+   *
+   * El Excel no siempre es la declaración completa: hay colectivas que se
+   * añaden desde la aplicación o a mano, y borrar todo antes de cargar las
+   * hacía desaparecer en silencio la siguiente vez que alguien recargaba el
+   * archivo. Con --reemplazar se vacía primero, para cuando el Excel sí sea la
+   * verdad entera.
    */
-  await prisma.$transaction([
-    prisma.reciboColectiva.deleteMany(),
-    prisma.colectivaMadre.deleteMany(),
-  ]);
+  if (args.includes("--reemplazar")) {
+    await prisma.$transaction([
+      prisma.reciboColectiva.deleteMany(),
+      prisma.colectivaMadre.deleteMany(),
+    ]);
+    console.log("\nMapa anterior borrado (--reemplazar).");
+  }
 
   for (const m of madres) {
-    await prisma.colectivaMadre.create({ data: { numero: m.numero, ramo: m.ramo } });
+    await prisma.colectivaMadre.upsert({
+      where: { numero: m.numero },
+      update: { ramo: m.ramo },
+      create: { numero: m.numero, ramo: m.ramo },
+    });
   }
   for (const r of recibos) {
-    if (!numerosMadre.has(normalizarNumero(r.colectiva))) continue;
-    await prisma.reciboColectiva.create({
-      data: { numero: r.numero, placa: r.placa, colectivaNumero: r.colectiva },
+    const declarada =
+      numerosMadre.has(normalizarNumero(r.colectiva)) ||
+      (await prisma.colectivaMadre.findUnique({ where: { numero: r.colectiva } })) != null;
+    if (!declarada) continue;
+    await prisma.reciboColectiva.upsert({
+      where: { numero_placa: { numero: r.numero, placa: r.placa } },
+      update: { colectivaNumero: r.colectiva },
+      create: { numero: r.numero, placa: r.placa, colectivaNumero: r.colectiva },
     });
   }
 

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { exigirColectivasPagina } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { ColectivasPanel } from "@/components/colectivas-panel";
-import { RAMOS_COLECTIVOS, empresaExcluida } from "@/lib/colectivas";
+import { esRamoColectivo, empresaExcluida } from "@/lib/colectivas";
 
 export const dynamic = "force-dynamic";
 
@@ -17,31 +17,56 @@ export const dynamic = "force-dynamic";
 export default async function ColectivasPage() {
   await exigirColectivasPagina();
 
-  const [empresas, amparados, novedades, polizas] = await Promise.all([
+  const [empresas, amparados, novedades, polizas, recibos] = await Promise.all([
     prisma.empresaColectiva.findMany({ orderBy: { nombre: "asc" } }),
     prisma.amparadoColectiva.findMany({ orderBy: [{ nombreEmpleado: "asc" }, { parentesco: "asc" }] }),
     prisma.novedadColectiva.findMany({ orderBy: { fecha: "desc" }, take: 300 }),
+    /*
+     * Solo las pólizas que NO son recibos de otra.
+     *
+     * Antes se traían todas las de ramo colectivo, y el listado salía lleno de
+     * lo que parecían duplicados: las diecisiete inclusiones de la flota de
+     * Cristica figuraban como diecisiete pólizas distintas, todas a nombre de
+     * Cristica. Ahora los recibos se cuentan bajo su colectiva y se muestran
+     * agregados, que es lo que son.
+     */
     prisma.policy.findMany({
-      where: { ramo: { in: RAMOS_COLECTIVOS } },
+      where: { colectivaDe: null },
       select: {
         numero: true, ramo: true, asegurado: true, aseguradora: true,
         primaNeta: true, vencimiento: true,
       },
       orderBy: { asegurado: "asc" },
     }),
+    prisma.policy.groupBy({
+      by: ["colectivaDe"],
+      _count: true,
+      _sum: { primaNeta: true },
+      where: { colectivaDe: { not: null } },
+    }),
   ]);
+
+  const recibosPorColectiva = new Map(
+    recibos.map((r) => [r.colectivaDe ?? "", { n: r._count, prima: r._sum.primaNeta ?? 0 }])
+  );
 
   // Financrea se gestiona aparte: no entra ni como póliza sugerida.
   const polizasVista = polizas
-    .filter((p) => !empresaExcluida(p.asegurado))
-    .map((p) => ({
-      numero: p.numero,
-      ramo: p.ramo,
-      asegurado: p.asegurado,
-      aseguradora: p.aseguradora,
-      primaNeta: p.primaNeta,
-      vencimiento: p.vencimiento?.toISOString() ?? null,
-    }));
+    .filter((p) => esRamoColectivo(p.ramo) && !empresaExcluida(p.asegurado))
+    .map((p) => {
+      const abs = recibosPorColectiva.get(p.numero);
+      return {
+        numero: p.numero,
+        ramo: p.ramo,
+        asegurado: p.asegurado,
+        aseguradora: p.aseguradora,
+        // La prima de la colectiva incluye la de sus inclusiones: es lo que
+        // vale el grupo entero, que es como se negocia y como se renueva.
+        primaNeta: p.primaNeta + (abs?.prima ?? 0),
+        vencimiento: p.vencimiento?.toISOString() ?? null,
+        recibos: abs?.n ?? 0,
+      };
+    });
 
   return (
     <div className="space-y-6">

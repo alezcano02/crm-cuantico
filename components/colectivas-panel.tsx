@@ -65,6 +65,8 @@ export interface PolizaColectivaVista {
   aseguradora: string | null;
   primaNeta: number;
   vencimiento: string | null;
+  /** Recibos de inclusión absorbidos por esta colectiva. */
+  recibos?: number;
 }
 
 const COLOR_ESTADO: Record<string, string> = {
@@ -434,13 +436,24 @@ export function ColectivasPanel({
           <Card>
             <CardTitle>Pólizas del informe</CardTitle>
             <p className="mb-2 text-[11px] leading-relaxed text-ink-muted">
-              Colectivas y vida grupo que trae el informe de producción. Sirven
-              de referencia para saber qué número usar al incluir a alguien.
+              Colectivas del informe de producción, ya con sus inclusiones
+              sumadas. Sirven de referencia para saber qué número usar al
+              incluir a alguien.
             </p>
             <div className="max-h-64 space-y-1.5 overflow-y-auto scroll-fino text-xs">
               {polizas.map((p, i) => (
                 <div key={`${p.numero}-${i}`} className="border-b border-line-grid pb-1.5 last:border-0">
-                  <div className="font-medium">{p.numero}</div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-medium">{p.numero}</span>
+                    {!!p.recibos && (
+                      <span
+                        className="shrink-0 rounded bg-surface-page px-1.5 py-0.5 text-[10px] text-ink-muted"
+                        title="Recibos de inclusión que cuelgan de esta colectiva y ya no se listan aparte"
+                      >
+                        +{p.recibos} {p.recibos === 1 ? "inclusión" : "inclusiones"}
+                      </span>
+                    )}
+                  </div>
                   <div className="truncate text-[11px] text-ink-muted" title={p.asegurado}>
                     {p.ramo} · {p.asegurado}
                   </div>

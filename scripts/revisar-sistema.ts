@@ -25,7 +25,7 @@ import {
   inicioVigencia,
   porcentajeComision,
 } from "../lib/comisiones";
-import { RAMOS_COLECTIVOS } from "../lib/colectivas";
+import { esRamoColectivo } from "../lib/colectivas";
 import { normalizarNumero } from "../lib/mapa-colectivas";
 
 const cop = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -126,7 +126,7 @@ async function main() {
   // --------------------------------------------------------------- COLECTIVAS
   seccion("Colectivas: un recibo por póliza");
   {
-    const col = polizas.filter((p) => RAMOS_COLECTIVOS.includes(p.ramo.trim().toUpperCase()));
+    const col = polizas.filter((p) => esRamoColectivo(p.ramo));
     const filtradas = unRecibopPorColectiva(
       polizas.map((p) => ({
         numero: p.numero,
@@ -136,9 +136,7 @@ async function main() {
         vencimiento: p.vencimiento,
       }))
     );
-    const colFiltradas = filtradas.filter((p) =>
-      RAMOS_COLECTIVOS.includes(p.ramo.trim().toUpperCase())
-    );
+    const colFiltradas = filtradas.filter((p) => esRamoColectivo(p.ramo));
     const numerosUnicos = new Set(col.map((p) => `${p.numero}|${p.ramo.toUpperCase()}`)).size;
     comprobar(
       colFiltradas.length === numerosUnicos,
@@ -338,7 +336,7 @@ async function main() {
     // Empresas de colectivas sin póliza colectiva en la cartera.
     const empresas = await prisma.empresaColectiva.findMany({ select: { nombre: true } });
     const asegurados = polizas
-      .filter((p) => RAMOS_COLECTIVOS.includes(p.ramo.trim().toUpperCase()))
+      .filter((p) => esRamoColectivo(p.ramo))
       .map((p) => p.asegurado.toUpperCase());
     const sinPoliza = empresas.filter(
       (e) => !asegurados.some((a) => a.includes(e.nombre.split(" ")[0].toUpperCase()))
