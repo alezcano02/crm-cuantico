@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
   }
   try {
     const data = datosPolizaDesdeBody(body, { requerirObligatorios: true });
-    const poliza = await prisma.policy.create({ data });
+    // Nace dentro de la aplicación, así que la próxima importación del informe
+    // no debe borrarla: es la marca que hace que una póliza dada de alta aquí
+    // —una colectiva que la operación gestiona en el CRM, por ejemplo— cuente
+    // en producción de forma permanente. Ver el campo `manual` del modelo.
+    const poliza = await prisma.policy.create({ data: { ...data, manual: true } });
     invalidarCartera();
     return NextResponse.json({ ok: true, id: poliza.id });
   } catch (e) {

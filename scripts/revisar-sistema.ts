@@ -202,6 +202,25 @@ async function main() {
       `${enVencimientos} absorbidos · ${salenEnVencimientos} pólizas siguen listándose`
     );
 
+    /*
+     * Toda colectiva declarada tiene que existir en la cartera, o no cuenta en
+     * producción por mucho que tenga amparados. Es la comprobación que ata el
+     * módulo de colectivas con el informe.
+     */
+    const numeros = new Set(polizas.map((p) => normalizarNumero(p.numero)));
+    const sinPoliza = madres.filter((m) => !numeros.has(normalizarNumero(m.numero)));
+    comprobar(
+      sinPoliza.length === 0,
+      "Toda colectiva existe también en la cartera",
+      sinPoliza.length ? sinPoliza.map((m) => m.numero).join(", ") : `${madres.length} de ${madres.length}`
+    );
+
+    const manuales = polizas.filter((p) => p.manual);
+    ok(
+      "Pólizas creadas en el CRM",
+      `${manuales.length} sobreviven a la importación del informe`
+    );
+
     const amparados = await prisma.amparadoColectiva.count({ where: { estado: { not: "RETIRADO" } } });
     const empresas = await prisma.empresaColectiva.count();
     const sinAmparados = await prisma.empresaColectiva.count({ where: { amparados: { none: {} } } });

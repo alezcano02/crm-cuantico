@@ -71,7 +71,20 @@ export async function POST(req: NextRequest) {
     await prisma.$transaction(
       async (tx) => {
       if (datos.policies.length > 0) {
-        await tx.policy.deleteMany();
+        // Solo se reemplaza lo que vino del Excel: las pólizas creadas dentro
+        // de la aplicación (manual) se conservan, igual que las cancelaciones
+        // manuales. Si el Excel ya trae esa misma póliza, manda el Excel y la
+        // copia manual se retira para no contarla dos veces.
+        const delExcel = new Set(datos.policies.map((p) => `${p.numero}|${p.ramo}`));
+        const manuales = await tx.policy.findMany({
+          where: { manual: true },
+          select: { id: true, numero: true, ramo: true },
+        });
+        const duplicadas = manuales
+          .filter((m) => delExcel.has(`${m.numero}|${m.ramo}`))
+          .map((m) => m.id);
+        if (duplicadas.length) await tx.policy.deleteMany({ where: { id: { in: duplicadas } } });
+        await tx.policy.deleteMany({ where: { manual: false } });
         await tx.policy.createMany({
           data: datos.policies.map((p) => {
             const previa = buscarPrevia(p.numero, p.ramo);

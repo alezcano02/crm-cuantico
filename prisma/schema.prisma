@@ -53,6 +53,14 @@ model Policy {
   // ReciboColectiva, no viene del Excel. Con valor, la póliza NO sale en
   // vencimientos ni cuenta aparte en producción: se gestiona desde colectivas.
   colectivaDe       String?
+  // true = creada DENTRO de la aplicación, no importada del Excel.
+  //
+  // La importación borra y recrea la cartera, así que sin esta marca cualquier
+  // póliza dada de alta en el CRM —una colectiva que la operación gestiona aquí,
+  // una que el informe dejó de traer— desaparecía en la siguiente carga. Las
+  // manuales se conservan; si el Excel acaba trayendo la misma póliza, manda el
+  // Excel y la copia manual se retira para no duplicarla.
+  manual            Boolean   @default(false)
   vencimiento       DateTime?
   mesVencimiento    String? // derivado del vencimiento al importar
   fechaNacimiento   DateTime?
