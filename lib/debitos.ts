@@ -68,8 +68,14 @@ const PARENTESCO_TEXTO: [RegExp, string][] = [
   [/^dependiente/i, "DE"],
 ];
 
+/** Códigos que ya vienen bien: las relaciones de Sura los traen así. */
+const CODIGOS = new Set(["AF", "CO", "HI", "PR", "HE", "DE", "VE"]);
+
 export function codigoParentesco(texto: string): string {
   const t = texto.replace(/\s+/g, " ").trim();
+  // Si ya es un código del CRM se respeta tal cual: traducirlo lo estropearía
+  // («AF» no casa con ningún patrón de texto y acabaría como «DE»).
+  if (CODIGOS.has(t.toUpperCase())) return t.toUpperCase();
   for (const [re, cod] of PARENTESCO_TEXTO) if (re.test(t)) return cod;
   return "DE"; // desconocido pero cubierto: se prefiere a descartarlo
 }
@@ -212,8 +218,16 @@ export function leerListadoPlacas(texto: string): MesLeido {
 const COLUMNAS: [string, RegExp][] = [
   // En plural o singular: cada empresa titula la columna a su manera.
   ["placa", /^placas?$/i],
+  // Las relaciones de VIDA GRUPO de Sura separan al titular del cubierto y ya
+  // traen el parentesco en el código del CRM (AF/CO/HI), así que se aprovechan
+  // en vez de tratar cada fila como un afiliado suelto.
+  ["docEmpleado", /^id afiliado$/i],
+  ["docAmparado", /^id asegurado$/i],
+  ["parentesco", /^parentesco$/i],
+  ["sexo", /^sexo$/i],
+  ["valorVida", /^valor asegurado vida$/i],
   ["doc", /^(n[uú]mero de documento|documento|c[eé]dula|cc|identificaci[oó]n|n\.? ?º? ?identificaci[oó]n)$/i],
-  ["nombre", /^(nombre completo|asegurado|nombre del asegurado|empleado)$/i],
+  ["nombre", /^(nombre completo|nombre|asegurado|nombre del asegurado|empleado)$/i],
   ["nombre1", /^nombre ?1$/i],
   ["nombre2", /^nombre ?2$/i],
   ["apellido1", /^apellido ?1$/i],
@@ -285,19 +299,33 @@ export function leerListadoLibre(
         .join(" ")
         .replace(/\s+/g, " ")
         .trim();
-    const doc = en("doc");
     // Sin nombre no hay amparado; sin documento sí puede haberlo (los
     // beneficiarios suelen venir sin él).
     if (!nombre || nombre.length < 4) continue;
+
+    /*
+     * Dos formas de listado de personas:
+     *  · con titular y cubierto separados (VIDA GRUPO de Sura), donde el
+     *    parentesco viene dado y hay que respetarlo;
+     *  · una fila por persona, que entonces es el propio afiliado.
+     */
+    const docEmp = en("docEmpleado");
+    const docAmp = en("docAmparado") || en("doc");
+    const parentesco = en("parentesco")
+      ? codigoParentesco(en("parentesco"))
+      : docEmp && docAmp && docEmp !== docAmp
+        ? "DE"
+        : "AF";
+
     amparados.push({
       empresa,
       polizaNumero: poliza,
       plan,
-      docEmpleado: doc || poliza,
+      docEmpleado: docEmp || docAmp || poliza,
       nombreEmpleado: nombre,
       nombreAmparado: nombre.toUpperCase(),
-      docAmparado: doc,
-      parentesco: "AF",
+      docAmparado: docAmp,
+      parentesco,
       placa: null,
     });
   }

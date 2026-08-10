@@ -767,5 +767,78 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
     resumen.push(res);
   }
 
-  return { policies, otherPolicies, cancellations, historical, listas, resumen };
+  /*
+   * UNA PÓLIZA CANCELADA NO PUEDE SEGUIR EN LA CARTERA ACTIVA.
+   *
+   * En la hoja DATOS quedaban filas de pólizas que ya figuraban en
+   * CANCELACIONES: al cancelarlas nadie las borró de DATOS, así que el CRM las
+   * cargaba dos veces, como cartera viva y como cancelación. Eran 64 pólizas y
+   * $809 millones de prima contados como producción que no existe.
+   *
+   * Se descartan aquí, en el parser, y no al importar, para que el ensayo en
+   * seco enseñe lo mismo que va a pasar de verdad.
+   *
+   * QUÉ CUENTA COMO «LA MISMA»
+   *
+   * El número NO basta, y tampoco basta «la cancelación es reciente». Un mismo
+   * número puede tener varias filas vivas a la vez —una colectiva trae el
+   * recibo principal y los de sus inclusiones, cada uno con su vencimiento—, y
+   * cancelar una inclusión no cancela la colectiva. Cuando se comparaba de
+   * forma laxa, la cancelación del recibo de Cristica del 6 de febrero se
+   * llevaba por delante la colectiva viva del 3 de abril.
+   *
+   * Así que se exige que las fechas CUADREN, no que estén cerca. La fecha de
+   * renovación de una cancelación es el vencimiento del ciclo que se cortó, de
+   * modo que una fila de DATOS sobra en exactamente dos casos:
+   *
+   *   · su vencimiento ES esa fecha  → es la fila que se canceló;
+   *   · su vencimiento es esa fecha más un año → es el ciclo siguiente, el que
+   *     nunca llegó a existir porque se canceló al renovar.
+   *
+   * Cualquier otra distancia es otro ciclo u otra fila, y se respeta.
+   *
+   * El margen de una semana absorbe los desfases de un par de días con que se
+   * registran estas fechas a mano.
+   */
+  const MARGEN = 7 * 86400000;
+  const ANIO = 365 * 86400000;
+  const cancelPorClave = new Map<string, Date[]>();
+  for (const c of cancellations) {
+    const ref = c.fechaCancelacion ?? c.fechaRenovacion;
+    if (!ref) continue;
+    const k = `${c.numero.trim()}|${c.ramo.trim().toUpperCase()}`;
+    cancelPorClave.set(k, [...(cancelPorClave.get(k) ?? []), ref]);
+  }
+
+  const descartadas: string[] = [];
+  const vivas = policies.filter((p) => {
+    if (!p.vencimiento) return true;
+    const refs = cancelPorClave.get(`${p.numero.trim()}|${p.ramo.trim().toUpperCase()}`);
+    if (!refs) return true;
+    const v = p.vencimiento.getTime();
+    const cancelada = refs.some((r) => {
+      const d = v - r.getTime();
+      return Math.abs(d) <= MARGEN || Math.abs(d - ANIO) <= MARGEN;
+    });
+    if (cancelada) descartadas.push(`${p.numero} (${p.ramo})`);
+    return !cancelada;
+  });
+
+  if (descartadas.length) {
+    const hoja = resumen.find((r) => r.hoja === "DATOS");
+    hoja?.advertencias.push(
+      `${descartadas.length} pólizas de DATOS también estaban en CANCELACIONES y no se cargan ` +
+        `como cartera activa: ${descartadas.slice(0, 8).join(", ")}` +
+        (descartadas.length > 8 ? `, y ${descartadas.length - 8} más.` : ".")
+    );
+  }
+
+  return {
+    policies: vivas,
+    otherPolicies,
+    cancellations,
+    historical,
+    listas,
+    resumen,
+  };
 }
