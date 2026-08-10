@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { datosPolizaDesdeBody, ErrorValidacion } from "../validacion";
 import { exigirSesion } from "@/lib/auth";
 import { CAMPOS_COBRANZA } from "@/lib/cobranza";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,7 @@ export async function PATCH(
       where: { id },
       data: cambioCobranza ? { ...data, cobranzaEditadaEn: new Date() } : data,
     });
+    invalidarCartera();
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ErrorValidacion) {
@@ -71,6 +73,7 @@ export async function DELETE(
   }
   try {
     await prisma.policy.delete({ where: { id } });
+    invalidarCartera();
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Póliza no encontrada." }, { status: 404 });

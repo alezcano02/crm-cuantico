@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell, ContadoresNav } from "@/components/app-shell";
-import { prisma } from "@/lib/prisma";
-import { hoyUTC } from "@/lib/calculos";
+import { contadoresNav } from "@/lib/queries";
 import {
   puedeImportar,
   puedeVerColectivas,
@@ -18,14 +17,9 @@ export const dynamic = "force-dynamic";
  */
 async function contadores(): Promise<ContadoresNav> {
   try {
-    const hoy = hoyUTC();
-    const [vencidas, mora] = await Promise.all([
-      prisma.policy.count({ where: { vencimiento: { lt: hoy }, colectivaDe: null } }),
-      prisma.policy.count({
-        where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } },
-      }),
-    ]);
-    return { vencidas, mora };
+    // Cacheados unos segundos: se piden en cada navegación de cada usuario y
+    // son dos COUNT sobre la cartera entera. Ver lib/cache.ts.
+    return await contadoresNav();
   } catch {
     return { vencidas: 0, mora: 0 };
   }

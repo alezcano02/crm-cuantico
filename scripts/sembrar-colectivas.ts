@@ -36,13 +36,12 @@ const APLICAR = process.argv.includes("--aplicar");
  */
 const EMPRESAS: { nombre: string; alias: RegExp; carpeta?: string }[] = [
   // ORDEN IMPORTANTE: gana la primera que casa, así que las filiales van antes
-  // que la matriz. «CRISTICA S.A.S/ ESPUMADOS DEL LITORAL» contiene las dos y
-  // debe quedar en Espumados, que es de quien son los empleados.
-  {
-    nombre: "ESPUMADOS DEL LITORAL S.A",
-    alias: /espumados\s+del\s+litoral/i,
-    carpeta: "4. Asesores/Oficina/CRISTICA/ESPUMADOS DEL LITORAL",
-  },
+  // que la matriz.
+  //
+  // Espumados del Litoral se quitó de esta lista: sus pólizas son de Cristica y
+  // se gestionan allí. Como «CRISTICA S.A.S/ ESPUMADOS DEL LITORAL» contiene
+  // las dos razones sociales, al no declararla cae en la regla de Cristica, que
+  // es lo que se quiere. No volver a añadirla.
   {
     nombre: "ESPUMAS MEDELLIN",
     alias: /espumas\s+medell/i,

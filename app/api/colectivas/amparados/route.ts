@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirColectivas } from "@/lib/auth";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest) {
     });
       return a;
     });
+    invalidarCartera();
     return NextResponse.json({ ok: true, id: creado.id });
   } catch (e) {
     if ((e as { code?: string })?.code === "P2002") {

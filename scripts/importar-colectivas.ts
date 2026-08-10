@@ -49,7 +49,10 @@ const EMPRESAS: [RegExp, string][] = [
   [/inversiones\s+jym/i, "INVERSIONES JYMO S.A.S"],
   [/munera\s+sierra/i, "TRANSPORTES MUNERA SIERRA"],
   [/carrillos/i, "CARRILLOS S.A.S"],
-  [/espumados\s+del\s+litoral/i, "ESPUMADOS DEL LITORAL S.A"],
+  // Espumados del Litoral NO tiene entrada propia a propósito: sus pólizas son
+  // de Cristica. Como «CRISTICA S.A.S/ ESPUMADOS DEL LITORAL» contiene las dos
+  // razones sociales, al no declararla cae en la regla de Cristica de arriba,
+  // que es donde debe estar.
 ];
 
 function empresaCRM(nombreSura: string): string | null {

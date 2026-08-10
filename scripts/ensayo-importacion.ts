@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { prisma } from "../lib/prisma";
 import { parsearLibro } from "../lib/excel";
 import { parsearSeguimiento, parsearResumen } from "../lib/siniestros";
+import { normalizarNumero, numerosColectivos } from "../lib/mapa-colectivas";
 
 const n = (x: number) => x.toLocaleString("es-CO");
 
@@ -58,7 +59,17 @@ async function main() {
       where: { OR: [{ gestionada: true }, { cobranzaEditadaEn: { not: null } }] },
       select: { numero: true, ramo: true },
     });
-    const huerfanas = previas.filter((p) => !claves.has(`${p.numero}|${p.ramo}`));
+    // Las colectivas llevan en el CRM un ramo propio («Colectiva Autos») que no
+    // existe en el Excel, así que para ellas se compara solo el número. Sin
+    // esto el ensayo avisaba de que se iba a perder trabajo que en realidad se
+    // conserva. Mismo criterio que la importación (buscadorDePrevias).
+    const colectivos = await numerosColectivos();
+    const numerosExcel = new Set(datos.policies.map((p) => normalizarNumero(p.numero)));
+    const huerfanas = previas.filter((p) =>
+      colectivos.has(normalizarNumero(p.numero))
+        ? !numerosExcel.has(normalizarNumero(p.numero))
+        : !claves.has(`${p.numero}|${p.ramo}`)
+    );
 
     console.log(`\n  Trabajo hecho dentro de la app:`);
     console.log(`    ${gestionadas} pólizas marcadas como gestionadas`);

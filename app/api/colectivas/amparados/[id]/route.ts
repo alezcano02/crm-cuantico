@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirColectivas } from "@/lib/auth";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -87,6 +88,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     }
   });
+
+  invalidarCartera();
 
   return NextResponse.json({ ok: true });
 }

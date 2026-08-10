@@ -15,7 +15,7 @@
 import { readFileSync } from "node:fs";
 import { prisma } from "../lib/prisma";
 import { parsearLibro } from "../lib/excel";
-import { aplicarMapaColectivas } from "../lib/mapa-colectivas";
+import { aplicarMapaColectivas, buscadorDePrevias, numerosColectivos } from "../lib/mapa-colectivas";
 
 async function main() {
   const ruta = process.argv[2];
@@ -41,7 +41,7 @@ async function main() {
       fechaPago: true, fechaMaxPago: true, valorCuota: true, notaCartera: true,
     },
   });
-  const anteriores = new Map(previas.map((p) => [`${p.numero}|${p.ramo}`, p]));
+  const buscarPrevia = buscadorDePrevias(previas, await numerosColectivos());
   let cobranzaConservada = 0;
 
   await prisma.$transaction(
@@ -50,7 +50,7 @@ async function main() {
         await tx.policy.deleteMany();
         await tx.policy.createMany({
           data: datos.policies.map((p) => {
-            const previa = anteriores.get(`${p.numero}|${p.ramo}`);
+            const previa = buscarPrevia(p.numero, p.ramo);
             const conservarCobranza = previa?.cobranzaEditadaEn != null;
             if (conservarCobranza) cobranzaConservada++;
             return {

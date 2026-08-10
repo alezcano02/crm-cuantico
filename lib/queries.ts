@@ -1,4 +1,6 @@
+import { cache } from "react";
 import { prisma } from "./prisma";
+import { cachearCartera } from "./cache";
 import { pareceEmpresa, proximoCumpleanos } from "./cumpleanos";
 import {
   PRIMER_ANIO,
@@ -11,7 +13,7 @@ import {
   SIN_ANEXOS,
 } from "./calculos";
 
-export async function datosSeguimiento(): Promise<{
+async function leerDatosSeguimiento(): Promise<{
   polizas: PolizaRow[];
   cancelaciones: CancelacionRow[];
   historicas2025: HistoricaRow[];
@@ -76,10 +78,37 @@ export async function datosSeguimiento(): Promise<{
   return { polizas, cancelaciones, historicas2025, fotos };
 }
 
+/*
+ * Deduplicación DENTRO de una misma petición, no entre peticiones.
+ *
+ * Se usa `cache` de React y no la caché compartida porque el resultado lleva
+ * `Map` y objetos `Date`: la caché compartida serializa, y al volver las fechas
+ * serían texto y `vencimiento.getUTCFullYear()` reventaría. `cache` guarda la
+ * referencia tal cual, así que es seguro.
+ *
+ * Sirve igual: al pintar el dashboard esto se pide varias veces y ahora se lee
+ * una. Lo que ahorra entre usuarios distintos son las funciones de abajo, que
+ * sí devuelven datos planos.
+ */
+// `cache` solo existe dentro de un render de React; los scripts de
+// mantenimiento importan esto desde Node puro y allí no está.
+export const datosSeguimiento =
+  typeof cache === "function" ? cache(leerDatosSeguimiento) : leerDatosSeguimiento;
+
 export async function seguimientoAnio(anio: number): Promise<Seguimiento> {
   const datos = await datosSeguimiento();
   return calcularSeguimiento(datos, anio);
 }
+
+/** Contadores de la barra lateral: se piden en CADA navegación. */
+export const contadoresNav = cachearCartera(["contadores-nav"], async () => {
+  const hoy = hoyUTC();
+  const [vencidas, mora] = await Promise.all([
+    prisma.policy.count({ where: { vencimiento: { lt: hoy }, colectivaDe: null } }),
+    prisma.policy.count({ where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } } }),
+  ]);
+  return { vencidas, mora };
+});
 
 /**
  * Años disponibles para el selector. Siempre incluye 2026, 2027 y el año en
@@ -87,11 +116,11 @@ export async function seguimientoAnio(anio: number): Promise<Seguimiento> {
  * cargados (producción del año N = vencimientos en N+1). Así el informe queda
  * disponible para 2027 aunque todavía no existan vencimientos en 2028.
  */
-export async function aniosDisponibles(): Promise<number[]> {
-  const polizas = await prisma.policy.findMany({
-    select: { vencimiento: true },
-    where: { vencimiento: { not: null } },
-  });
+async function leerAniosDisponibles(): Promise<number[]> {
+  // Solo hace falta el vencimiento MÁS LEJANO, así que lo calcula la base y no
+  // se traen las 700 fechas para quedarse con una. Con veinte personas dentro,
+  // esta consulta se ejecuta constantemente desde el selector de años.
+  const { _max } = await prisma.policy.aggregate({ _max: { vencimiento: true } });
   const anioActual = new Date().getUTCFullYear();
 
   /*
@@ -106,12 +135,12 @@ export async function aniosDisponibles(): Promise<number[]> {
    * 2026 es el piso porque es el primer año que el CRM puede calcular: su base
    * es la hoja BASE 2025 y no hay nada anterior.
    */
-  let ultimo = Math.max(2027, anioActual + 1);
-  for (const p of polizas) {
-    if (!p.vencimiento) continue;
-    // Producción del año N = pólizas que vencen en N+1.
-    ultimo = Math.max(ultimo, p.vencimiento.getUTCFullYear() - 1);
-  }
+  // Producción del año N = pólizas que vencen en N+1.
+  const ultimo = Math.max(
+    2027,
+    anioActual + 1,
+    _max.vencimiento ? _max.vencimiento.getUTCFullYear() - 1 : 0
+  );
 
   const anios: number[] = [];
   for (let a = PRIMER_ANIO; a <= ultimo; a++) anios.push(a);
@@ -122,7 +151,7 @@ export async function aniosDisponibles(): Promise<number[]> {
  * Indicadores operativos para el panel "requiere atención" del dashboard:
  * lo que un asesor debe mirar hoy.
  */
-export async function resumenOperativo() {
+async function leerResumenOperativo() {
   const hoy = hoyUTC();
   const en30 = new Date(hoy.getTime() + 30 * 86400000);
   const inicioMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));
@@ -186,6 +215,15 @@ export async function resumenOperativo() {
     primaMora: primaMora._sum.primaTotal ?? 0,
   };
 }
+
+/*
+ * Estas dos sí se comparten entre usuarios: devuelven números sueltos, que la
+ * caché puede serializar sin romper nada. Son justo las que más se repiten
+ * —el dashboard y el selector de años— y las que más viajes a Neon ahorran
+ * cuando hay gente dentro a la vez.
+ */
+export const aniosDisponibles = cachearCartera(["anios"], leerAniosDisponibles);
+export const resumenOperativo = cachearCartera(["resumen-operativo"], leerResumenOperativo);
 
 /**
  * Producción y cartera agrupadas por asesor.

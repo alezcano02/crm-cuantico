@@ -53,6 +53,38 @@ export function normalizarPlaca(placa: string | null | undefined): string {
   return (placa ?? "").trim().toUpperCase();
 }
 
+/**
+ * Busca la póliza previa a la que corresponde una fila del informe.
+ *
+ * La reimportación casa por NÚMERO + RAMO para no confundir dos pólizas que
+ * comparten número y son cosas distintas (83001205694 existe como VIDA GRUPO y
+ * como VIDA). Pero a las colectivas se les cambia el ramo en el CRM —el informe
+ * dice COLECTIVA y aquí ponemos «Colectiva Autos»—, así que esa comparación
+ * dejaba de casar justo en ellas y su cobranza se perdía en cada importación.
+ *
+ * Para las pólizas declaradas como colectivas se casa solo por número, que en
+ * ellas sí es identificador suficiente: el mapa declara una madre por número.
+ */
+export function buscadorDePrevias<T extends { numero: string; ramo: string }>(
+  previas: T[],
+  numerosColectivos: Set<string>
+): (numero: string, ramo: string) => T | undefined {
+  const porNumeroYRamo = new Map(previas.map((p) => [`${p.numero}|${p.ramo}`, p]));
+  const porNumero = new Map(
+    previas
+      .filter((p) => numerosColectivos.has(normalizarNumero(p.numero)))
+      .map((p) => [normalizarNumero(p.numero), p])
+  );
+  return (numero, ramo) =>
+    porNumeroYRamo.get(`${numero}|${ramo}`) ?? porNumero.get(normalizarNumero(numero));
+}
+
+/** Números declarados como colectiva madre, ya normalizados. */
+export async function numerosColectivos(): Promise<Set<string>> {
+  const madres = await prisma.colectivaMadre.findMany({ select: { numero: true } });
+  return new Set(madres.map((m) => normalizarNumero(m.numero)));
+}
+
 export interface ResultadoMapa {
   madresRenombradas: number;
   recibosMarcados: number;

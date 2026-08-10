@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parsearLibro } from "@/lib/excel";
 import { exigirImportador } from "@/lib/auth";
-import { aplicarMapaColectivas } from "@/lib/mapa-colectivas";
+import { aplicarMapaColectivas, buscadorDePrevias, numerosColectivos } from "@/lib/mapa-colectivas";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
       notaCartera: true,
     },
   });
-  const anteriores = new Map(previas.map((p) => [`${p.numero}|${p.ramo}`, p]));
+  const buscarPrevia = buscadorDePrevias(previas, await numerosColectivos());
   let cobranzaConservada = 0;
 
   // La importación borra y recrea casi todo. Si se cae a mitad (dos personas
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
         await tx.policy.deleteMany();
         await tx.policy.createMany({
           data: datos.policies.map((p) => {
-            const previa = anteriores.get(`${p.numero}|${p.ramo}`);
+            const previa = buscarPrevia(p.numero, p.ramo);
             const conservarCobranza = previa?.cobranzaEditadaEn != null;
             if (conservarCobranza) cobranzaConservada++;
             return {
@@ -137,6 +138,8 @@ export async function POST(req: NextRequest) {
    * y no debe alargar el bloqueo de la carga.
    */
   const mapa = await aplicarMapaColectivas();
+
+  invalidarCartera();
 
   return NextResponse.json({
     ok: true,

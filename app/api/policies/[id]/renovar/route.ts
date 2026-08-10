@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { mesDeFecha } from "@/lib/calculos";
 import { TIPO_RENOVACION } from "@/lib/constants";
 import { exigirSesion } from "@/lib/auth";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -94,6 +95,8 @@ export async function PATCH(
       { status: 409 }
     );
   }
+
+  invalidarCartera();
 
   return NextResponse.json({ ok: true });
 }

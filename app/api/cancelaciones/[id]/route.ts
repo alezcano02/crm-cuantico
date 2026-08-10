@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -95,6 +96,7 @@ export async function PATCH(
         manual: true,
       },
     });
+    invalidarCartera();
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Cancelación no encontrada." }, { status: 404 });
@@ -113,6 +115,7 @@ export async function DELETE(
   }
   try {
     await prisma.cancellation.delete({ where: { id } });
+    invalidarCartera();
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Cancelación no encontrada." }, { status: 404 });

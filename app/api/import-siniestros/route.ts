@@ -7,6 +7,7 @@ import {
   ResumenSiniestros,
   SiniestroInput,
 } from "@/lib/siniestros";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -107,5 +108,6 @@ export async function POST(req: NextRequest) {
   );
 
   const total = await prisma.siniestro.count();
+  invalidarCartera();
   return NextResponse.json({ ok: true, total, resumen: resumenes });
 }

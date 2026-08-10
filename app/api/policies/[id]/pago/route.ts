@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -92,6 +93,7 @@ export async function PATCH(
           ...(notaCartera !== undefined ? { notaCartera } : {}),
         },
       });
+      invalidarCartera();
       return NextResponse.json({ ok: true });
     }
 
@@ -105,6 +107,7 @@ export async function PATCH(
           ...(notaCartera !== undefined ? { notaCartera } : {}),
         },
       });
+      invalidarCartera();
       return NextResponse.json({ ok: true });
     }
 
@@ -118,6 +121,7 @@ export async function PATCH(
         ...(notaCartera !== undefined ? { notaCartera } : {}),
       },
     });
+    invalidarCartera();
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Póliza no encontrada." }, { status: 404 });

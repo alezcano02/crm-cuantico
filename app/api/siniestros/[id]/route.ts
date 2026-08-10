@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
 import { normalizarEstado } from "@/lib/siniestros";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -143,6 +144,7 @@ export async function PATCH(
   }
 
   await prisma.siniestro.update({ where: { id }, data: datos });
+  invalidarCartera();
   return NextResponse.json({ ok: true });
 }
 
@@ -158,6 +160,7 @@ export async function DELETE(
   }
   try {
     await prisma.siniestro.delete({ where: { id } });
+    invalidarCartera();
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Siniestro no encontrado." }, { status: 404 });

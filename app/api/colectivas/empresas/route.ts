@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirColectivas } from "@/lib/auth";
 import { empresaExcluida } from "@/lib/colectivas";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -44,5 +45,6 @@ export async function POST(req: NextRequest) {
       nota: b.nota?.trim() || null,
     },
   });
+  invalidarCartera();
   return NextResponse.json({ ok: true, id: creada.id });
 }

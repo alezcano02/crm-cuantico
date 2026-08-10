@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ export async function PATCH(
         gestionadaEn: gestionada ? new Date() : null,
       },
     });
+    invalidarCartera();
     return NextResponse.json({ ok: true, id: poliza.id });
   } catch {
     return NextResponse.json({ error: "póliza no encontrada" }, { status: 404 });

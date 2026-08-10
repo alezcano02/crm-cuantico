@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { datosPolizaDesdeBody, ErrorValidacion } from "./validacion";
 import { exigirSesion } from "@/lib/auth";
+import { invalidarCartera } from "@/lib/cache";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,7 @@ export async function POST(req: NextRequest) {
   try {
     const data = datosPolizaDesdeBody(body, { requerirObligatorios: true });
     const poliza = await prisma.policy.create({ data });
+    invalidarCartera();
     return NextResponse.json({ ok: true, id: poliza.id });
   } catch (e) {
     if (e instanceof ErrorValidacion) {
