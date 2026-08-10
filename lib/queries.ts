@@ -38,7 +38,14 @@ export async function datosSeguimiento(): Promise<{
       },
     }),
     prisma.historicalPolicy2025.findMany({
-      select: { ramo: true, primaNeta: true, mes: true, vencimiento: true },
+      select: {
+        numero: true,
+        ramo: true,
+        tipoNegocio: true,
+        primaNeta: true,
+        mes: true,
+        vencimiento: true,
+      },
     }),
     prisma.fotoPoliza.findMany({
       select: {

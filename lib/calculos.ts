@@ -31,7 +31,10 @@ export interface CancelacionRow {
 }
 
 export interface HistoricaRow {
+  /** Para consolidar los recibos de una misma colectiva. */
+  numero?: string | null;
   ramo: string;
+  tipoNegocio?: string | null;
   primaNeta: number;
   mes: string | null;
   vencimiento: Date | null;
@@ -248,7 +251,15 @@ const RAMOS_COLECTIVOS_CALC = ["COLECTIVA", "VIDA GRUPO"];
  * póliza, misma prima, misma fecha, cargada dos veces con distinta forma de
  * pago—, que si no se contarían dos veces.
  */
-export function unRecibopPorColectiva<T extends PolizaRow>(polizas: T[]): T[] {
+/** Lo mínimo que hace falta para decidir qué recibo representa a la póliza. */
+interface FilaConsolidable {
+  numero?: string | null;
+  ramo: string;
+  tipoNegocio?: string | null;
+  primaNeta: number;
+}
+
+export function unRecibopPorColectiva<T extends FilaConsolidable>(polizas: T[]): T[] {
   const principal = new Map<string, T>();
   const salida: T[] = [];
 
@@ -270,9 +281,9 @@ export function unRecibopPorColectiva<T extends PolizaRow>(polizas: T[]): T[] {
 }
 
 /** ¿`a` representa mejor a la póliza que `b`? Ver `unRecibopPorColectiva`. */
-function mandaSobre(a: PolizaRow, b: PolizaRow): boolean {
-  const inclusionA = normalizarTipo(a.tipoNegocio) === "NUEVO";
-  const inclusionB = normalizarTipo(b.tipoNegocio) === "NUEVO";
+function mandaSobre(a: FilaConsolidable, b: FilaConsolidable): boolean {
+  const inclusionA = normalizarTipo(a.tipoNegocio ?? null) === "NUEVO";
+  const inclusionB = normalizarTipo(b.tipoNegocio ?? null) === "NUEVO";
   if (inclusionA !== inclusionB) return !inclusionA;
   return (a.primaNeta || 0) > (b.primaNeta || 0);
 }
@@ -313,7 +324,10 @@ function normalizarTipo(t: string | null): string | null {
 /** Base histórica 2025: hoja BASE 2025 agrupada por la columna MES (sin filtrar año). */
 export function baseHistorica(historicas: HistoricaRow[]): MatrizRamoMes {
   const matriz: MatrizRamoMes = new Map();
-  for (const h of historicas) {
+  // Mismo criterio que en la producción: un recibo por colectiva. Si la base
+  // contara los ocho recibos de una flota y la producción solo uno, la meta
+  // saldría de comparar cosas distintas y sería inalcanzable por definición.
+  for (const h of unRecibopPorColectiva(historicas)) {
     const mes = h.mes ? indiceMes(h.mes) : h.vencimiento ? h.vencimiento.getUTCMonth() : -1;
     sumar(matriz, h.ramo, mes, h.primaNeta || 0);
   }
