@@ -55,8 +55,14 @@ async function main() {
     const gestionadas = await prisma.policy.count({ where: { gestionada: true } });
     const conCobranza = await prisma.policy.count({ where: { cobranzaEditadaEn: { not: null } } });
     const claves = new Set(datos.policies.map((p) => `${p.numero}|${p.ramo}`));
+    // Las pólizas creadas dentro de la aplicación (manual) ya no se borran al
+    // importar, así que no hay trabajo que perder en ellas: incluirlas hacía
+    // que el ensayo avisara de una pérdida que no iba a ocurrir.
     const previas = await prisma.policy.findMany({
-      where: { OR: [{ gestionada: true }, { cobranzaEditadaEn: { not: null } }] },
+      where: {
+        manual: false,
+        OR: [{ gestionada: true }, { cobranzaEditadaEn: { not: null } }],
+      },
       select: { numero: true, ramo: true },
     });
     // Las colectivas llevan en el CRM un ramo propio («Colectiva Autos») que no
