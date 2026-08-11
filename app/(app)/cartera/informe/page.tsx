@@ -148,11 +148,13 @@ export default async function InformeCarteraPage({
             informe.vencida.map((g) => (
               <div key={g.mes} className="mt-3">
                 <h3 className="font-bold">{g.mes}</h3>
-                {g.lineas.map((l, i) => (
-                  <p key={i} className="mt-1 text-sm">
-                    {l.texto}
-                  </p>
-                ))}
+                {/* Viñetas, igual que en el Word que se descarga: un mes con
+                    quince pólizas se leía como un bloque corrido. */}
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                  {g.lineas.map((l, i) => (
+                    <li key={i}>{l.texto}</li>
+                  ))}
+                </ul>
               </div>
             ))
           )}
@@ -164,11 +166,11 @@ export default async function InformeCarteraPage({
             informe.proxima.map((g) => (
               <div key={g.mes} className="mt-3">
                 <h3 className="font-bold">{g.mes}</h3>
-                {g.lineas.map((l, i) => (
-                  <p key={i} className="mt-1 text-sm">
-                    {l.texto}
-                  </p>
-                ))}
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                  {g.lineas.map((l, i) => (
+                    <li key={i}>{l.texto}</li>
+                  ))}
+                </ul>
               </div>
             ))
           )}
@@ -176,11 +178,11 @@ export default async function InformeCarteraPage({
           {informe.casos.length > 0 && (
             <>
               <h2 className="mt-6 text-lg font-bold">CASOS:</h2>
-              {informe.casos.map((c, i) => (
-                <p key={i} className="mt-1 text-sm">
-                  {c}
-                </p>
-              ))}
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                {informe.casos.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
             </>
           )}
         </Card>

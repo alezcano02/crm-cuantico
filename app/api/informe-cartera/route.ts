@@ -3,6 +3,7 @@ import {
   AlignmentType,
   Document,
   HeadingLevel,
+  LevelFormat,
   Packer,
   Paragraph,
   TextRun,
@@ -59,7 +60,27 @@ export async function GET(req: NextRequest) {
       spacing: { before: 160, after: 60 },
     });
 
+  /*
+   * Cada póliza es una viñeta.
+   *
+   * Antes iban como párrafos sueltos y un mes con quince pólizas se leía como
+   * un bloque corrido: no se veía dónde acababa una y empezaba la siguiente.
+   * La viñeta lo separa de un vistazo, que es como se lee este informe —
+   * repasándolo póliza por póliza con el cliente al teléfono.
+   *
+   * La viñeta la pone Word con la numeración declarada abajo, no un «•»
+   * escrito en el texto: así se puede sangrar, continuar en la línea siguiente
+   * y copiar a otro documento sin que se rompa.
+   */
   const linea = (texto: string) =>
+    new Paragraph({
+      text: texto,
+      numbering: { reference: "vinetas", level: 0 },
+      spacing: { after: 60 },
+    });
+
+  /** Las frases sueltas que no son una póliza (avisos de sección vacía). */
+  const suelto = (texto: string) =>
     new Paragraph({ text: texto, spacing: { after: 60 } });
 
   // Encabezado
@@ -92,7 +113,7 @@ export async function GET(req: NextRequest) {
 
   parrafos.push(titulo("Cartera Vencida"));
   if (informe.vencida.length === 0) {
-    parrafos.push(linea("Sin pólizas vencidas de pago."));
+    parrafos.push(suelto("Sin pólizas vencidas de pago."));
   } else {
     for (const g of informe.vencida) {
       parrafos.push(mes(g.mes));
@@ -102,7 +123,7 @@ export async function GET(req: NextRequest) {
 
   parrafos.push(titulo("Próxima a vencer"));
   if (informe.proxima.length === 0) {
-    parrafos.push(linea("Sin pólizas próximas a vencer."));
+    parrafos.push(suelto("Sin pólizas próximas a vencer."));
   } else {
     for (const g of informe.proxima) {
       parrafos.push(mes(g.mes));
@@ -116,6 +137,24 @@ export async function GET(req: NextRequest) {
   }
 
   const doc = new Document({
+    // Sin esta declaración, un párrafo que diga `numbering: { reference:
+    // "vinetas" }` no encuentra a qué lista pertenece y Word no dibuja nada.
+    numbering: {
+      config: [
+        {
+          reference: "vinetas",
+          levels: [
+            {
+              level: 0,
+              format: LevelFormat.BULLET,
+              text: "•",
+              alignment: AlignmentType.LEFT,
+              style: { paragraph: { indent: { left: 360, hanging: 200 } } },
+            },
+          ],
+        },
+      ],
+    },
     sections: [{ properties: {}, children: parrafos }],
   });
 
