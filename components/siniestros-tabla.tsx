@@ -16,6 +16,7 @@ import { urlBusqueda } from "@/lib/carpetas";
 import { exigirOk } from "@/lib/respuesta";
 import { api } from "@/lib/rutas";
 import { PanelFiltros } from "@/components/panel-filtros";
+import { FiltroSeleccion, FichasFiltros } from "@/components/filtro-seleccion";
 
 export interface SiniestroVista {
   id: number;
@@ -81,9 +82,10 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
   const router = useRouter();
   const [pestania, setPestania] = useState<Pestania>("abiertos");
   const [q, setQ] = useState("");
-  const [aseguradora, setAseguradora] = useState("");
-  const [responsable, setResponsable] = useState("");
-  const [estado, setEstado] = useState("");
+  // Listas: se pueden cruzar varias de una misma categoría. Ver filtro-seleccion.
+  const [selAseguradora, setSelAseguradora] = useState<string[]>([]);
+  const [selResponsable, setSelResponsable] = useState<string[]>([]);
+  const [selEstado, setSelEstado] = useState<string[]>([]);
   const [orden, setOrden] = useState<"dias" | "valor" | "cliente">("dias");
   const [gestionando, setGestionando] = useState<SiniestroVista | null>(null);
 
@@ -109,11 +111,12 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
         (s) => s.cerrado || s.estado === "PAGADO" || s.estado === "CERRADO"
       );
     }
-    if (aseguradora)
-      lista = lista.filter((s) => s.aseguradora && normalizar(s.aseguradora) === aseguradora);
-    if (responsable)
-      lista = lista.filter((s) => s.responsable && normalizar(s.responsable) === responsable);
-    if (estado) lista = lista.filter((s) => s.estado === estado);
+    // Dentro de una categoría los valores suman; entre categorías se acumulan.
+    if (selAseguradora.length)
+      lista = lista.filter((s) => s.aseguradora && selAseguradora.includes(normalizar(s.aseguradora)));
+    if (selResponsable.length)
+      lista = lista.filter((s) => s.responsable && selResponsable.includes(normalizar(s.responsable)));
+    if (selEstado.length) lista = lista.filter((s) => selEstado.includes(s.estado));
     if (q.trim()) {
       const t = q.trim().toLowerCase();
       lista = lista.filter(
@@ -130,7 +133,7 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
       if (orden === "cliente") return a.asegurado.localeCompare(b.asegurado, "es");
       return (b.dias ?? -1) - (a.dias ?? -1); // más estancados primero
     });
-  }, [siniestros, pestania, aseguradora, responsable, estado, q, orden]);
+  }, [siniestros, pestania, selAseguradora, selResponsable, selEstado, q, orden]);
 
   const resumen = useMemo(() => {
     const abiertos = siniestros.filter(
@@ -146,11 +149,18 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
 
   const limpiar = () => {
     setQ("");
-    setAseguradora("");
-    setResponsable("");
-    setEstado("");
+    setSelAseguradora([]);
+    setSelResponsable([]);
+    setSelEstado([]);
   };
-  const hayFiltros = q || aseguradora || responsable || estado;
+  /** Grupos para las fichas de «filtrando por…» sobre la tabla. */
+  const grupos = [
+    { etiqueta: "Aseguradora", valores: selAseguradora, onCambiar: setSelAseguradora },
+    { etiqueta: "Responsable", valores: selResponsable, onCambiar: setSelResponsable },
+    { etiqueta: "Estado", valores: selEstado, onCambiar: setSelEstado },
+  ];
+  const nFiltros = grupos.reduce((n, g) => n + g.valores.length, 0);
+  const hayFiltros = nFiltros > 0 || !!q;
 
   const claseSelect =
     "rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
@@ -200,7 +210,9 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
         ))}
       </div>
 
-      <PanelFiltros>
+      <FichasFiltros grupos={grupos} onLimpiarTodo={limpiar} />
+
+      <PanelFiltros activos={nFiltros}>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
         <input
           type="search"
@@ -209,34 +221,25 @@ export function SiniestrosTabla({ siniestros }: { siniestros: SiniestroVista[] }
           placeholder="Buscar cliente / radicado / cobertura"
           className={clsx(claseSelect, "min-w-[240px]")}
         />
-        <select
-          className={claseSelect}
-          value={aseguradora}
-          onChange={(e) => setAseguradora(e.target.value)}
-        >
-          <option value="">Aseguradora: todas</option>
-          {aseguradoras.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
-        <select
-          className={claseSelect}
-          value={responsable}
-          onChange={(e) => setResponsable(e.target.value)}
-        >
-          <option value="">Responsable: todos</option>
-          {responsables.map((r) => (
-            <option key={r}>{r}</option>
-          ))}
-        </select>
-        <select className={claseSelect} value={estado} onChange={(e) => setEstado(e.target.value)}>
-          <option value="">Estado: todos</option>
-          {(Object.keys(ETIQUETA_ESTADO) as EstadoSiniestro[]).map((e) => (
-            <option key={e} value={e}>
-              {ETIQUETA_ESTADO[e]}
-            </option>
-          ))}
-        </select>
+        <FiltroSeleccion
+          etiqueta="Aseguradora"
+          opciones={aseguradoras}
+          valores={selAseguradora}
+          onCambiar={setSelAseguradora}
+          plural="todas"
+        />
+        <FiltroSeleccion
+          etiqueta="Responsable"
+          opciones={responsables}
+          valores={selResponsable}
+          onCambiar={setSelResponsable}
+        />
+        <FiltroSeleccion
+          etiqueta="Estado"
+          opciones={Object.keys(ETIQUETA_ESTADO)}
+          valores={selEstado}
+          onCambiar={setSelEstado}
+        />
         <select
           className={claseSelect}
           value={orden}

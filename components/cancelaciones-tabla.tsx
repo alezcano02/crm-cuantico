@@ -11,6 +11,7 @@ import { IconEditar } from "@/components/icons";
 import { exigirOk } from "@/lib/respuesta";
 import { api } from "@/lib/rutas";
 import { PanelFiltros } from "@/components/panel-filtros";
+import { FiltroSeleccion, FichasFiltros } from "@/components/filtro-seleccion";
 import { BuscadorTabla } from "@/components/buscador-tabla";
 import { FiltroMes } from "@/components/filtro-mes";
 
@@ -62,9 +63,10 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
   const [editando, setEditando] = useState<CancelacionVista | null>(null);
   const [campo, setCampo] = useState<CampoFecha>("fechaCancelacion");
   const [mes, setMes] = useState("");
-  const [ramo, setRamo] = useState("");
-  const [aseguradora, setAseguradora] = useState("");
-  const [asesor, setAsesor] = useState("");
+  // Listas: se pueden cruzar varias de una misma categoría. Ver filtro-seleccion.
+  const [selRamo, setSelRamo] = useState<string[]>([]);
+  const [selAseguradora, setSelAseguradora] = useState<string[]>([]);
+  const [selAsesor, setSelAsesor] = useState<string[]>([]);
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [q, setQ] = useState("");
@@ -99,10 +101,10 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
     if (mes) lista = lista.filter((c) => c[campo]!.slice(0, 7) === mes);
     if (desde) lista = lista.filter((c) => c[campo]!.slice(0, 10) >= desde);
     if (hasta) lista = lista.filter((c) => c[campo]!.slice(0, 10) <= hasta);
-    if (ramo) lista = lista.filter((c) => normalizar(c.ramo) === ramo);
-    if (aseguradora)
-      lista = lista.filter((c) => c.aseguradora && normalizar(c.aseguradora) === aseguradora);
-    if (asesor) lista = lista.filter((c) => c.asesor && normalizar(c.asesor) === asesor);
+    if (selRamo.length) lista = lista.filter((c) => selRamo.includes(normalizar(c.ramo)));
+    if (selAseguradora.length)
+      lista = lista.filter((c) => c.aseguradora && selAseguradora.includes(normalizar(c.aseguradora)));
+    if (selAsesor.length) lista = lista.filter((c) => c.asesor && selAsesor.includes(normalizar(c.asesor)));
     if (q.trim()) {
       const t = q.trim().toLowerCase();
       lista = lista.filter(
@@ -113,7 +115,7 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
       );
     }
     return [...lista].sort((a, b) => (b[campo] ?? "").localeCompare(a[campo] ?? ""));
-  }, [cancelaciones, campo, mes, desde, hasta, ramo, aseguradora, asesor, q]);
+  }, [cancelaciones, campo, mes, desde, hasta, selRamo, selAseguradora, selAsesor, q]);
 
   const totalPrima = filtradas.reduce((s, c) => s + c.primaNeta, 0);
   const totalNoCausada = filtradas.reduce((s, c) => s + noCausadaDe(c), 0);
@@ -135,13 +137,20 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
     "rounded-md border border-line-axis bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
   const etiquetaCampo =
     campo === "fechaCancelacion" ? "fecha de cancelación" : "fecha de renovación";
-  const hayFiltros = mes || ramo || aseguradora || asesor || desde || hasta || q;
+  /** Grupos para las fichas de «filtrando por…» sobre la tabla. */
+  const grupos = [
+    { etiqueta: "Ramo", valores: selRamo, onCambiar: setSelRamo },
+    { etiqueta: "Aseguradora", valores: selAseguradora, onCambiar: setSelAseguradora },
+    { etiqueta: "Asesor", valores: selAsesor, onCambiar: setSelAsesor },
+  ];
+  const nFiltros = grupos.reduce((n, g) => n + g.valores.length, 0);
+  const hayFiltros = nFiltros > 0 || !!mes || !!desde || !!hasta || !!q;
 
   const limpiar = () => {
     setMes("");
-    setRamo("");
-    setAseguradora("");
-    setAsesor("");
+    setSelRamo([]);
+    setSelAseguradora([]);
+    setSelAsesor([]);
     setDesde("");
     setHasta("");
     setQ("");
@@ -231,30 +240,13 @@ export function CancelacionesTabla({ cancelaciones }: { cancelaciones: Cancelaci
         />
       </div>
 
-      <PanelFiltros>
+      <FichasFiltros grupos={grupos} onLimpiarTodo={limpiar} />
+
+      <PanelFiltros activos={nFiltros}>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
-        <select className={claseSelect} value={ramo} onChange={(e) => setRamo(e.target.value)}>
-          <option value="">Ramo: todos</option>
-          {ramos.map((r) => (
-            <option key={r}>{r}</option>
-          ))}
-        </select>
-        <select
-          className={claseSelect}
-          value={aseguradora}
-          onChange={(e) => setAseguradora(e.target.value)}
-        >
-          <option value="">Aseguradora: todas</option>
-          {aseguradoras.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
-        <select className={claseSelect} value={asesor} onChange={(e) => setAsesor(e.target.value)}>
-          <option value="">Asesor: todos</option>
-          {asesores.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
+        <FiltroSeleccion etiqueta="Ramo" opciones={ramos} valores={selRamo} onCambiar={setSelRamo} />
+        <FiltroSeleccion etiqueta="Aseguradora" opciones={aseguradoras} valores={selAseguradora} onCambiar={setSelAseguradora} plural="todas" />
+        <FiltroSeleccion etiqueta="Asesor" opciones={asesores} valores={selAsesor} onCambiar={setSelAsesor} />
         <label className="flex items-center gap-1 text-sm text-ink-secondary">
           Desde
           <input

@@ -13,6 +13,7 @@ import { BotonExportar } from "@/components/boton-exportar";
 import { GestionarPoliza } from "@/components/gestionar-poliza";
 import { Paginacion, usePaginacion } from "@/components/paginacion";
 import { PanelFiltros } from "@/components/panel-filtros";
+import { FiltroSeleccion, FichasFiltros } from "@/components/filtro-seleccion";
 import { BuscadorTabla } from "@/components/buscador-tabla";
 import { FiltroMes } from "@/components/filtro-mes";
 
@@ -79,11 +80,13 @@ export function CarteraTabla({
 }) {
   const router = useRouter();
   const [pestania, setPestania] = useState<Pestania>("pendientes");
-  const [ramo, setRamo] = useState("");
-  const [aseguradora, setAseguradora] = useState("");
-  const [asesor, setAsesor] = useState("");
-  const [tipoNegocio, setTipoNegocio] = useState("");
-  const [formaPago, setFormaPago] = useState("");
+  // Listas y no valores sueltos: se puede cruzar varias de una categoría.
+  // Ver components/filtro-seleccion.tsx.
+  const [selRamo, setSelRamo] = useState<string[]>([]);
+  const [selAseguradora, setSelAseguradora] = useState<string[]>([]);
+  const [selAsesor, setSelAsesor] = useState<string[]>([]);
+  const [selTipo, setSelTipo] = useState<string[]>([]);
+  const [selForma, setSelForma] = useState<string[]>([]);
   const [mes, setMes] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -114,19 +117,20 @@ export function CarteraTabla({
     let lista = polizas;
     if (pestania === "pendientes") lista = lista.filter((p) => PENDIENTES.includes(p.estado));
     else if (pestania === "mora") lista = lista.filter((p) => p.estado === "EN_MORA");
-    if (ramo) lista = lista.filter((p) => normalizar(p.ramo) === ramo);
-    if (aseguradora)
-      lista = lista.filter((p) => p.aseguradora && normalizar(p.aseguradora) === aseguradora);
-    if (asesor)
+    // Dentro de una categoría los valores suman; entre categorías se acumulan.
+    if (selRamo.length) lista = lista.filter((p) => selRamo.includes(normalizar(p.ramo)));
+    if (selAseguradora.length)
+      lista = lista.filter((p) => p.aseguradora && selAseguradora.includes(normalizar(p.aseguradora)));
+    if (selAsesor.length)
       lista = lista.filter(
         (p) =>
-          (p.asesor1 && normalizar(p.asesor1) === asesor) ||
-          (p.asesor2 && normalizar(p.asesor2) === asesor)
+          (p.asesor1 && selAsesor.includes(normalizar(p.asesor1))) ||
+          (p.asesor2 && selAsesor.includes(normalizar(p.asesor2)))
       );
-    if (tipoNegocio)
-      lista = lista.filter((p) => p.tipoNegocio && normalizar(p.tipoNegocio) === tipoNegocio);
-    if (formaPago)
-      lista = lista.filter((p) => p.formaPago && normalizar(p.formaPago) === formaPago);
+    if (selTipo.length)
+      lista = lista.filter((p) => p.tipoNegocio && selTipo.includes(normalizar(p.tipoNegocio)));
+    if (selForma.length)
+      lista = lista.filter((p) => p.formaPago && selForma.includes(normalizar(p.formaPago)));
     // Año y mes, no solo el mes: la cartera abarca más de un año y filtrar por
     // «marzo» a secas mezclaba marzo de 2025 con marzo de 2026.
     if (mes) lista = lista.filter((p) => p.fechaMaxPago?.slice(0, 7) === mes);
@@ -160,7 +164,7 @@ export function CarteraTabla({
       return peso(a) - peso(b);
     });
   }, [
-    polizas, pestania, ramo, aseguradora, asesor, tipoNegocio, formaPago,
+    polizas, pestania, selRamo, selAseguradora, selAsesor, selTipo, selForma,
     mes, desde, hasta, q, orden,
   ]);
 
@@ -185,11 +189,11 @@ export function CarteraTabla({
   }, [filtradas]);
 
   const limpiar = () => {
-    setRamo("");
-    setAseguradora("");
-    setAsesor("");
-    setTipoNegocio("");
-    setFormaPago("");
+    setSelRamo([]);
+    setSelAseguradora([]);
+    setSelAsesor([]);
+    setSelTipo([]);
+    setSelForma([]);
     setMes("");
     setDesde("");
     setHasta("");
@@ -198,12 +202,21 @@ export function CarteraTabla({
 
   const claseSelect =
     "rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
-  const hayFiltros =
-    ramo || aseguradora || asesor || tipoNegocio || formaPago || mes || desde || hasta || q;
+  /** Grupos para las fichas de «filtrando por…» sobre la tabla. */
+  const grupos = [
+    { etiqueta: "Ramo", valores: selRamo, onCambiar: setSelRamo },
+    { etiqueta: "Tipo", valores: selTipo, onCambiar: setSelTipo },
+    { etiqueta: "Aseguradora", valores: selAseguradora, onCambiar: setSelAseguradora },
+    { etiqueta: "Asesor", valores: selAsesor, onCambiar: setSelAsesor },
+    { etiqueta: "Forma de pago", valores: selForma, onCambiar: setSelForma },
+  ];
+  const nSeleccion = grupos.reduce((n, g) => n + g.valores.length, 0);
+  const nFiltros = nSeleccion + (desde ? 1 : 0) + (hasta ? 1 : 0);
+  const hayFiltros = nFiltros > 0 || !!mes || !!q;
 
   // El informe se genera con el asesor seleccionado (o toda la cartera).
   const urlInforme = `/cartera/informe?${new URLSearchParams(
-    asesor ? { asesor } : {}
+    selAsesor.length === 1 ? { asesor: selAsesor[0] } : {}
   ).toString()}`;
 
   return (
@@ -255,9 +268,13 @@ export function CarteraTabla({
           href={urlInforme}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
           title={
-            asesor
-              ? `Generar el informe de cartera de ${asesor}`
-              : "Generar el informe de cartera (elija un asesor para filtrarlo)"
+            // El informe se genera para UN asesor: con varios elegidos sale
+            // completo, y conviene decirlo antes de pulsar.
+            selAsesor.length === 1
+              ? `Generar el informe de cartera de ${selAsesor[0]}`
+              : selAsesor.length > 1
+                ? "El informe es de un solo asesor: con varios seleccionados sale la cartera completa"
+                : "Generar el informe de cartera (elija un asesor para filtrarlo)"
           }
         >
           <IconDescargar className="h-4 w-4" />
@@ -277,53 +294,30 @@ export function CarteraTabla({
         />
       </div>
 
-      <PanelFiltros>
+      <FichasFiltros grupos={grupos} onLimpiarTodo={limpiar} />
+
+      <PanelFiltros activos={nFiltros}>
       {/* Fluyen en horizontal porque los filtros ya no viven en una columna de
           256px sino en una banda sobre la tabla; apilados en vertical la
           empujarían fuera de la pantalla. */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
-        <select className={claseSelect} value={ramo} onChange={(e) => setRamo(e.target.value)}>
-          <option value="">Ramo: todos</option>
-          {ramos.map((r) => (
-            <option key={r}>{r}</option>
-          ))}
-        </select>
-        <select
-          className={claseSelect}
-          value={tipoNegocio}
-          onChange={(e) => setTipoNegocio(e.target.value)}
-        >
-          <option value="">Tipo negocio: todos</option>
-          {tiposNegocio.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
-        <select
-          className={claseSelect}
-          value={aseguradora}
-          onChange={(e) => setAseguradora(e.target.value)}
-        >
-          <option value="">Aseguradora: todas</option>
-          {aseguradoras.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
-        <select className={claseSelect} value={asesor} onChange={(e) => setAsesor(e.target.value)}>
-          <option value="">Asesor: todos</option>
-          {asesores.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
-        <select
-          className={claseSelect}
-          value={formaPago}
-          onChange={(e) => setFormaPago(e.target.value)}
-        >
-          <option value="">Forma de pago: todas</option>
-          {formasPago.map((f) => (
-            <option key={f}>{f}</option>
-          ))}
-        </select>
+        <FiltroSeleccion etiqueta="Ramo" opciones={ramos} valores={selRamo} onCambiar={setSelRamo} />
+        <FiltroSeleccion etiqueta="Tipo" opciones={tiposNegocio} valores={selTipo} onCambiar={setSelTipo} />
+        <FiltroSeleccion
+          etiqueta="Aseguradora"
+          opciones={aseguradoras}
+          valores={selAseguradora}
+          onCambiar={setSelAseguradora}
+          plural="todas"
+        />
+        <FiltroSeleccion etiqueta="Asesor" opciones={asesores} valores={selAsesor} onCambiar={setSelAsesor} />
+        <FiltroSeleccion
+          etiqueta="Forma de pago"
+          opciones={formasPago}
+          valores={selForma}
+          onCambiar={setSelForma}
+          plural="todas"
+        />
         <label className="flex items-center gap-1 text-sm text-ink-secondary">
           Desde
           <input

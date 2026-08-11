@@ -7,6 +7,7 @@ import { Card, CardTitle, StatCard, Td, Th } from "@/components/ui";
 import { BotonExportar } from "@/components/boton-exportar";
 import { Paginacion, usePaginacion } from "@/components/paginacion";
 import { PanelFiltros } from "@/components/panel-filtros";
+import { FiltroSeleccion, FichasFiltros } from "@/components/filtro-seleccion";
 import { BuscadorTabla } from "@/components/buscador-tabla";
 import { FiltroMes } from "@/components/filtro-mes";
 import type { FilaComision } from "@/lib/comisiones";
@@ -75,9 +76,10 @@ export function ComisionesTabla({
    */
   const [anio, setAnio] = useState(String(anioDefecto));
   const [mes, setMes] = useState("");
-  const [ramo, setRamo] = useState("");
-  const [aseguradora, setAseguradora] = useState("");
-  const [asesor, setAsesor] = useState("");
+  // Listas: se pueden cruzar varias de una misma categoría. Ver filtro-seleccion.
+  const [selRamo, setSelRamo] = useState<string[]>([]);
+  const [selAseguradora, setSelAseguradora] = useState<string[]>([]);
+  const [selAsesor, setSelAsesor] = useState<string[]>([]);
 
   const ramos = useMemo(() => opciones(filas.map((f) => f.ramo)), [filas]);
   const aseguradoras = useMemo(() => opciones(filas.map((f) => f.aseguradora)), [filas]);
@@ -135,12 +137,12 @@ export function ComisionesTabla({
           f.ramo.toLowerCase().includes(t)
       );
     }
-    if (ramo) lista = lista.filter((f) => normalizar(f.ramo) === ramo);
-    if (aseguradora)
-      lista = lista.filter((f) => f.aseguradora && normalizar(f.aseguradora) === aseguradora);
-    if (asesor) lista = lista.filter((f) => f.asesor1 && normalizar(f.asesor1) === asesor);
+    if (selRamo.length) lista = lista.filter((f) => selRamo.includes(normalizar(f.ramo)));
+    if (selAseguradora.length)
+      lista = lista.filter((f) => f.aseguradora && selAseguradora.includes(normalizar(f.aseguradora)));
+    if (selAsesor.length) lista = lista.filter((f) => f.asesor1 && selAsesor.includes(normalizar(f.asesor1)));
     return lista;
-  }, [filas, q, anio, mes, ramo, aseguradora, asesor]);
+  }, [filas, q, anio, mes, selRamo, selAseguradora, selAsesor]);
 
   /*
    * Cuotas de una póliza que caen dentro del período elegido.
@@ -209,11 +211,18 @@ export function ComisionesTabla({
 
   const limpiar = () => {
     setMes("");
-    setRamo("");
-    setAseguradora("");
-    setAsesor("");
+    setSelRamo([]);
+    setSelAseguradora([]);
+    setSelAsesor([]);
   };
-  const hayFiltros = mes || ramo || aseguradora || asesor;
+  /** Grupos para las fichas de «filtrando por…» sobre la tabla. */
+  const grupos = [
+    { etiqueta: "Ramo", valores: selRamo, onCambiar: setSelRamo },
+    { etiqueta: "Aseguradora", valores: selAseguradora, onCambiar: setSelAseguradora },
+    { etiqueta: "Asesor", valores: selAsesor, onCambiar: setSelAsesor },
+  ];
+  const nFiltros = grupos.reduce((n, g) => n + g.valores.length, 0);
+  const hayFiltros = nFiltros > 0 || !!mes;
 
   const claseSelect =
     "rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
@@ -310,30 +319,24 @@ export function ComisionesTabla({
         </p>
       )}
 
-      <PanelFiltros>
+      <FichasFiltros grupos={grupos} onLimpiarTodo={limpiar} />
+
+      <PanelFiltros activos={nFiltros}>
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
-          <select className={claseSelect} value={ramo} onChange={(e) => setRamo(e.target.value)}>
-            <option value="">Ramo: todos</option>
-            {ramos.map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
-          <select
-            className={claseSelect}
-            value={aseguradora}
-            onChange={(e) => setAseguradora(e.target.value)}
-          >
-            <option value="">Aseguradora: todas</option>
-            {aseguradoras.map((a) => (
-              <option key={a}>{a}</option>
-            ))}
-          </select>
-          <select className={claseSelect} value={asesor} onChange={(e) => setAsesor(e.target.value)}>
-            <option value="">Asesor: todos</option>
-            {asesores.map((a) => (
-              <option key={a}>{a}</option>
-            ))}
-          </select>
+          <FiltroSeleccion etiqueta="Ramo" opciones={ramos} valores={selRamo} onCambiar={setSelRamo} />
+          <FiltroSeleccion
+            etiqueta="Aseguradora"
+            opciones={aseguradoras}
+            valores={selAseguradora}
+            onCambiar={setSelAseguradora}
+            plural="todas"
+          />
+          <FiltroSeleccion
+            etiqueta="Asesor"
+            opciones={asesores}
+            valores={selAsesor}
+            onCambiar={setSelAsesor}
+          />
           {hayFiltros && (
             <button
               onClick={limpiar}

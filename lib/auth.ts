@@ -176,15 +176,20 @@ export async function exigirComisionesPagina(): Promise<SesionActiva> {
 }
 
 /**
- * Quién gestiona las colectivas. Por ahora una sola cuenta, como se pidió;
- * la lista está aparte de la de comisiones para poder abrirla a más gente sin
- * darles de paso acceso a la remuneración.
+ * Colectivas está abierto a todo el que tenga sesión.
+ *
+ * Nació restringido a una cuenta mientras se cargaban los amparados y se
+ * cuadraba el cruce con el informe. Ya con las siete empresas cargadas y las
+ * comprobaciones en verde, la operación lo necesita a diario: quien atiende a
+ * una empresa tiene que poder ver quién está cubierto sin pedírselo a nadie.
+ *
+ * Sigue siendo una función y no un `true` suelto a propósito: es el punto por
+ * el que se volvería a cerrar, y así los tres guardias de abajo no cambian.
+ * Comisiones NO se abre —esa es remuneración— y por eso las dos listas nunca
+ * se juntaron.
  */
-const USUARIOS_COLECTIVAS = ["administrativo@cuanticoseguros.com"];
-
 export function puedeVerColectivas(usuario: string | null | undefined): boolean {
-  if (!usuario) return false;
-  return USUARIOS_COLECTIVAS.includes(usuario.trim().toLowerCase());
+  return !!usuario;
 }
 
 export async function exigirColectivasPagina(): Promise<SesionActiva> {

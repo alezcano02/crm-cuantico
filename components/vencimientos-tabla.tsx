@@ -15,6 +15,7 @@ import { Paginacion, usePaginacion } from "@/components/paginacion";
 import { PanelFiltros } from "@/components/panel-filtros";
 import { BuscadorTabla } from "@/components/buscador-tabla";
 import { FiltroMes } from "@/components/filtro-mes";
+import { FiltroSeleccion, FichasFiltros } from "@/components/filtro-seleccion";
 
 export interface PolizaVista extends PolizaEditable {
   id: number;
@@ -63,11 +64,13 @@ export function VencimientosTabla({
   const router = useRouter();
   const [pestania, setPestania] = useState<Pestania>("pendientes");
   const [q, setQ] = useState("");
-  const [asesor, setAsesor] = useState("");
-  const [ramo, setRamo] = useState("");
-  const [aseguradora, setAseguradora] = useState("");
-  const [tipoNegocio, setTipoNegocio] = useState("");
-  const [estadoPago, setEstadoPago] = useState("");
+  // Listas y no valores sueltos: se puede cruzar «AUTOS y HOGAR» de una vez.
+  // Vacío = sin filtrar. Ver components/filtro-seleccion.tsx.
+  const [selAsesor, setSelAsesor] = useState<string[]>([]);
+  const [selRamo, setSelRamo] = useState<string[]>([]);
+  const [selAseguradora, setSelAseguradora] = useState<string[]>([]);
+  const [selTipo, setSelTipo] = useState<string[]>([]);
+  const [selEstado, setSelEstado] = useState<string[]>([]);
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [mes, setMes] = useState("");
@@ -129,18 +132,20 @@ export function VencimientosTabla({
           (p.ccNit ?? "").toLowerCase().includes(t)
       );
     }
-    if (asesor)
+    // Dentro de una categoría los valores suman (AUTOS o HOGAR); entre
+    // categorías se acumulan (AUTOS y además de tal aseguradora).
+    if (selAsesor.length)
       lista = lista.filter(
         (p) =>
-          (p.asesor1 && normalizar(p.asesor1) === asesor) ||
-          (p.asesor2 && normalizar(p.asesor2) === asesor)
+          (p.asesor1 && selAsesor.includes(normalizar(p.asesor1))) ||
+          (p.asesor2 && selAsesor.includes(normalizar(p.asesor2)))
       );
-    if (ramo) lista = lista.filter((p) => normalizar(p.ramo) === ramo);
-    if (aseguradora)
-      lista = lista.filter((p) => p.aseguradora && normalizar(p.aseguradora) === aseguradora);
-    if (tipoNegocio)
-      lista = lista.filter((p) => p.tipoNegocio && normalizar(p.tipoNegocio) === tipoNegocio);
-    if (estadoPago) lista = lista.filter((p) => (p.estadoPago ?? "") === estadoPago);
+    if (selRamo.length) lista = lista.filter((p) => selRamo.includes(normalizar(p.ramo)));
+    if (selAseguradora.length)
+      lista = lista.filter((p) => p.aseguradora && selAseguradora.includes(normalizar(p.aseguradora)));
+    if (selTipo.length)
+      lista = lista.filter((p) => p.tipoNegocio && selTipo.includes(normalizar(p.tipoNegocio)));
+    if (selEstado.length) lista = lista.filter((p) => selEstado.includes(p.estadoPago ?? ""));
     if (soloSinGestionar) lista = lista.filter((p) => !p.gestionada);
     return [...lista].sort((a, b) => {
       if (orden === "prima") return b.primaNeta - a.primaNeta;
@@ -150,8 +155,8 @@ export function VencimientosTabla({
       return da - db;
     });
   }, [
-    polizas, pestania, q, asesor, ramo, aseguradora, tipoNegocio,
-    estadoPago, desde, hasta, mes, soloSinGestionar, orden,
+    polizas, pestania, q, selAsesor, selRamo, selAseguradora, selTipo,
+    selEstado, desde, hasta, mes, soloSinGestionar, orden,
   ]);
 
   const enRiesgo = filtradas.filter(
@@ -166,20 +171,30 @@ export function VencimientosTabla({
 
   const limpiar = () => {
     setQ("");
-    setAsesor("");
-    setRamo("");
-    setAseguradora("");
-    setTipoNegocio("");
-    setEstadoPago("");
+    setSelAsesor([]);
+    setSelRamo([]);
+    setSelAseguradora([]);
+    setSelTipo([]);
+    setSelEstado([]);
     setDesde("");
     setHasta("");
     setMes("");
     setSoloSinGestionar(false);
   };
 
-  const hayFiltros =
-    q || asesor || ramo || aseguradora || tipoNegocio || estadoPago ||
-    desde || hasta || mes || soloSinGestionar;
+  /** Grupos para las fichas de «filtrando por…» sobre la tabla. */
+  const grupos = [
+    { etiqueta: "Ramo", valores: selRamo, onCambiar: setSelRamo },
+    { etiqueta: "Tipo", valores: selTipo, onCambiar: setSelTipo },
+    { etiqueta: "Asesor", valores: selAsesor, onCambiar: setSelAsesor },
+    { etiqueta: "Aseguradora", valores: selAseguradora, onCambiar: setSelAseguradora },
+    { etiqueta: "Pago", valores: selEstado, onCambiar: setSelEstado },
+  ];
+  const nSeleccion = grupos.reduce((n, g) => n + g.valores.length, 0);
+  // Los de fecha y el interruptor no son fichas, pero sí cuentan para el aviso.
+  const nFiltros =
+    nSeleccion + (desde ? 1 : 0) + (hasta ? 1 : 0) + (soloSinGestionar ? 1 : 0);
+  const hayFiltros = nFiltros > 0 || !!q || !!mes;
 
   const claseSelect =
     "rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
@@ -222,49 +237,26 @@ export function VencimientosTabla({
         <FiltroMes valor={mes} onCambiar={setMes} meses={meses} etiqueta="Mes de vencimiento: todos" />
       </div>
 
-      <PanelFiltros>
+      <FichasFiltros grupos={grupos} onLimpiarTodo={limpiar} />
+
+      <PanelFiltros activos={nFiltros}>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line-grid bg-white p-3">
-        <select className={claseSelect} value={ramo} onChange={(e) => setRamo(e.target.value)}>
-          <option value="">Ramo: todos</option>
-          {ramos.map((r) => (
-            <option key={r}>{r}</option>
-          ))}
-        </select>
-        <select
-          className={claseSelect}
-          value={tipoNegocio}
-          onChange={(e) => setTipoNegocio(e.target.value)}
-        >
-          <option value="">Tipo negocio: todos</option>
-          {tiposNegocio.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
-        <select className={claseSelect} value={asesor} onChange={(e) => setAsesor(e.target.value)}>
-          <option value="">Asesor: todos</option>
-          {asesores.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
-        <select
-          className={claseSelect}
-          value={aseguradora}
-          onChange={(e) => setAseguradora(e.target.value)}
-        >
-          <option value="">Aseguradora: todas</option>
-          {aseguradoras.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
-        <select
-          className={claseSelect}
-          value={estadoPago}
-          onChange={(e) => setEstadoPago(e.target.value)}
-        >
-          <option value="">Pago: todos</option>
-          <option value="OK PAGO">OK PAGO</option>
-          <option value="PENDIENTE">PENDIENTE</option>
-        </select>
+        <FiltroSeleccion etiqueta="Ramo" opciones={ramos} valores={selRamo} onCambiar={setSelRamo} />
+        <FiltroSeleccion etiqueta="Tipo" opciones={tiposNegocio} valores={selTipo} onCambiar={setSelTipo} />
+        <FiltroSeleccion etiqueta="Asesor" opciones={asesores} valores={selAsesor} onCambiar={setSelAsesor} />
+        <FiltroSeleccion
+          etiqueta="Aseguradora"
+          opciones={aseguradoras}
+          valores={selAseguradora}
+          onCambiar={setSelAseguradora}
+          plural="todas"
+        />
+        <FiltroSeleccion
+          etiqueta="Pago"
+          opciones={["OK PAGO", "PENDIENTE"]}
+          valores={selEstado}
+          onCambiar={setSelEstado}
+        />
         {/* Rango de vencimiento: para armar el trabajo de un mes concreto. */}
         <label className="flex items-center gap-1.5 text-sm text-ink-secondary">
           Vence desde
