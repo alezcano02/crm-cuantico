@@ -85,6 +85,78 @@ export async function numerosColectivos(): Promise<Set<string>> {
   return new Set(madres.map((m) => normalizarNumero(m.numero)));
 }
 
+/**
+ * Ata cada amparado a la póliza del informe que le corresponde.
+ *
+ * EL PROBLEMA
+ *
+ * Los listados de la aseguradora escriben la póliza con ceros a la izquierda
+ * («091000812843») y el informe de producción sin ellos («91000812843»). Es la
+ * misma póliza, pero como texto no coinciden, así que los 280 amparados de las
+ * colectivas de salud y vida de Cristica y Espumas quedaban colgando de una
+ * póliza que, para el CRM, no existía: no había forma de saltar del amparado a
+ * su póliza ni de sumar la cobertura contra la prima.
+ *
+ * Y el ramo iba por su cuenta: el amparado decía «SALUD» o «VIDA GRUPO» —lo
+ * que traía el listado— mientras la cartera ya mostraba «Colectiva Salud».
+ *
+ * LA SOLUCIÓN
+ *
+ * Se busca la póliza comparando sin ceros y, cuando aparece, se copia su
+ * número y su ramo TAL COMO ESTÁN en la cartera. A partir de ahí las dos
+ * tablas hablan igual.
+ *
+ * Corre dentro de `aplicarMapaColectivas`, que se ejecuta después de cada
+ * importación, así que el cruce se rehace solo y no puede volver a desviarse
+ * aunque el informe cambie la grafía de un número.
+ */
+async function sincronizarAmparados(): Promise<{ renumerados: number; reramados: number }> {
+  const [amparados, polizas] = await Promise.all([
+    prisma.amparadoColectiva.findMany({ select: { id: true, polizaNumero: true, ramo: true } }),
+    prisma.policy.findMany({ select: { numero: true, ramo: true, colectivaDe: true } }),
+  ]);
+
+  /*
+   * Índice por número normalizado.
+   *
+   * Un mismo número puede tener varias filas: la colectiva madre y sus recibos
+   * de inclusión. Gana SIEMPRE la madre, que es de la que cuelgan los
+   * amparados y la única que lleva el nombre de ramo bueno —los recibos se
+   * absorben antes de renombrar, así que conservan el «COLECTIVA» del informe
+   * y copiarlo dejaría al amparado peor de lo que estaba.
+   */
+  const canonica = new Map<string, { numero: string; ramo: string; madre: boolean }>();
+  for (const p of polizas) {
+    const k = normalizarNumero(p.numero);
+    const esMadre = p.colectivaDe == null;
+    const previa = canonica.get(k);
+    if (!previa || (esMadre && !previa.madre)) {
+      canonica.set(k, { numero: p.numero, ramo: p.ramo, madre: esMadre });
+    }
+  }
+
+  let renumerados = 0;
+  let reramados = 0;
+  for (const a of amparados) {
+    const real = canonica.get(normalizarNumero(a.polizaNumero));
+    if (!real) continue;
+    const data: { polizaNumero?: string; ramo?: string } = {};
+    if (a.polizaNumero !== real.numero) data.polizaNumero = real.numero;
+    if (a.ramo !== real.ramo) data.ramo = real.ramo;
+    if (!Object.keys(data).length) continue;
+    try {
+      await prisma.amparadoColectiva.update({ where: { id: a.id }, data });
+      if (data.polizaNumero) renumerados++;
+      if (data.ramo) reramados++;
+    } catch {
+      // Choca contra (póliza, empleado, amparado) porque la misma persona ya
+      // existe con la grafía buena: es un duplicado de las dos formas del
+      // número y se deja como está en vez de tumbar la importación entera.
+    }
+  }
+  return { renumerados, reramados };
+}
+
 export interface ResultadoMapa {
   madresRenombradas: number;
   recibosMarcados: number;
@@ -95,6 +167,10 @@ export interface ResultadoMapa {
   madresSinPoliza: string[];
   /** Prima que deja de contar aparte por absorberse en su colectiva. */
   primaAbsorbida: number;
+  /** Amparados cuyo número de póliza se reescribió al del informe. */
+  amparadosRenumerados: number;
+  /** Amparados cuyo ramo se alineó con el de la cartera. */
+  amparadosReramados: number;
 }
 
 /**
@@ -182,6 +258,10 @@ export async function aplicarMapaColectivas(): Promise<ResultadoMapa> {
     .filter((m) => !vistasMadre.has(normalizarNumero(m.numero)))
     .map((m) => m.numero);
 
+  // Va al final, cuando la cartera ya tiene sus nombres de ramo definitivos:
+  // así los amparados copian el ramo bueno y no el que había antes.
+  const { renumerados, reramados } = await sincronizarAmparados();
+
   return {
     madresRenombradas,
     recibosMarcados,
@@ -189,5 +269,7 @@ export async function aplicarMapaColectivas(): Promise<ResultadoMapa> {
     recibosSinPoliza,
     madresSinPoliza,
     primaAbsorbida,
+    amparadosRenumerados: renumerados,
+    amparadosReramados: reramados,
   };
 }

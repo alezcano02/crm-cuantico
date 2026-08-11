@@ -345,12 +345,40 @@ async function main() {
       );
 
     // Amparados colgando de una póliza que ya no está en la cartera.
+    /*
+     * Se exige coincidencia EXACTA, no normalizada, a propósito: normalizar
+     * aquí escondería justo lo que hay que detectar. Si un amparado guarda el
+     * número con otra grafía que la cartera, `sincronizarAmparados` debió
+     * haberlo reescrito; que aparezca aquí significa que no corrió o que la
+     * póliza no existe.
+     */
     const numeros = new Set(polizas.map((p) => p.numero));
-    const amp = await prisma.amparadoColectiva.findMany({ select: { polizaNumero: true } });
+    const amp = await prisma.amparadoColectiva.findMany({
+      select: { polizaNumero: true, ramo: true },
+    });
     const huerfanos = [...new Set(amp.map((a) => a.polizaNumero).filter((n) => !numeros.has(n)))];
-    huerfanos.length === 0
-      ? ok("Los amparados apuntan a pólizas de la cartera", `${amp.length} amparados`)
-      : aviso("Amparados de pólizas que no están en la cartera", huerfanos.join(", "));
+    comprobar(
+      huerfanos.length === 0,
+      "Los amparados apuntan a pólizas de la cartera",
+      huerfanos.length ? huerfanos.join(", ") : `${amp.length} amparados`
+    );
+
+    // Y con el mismo ramo, o el módulo y el informe dirían cosas distintas de
+    // la misma póliza. Se compara contra la MADRE: los recibos de inclusión
+    // comparten número y conservan el ramo del informe, así que tomarlos daría
+    // un falso desajuste.
+    const ramoDePoliza = new Map(
+      polizas.filter((p) => p.colectivaDe == null).map((p) => [p.numero, p.ramo])
+    );
+    const desalineados = amp.filter((a) => {
+      const r = ramoDePoliza.get(a.polizaNumero);
+      return r && r !== a.ramo;
+    });
+    comprobar(
+      desalineados.length === 0,
+      "El ramo del amparado coincide con el de su póliza",
+      desalineados.length ? `${desalineados.length} desalineados` : "todos"
+    );
 
     // Empresas de colectivas sin póliza colectiva en la cartera.
     const empresas = await prisma.empresaColectiva.findMany({ select: { nombre: true } });
