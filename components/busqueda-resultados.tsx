@@ -12,6 +12,10 @@ import type { Semaforo, TipoAnexo } from "@/lib/calculos";
 const ETIQUETA_ANEXO: Record<TipoAnexo, string> = {
   PRORROGA: "Prórroga",
   INCREMENTO: "Incremento",
+  MODIFICACION: "Modificación",
+  CUMPLIMIENTO: "Cumplimiento",
+  RC: "RC",
+  VIAJE: "Viaje",
 };
 
 export interface ResultadoPoliza extends PolizaEditable {

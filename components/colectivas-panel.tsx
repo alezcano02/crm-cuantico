@@ -94,11 +94,19 @@ export function ColectivasPanel({
   const [q, setQ] = useState("");
   const [mes, setMes] = useState("");
   const [verRetirados, setVerRetirados] = useState(false);
+  // Colectiva concreta dentro de la empresa; vacío = todas.
+  const [polizaSel, setPolizaSel] = useState("");
   const [creandoEmpresa, setCreandoEmpresa] = useState(false);
   const [incluyendo, setIncluyendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const empresa = empresas.find((e) => e.id === empresaId) ?? null;
+  const cambiarEmpresa = (id: number) => {
+    setEmpresaId(id);
+    // La colectiva elegida pertenece a la empresa anterior: si no se limpia, la
+    // tabla sale vacía sin que se vea por qué.
+    setPolizaSel("");
+  };
   const delEmpresa = useMemo(
     () => amparados.filter((a) => a.empresaId === empresaId),
     [amparados, empresaId]
@@ -113,8 +121,36 @@ export function ColectivasPanel({
     [novedadesEmpresa]
   );
 
+  /*
+   * Las pólizas de la empresa, cada una con cuánta gente ampara.
+   *
+   * Una empresa tiene varias colectivas a la vez —Cristica lleva salud, vida y
+   * autos— y mezclarlas en una sola lista hacía imposible el trabajo real, que
+   * es de una póliza cada vez: se concilia el recibo de SALUD CLASICA contra
+   * quién está en SALUD CLASICA, no contra los 292 amparados de la empresa.
+   */
+  const polizasEmpresa = useMemo(() => {
+    const m = new Map<string, { numero: string; plan: string | null; ramo: string; activos: number }>();
+    for (const a of delEmpresa) {
+      const clave = `${a.polizaNumero}|${a.plan ?? ""}`;
+      const e = m.get(clave) ?? {
+        numero: a.polizaNumero,
+        plan: a.plan,
+        ramo: a.ramo,
+        activos: 0,
+      };
+      if (estaActivo(a.estado, a.fechaRetiro ? new Date(a.fechaRetiro) : null)) e.activos++;
+      m.set(clave, e);
+    }
+    return [...m.entries()]
+      .map(([clave, v]) => ({ clave, ...v }))
+      .sort((a, b) => b.activos - a.activos);
+  }, [delEmpresa]);
+
   const visibles = useMemo(() => {
     let lista = delEmpresa;
+    // Una sola colectiva a la vez cuando se elige una.
+    if (polizaSel) lista = lista.filter((a) => `${a.polizaNumero}|${a.plan ?? ""}` === polizaSel);
     // Los retirados se esconden por defecto: la lista de trabajo es quién está
     // cubierto hoy. Pero no se borran, porque hay que poder demostrar meses
     // después quién estuvo y hasta cuándo.
@@ -130,7 +166,7 @@ export function ColectivasPanel({
       );
     }
     return lista;
-  }, [delEmpresa, q, verRetirados]);
+  }, [delEmpresa, q, verRetirados, polizaSel]);
 
   const novedadesFiltradas = useMemo(() => {
     let lista = novedadesEmpresa;
@@ -216,7 +252,7 @@ export function ColectivasPanel({
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={empresaId ?? ""}
-          onChange={(e) => setEmpresaId(Number(e.target.value))}
+          onChange={(e) => cambiarEmpresa(Number(e.target.value))}
           aria-label="Empresa"
           className="rounded-lg border border-line-axis bg-surface px-3 py-2 text-sm font-medium focus:border-brand focus:outline-none"
         >
@@ -226,6 +262,28 @@ export function ColectivasPanel({
             </option>
           ))}
         </select>
+        {/* Colectiva concreta dentro de la empresa. Solo aparece cuando hay
+            más de una: con una sola, elegirla no decide nada. */}
+        {polizasEmpresa.length > 1 && (
+          <select
+            value={polizaSel}
+            onChange={(e) => setPolizaSel(e.target.value)}
+            aria-label="Colectiva"
+            className={
+              "rounded-lg border px-3 py-2 text-sm focus:outline-none " +
+              (polizaSel
+                ? "border-brand bg-brand/5 font-medium text-brand"
+                : "border-line-axis bg-surface")
+            }
+          >
+            <option value="">Todas sus colectivas ({delEmpresa.length})</option>
+            {polizasEmpresa.map((p) => (
+              <option key={p.clave} value={p.clave}>
+                {p.plan ?? p.ramo} · {p.numero} ({p.activos})
+              </option>
+            ))}
+          </select>
+        )}
         <button
           onClick={() => setCreandoEmpresa(true)}
           className="rounded-lg border border-line-axis px-3 py-2 text-sm text-ink-secondary hover:bg-surface-page"

@@ -86,6 +86,7 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
   {
     titulo: "Datos",
     enlaces: [
+      { href: "/prospectos", etiqueta: "Prospectos", Icono: IconPersonas },
       { href: "/buscar", etiqueta: "Búsqueda", Icono: IconBuscar },
       {
         href: "/comisiones",

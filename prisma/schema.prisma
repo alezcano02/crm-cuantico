@@ -466,3 +466,33 @@ model NovedadColectiva {
   @@index([fecha])
   @@index([tipo])
 }
+
+// Cotizaciones que todavía no son póliza: las que están en trámite y las que
+// se perdieron. Viven aparte de Policy a propósito — un prospecto no tiene
+// número de póliza, ni prima, ni vencimiento, y mezclarlo con la cartera
+// obligaría a dejar medio modelo en null y a filtrarlo en cada consulta.
+model Prospecto {
+  id            Int      @id @default(autoincrement())
+  // Nombre de la copropiedad o del cliente potencial.
+  nombre        String
+  // Cuándo arranca la vigencia que se está cotizando: es la fecha contra la
+  // que se corre, porque pasada esa fecha la oportunidad se pierde sola.
+  fechaInicio   DateTime?
+  administrador String?
+  compania      String?
+  // Estado tal como lo escribe el equipo, sin tocar: «ESCOGIERON INTERMEDIARIO
+  // ANTERIOR», «PENDIENTE DE INFORMACION PARA COTIZAR»… Es lo que se lee.
+  estado        String?
+  // El anterior reducido a PENDIENTE | PERDIDA | GANADA, para poder contar y
+  // filtrar. Se deriva del texto al guardar; ver lib/prospectos.ts.
+  situacion     String   @default("PENDIENTE")
+  asesor        String?
+  nota          String?
+  // Si se gana, aquí queda el número de la póliza que salió de este prospecto.
+  polizaNumero  String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([situacion])
+  @@index([fechaInicio])
+}

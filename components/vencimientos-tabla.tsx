@@ -35,13 +35,17 @@ const PESTANIAS: { id: Pestania; etiqueta: string }[] = [
   // Las prórrogas y los incrementos salen de las dos pestañas de renovación,
   // pero tienen que poder verse en algún sitio: si no, desaparecerían de la
   // pantalla.
-  { id: "anexos", etiqueta: "Prórrogas e incrementos" },
+  { id: "anexos", etiqueta: "Otras pólizas" },
   { id: "todas", etiqueta: "Todas las pólizas" },
 ];
 
 const ETIQUETA_ANEXO: Record<TipoAnexo, string> = {
   PRORROGA: "Prórroga",
   INCREMENTO: "Incremento",
+  MODIFICACION: "Modificación",
+  CUMPLIMIENTO: "Cumplimiento",
+  RC: "RC",
+  VIAJE: "Viaje",
 };
 
 function normalizar(v: string): string {

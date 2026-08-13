@@ -99,22 +99,73 @@ export function indiceMes(mes: string | null | undefined): number {
  * técnica los marca. Es texto libre, así que se acepta con y sin tilde y
  * rodeado de más texto («PRORROGA 3 MESES»).
  */
-export type TipoAnexo = "PRORROGA" | "INCREMENTO";
+/**
+ * Pólizas que NO entran en el ciclo de renovación, por dos motivos distintos:
+ * porque son un anexo de otra (prórroga, incremento, modificación) o porque su
+ * ramo no se renueva (cumplimiento, RC, viaje).
+ */
+export type TipoAnexo =
+  | "PRORROGA"
+  | "INCREMENTO"
+  | "MODIFICACION"
+  | "CUMPLIMIENTO"
+  | "RC"
+  | "VIAJE";
 
 const PATRONES_ANEXO: [RegExp, TipoAnexo][] = [
   [/pr[oó]rroga/i, "PRORROGA"],
   [/incremento/i, "INCREMENTO"],
+  [/modificaci[oó]n/i, "MODIFICACION"],
 ];
 
-/** Cuál de los dos es, o null si la observación no marca ninguno. */
-export function tipoAnexo(observacion: string | null | undefined): TipoAnexo | null {
+/**
+ * Ramos que tampoco siguen el ciclo anual de renovación.
+ *
+ * Una póliza de cumplimiento se emite por obra y muere con ella; una de RC
+ * puede ir pegada a un contrato; una de viaje dura lo que el viaje. Ninguna se
+ * «renueva» en el sentido en que se renueva un hogar o un auto, así que
+ * listarlas junto a lo que sí hay que renovar llenaba la pantalla de trabajo
+ * que no existe. Siguen en la cartera y siguen sumando producción: solo salen
+ * de las pestañas de renovación y tienen la suya.
+ */
+/*
+ * OJO CON «RC». Solo cuenta «RESPONSABILIDAD CIVIL» escrito entero, que es el
+ * ramo de la relación de cumplimiento. Los ramos que EMPIEZAN por RC —RC ZC,
+ * RC EMPRESA, RC DECRETO, RC PROFESIONAL— son pólizas de copropiedad y de
+ * empresa que se renuevan todos los años como cualquier otra: son 109, y un
+ * patrón `^rc` las sacaba a todas del trabajo de renovación sin que se notara.
+ */
+const RAMOS_OTRAS: [RegExp, TipoAnexo][] = [
+  [/^cumplimiento/i, "CUMPLIMIENTO"],
+  [/^responsabilidad\s+civil/i, "RC"],
+  [/^viaje/i, "VIAJE"],
+];
+
+/**
+ * Qué clase de «otra póliza» es, o null si es cartera normal de renovación.
+ *
+ * Manda el RAMO sobre la observación: una de cumplimiento con una observación
+ * de prórroga sigue siendo de cumplimiento, que es lo que explica por qué no
+ * se renueva.
+ */
+export function tipoAnexo(
+  observacion: string | null | undefined,
+  ramo?: string | null
+): TipoAnexo | null {
+  if (ramo) {
+    const porRamo = RAMOS_OTRAS.find(([re]) => re.test(ramo.trim()));
+    if (porRamo) return porRamo[1];
+  }
   if (!observacion) return null;
   const hallado = PATRONES_ANEXO.find(([re]) => re.test(observacion));
   return hallado ? hallado[1] : null;
 }
 
-export function esAnexo(observacion: string | null | undefined): boolean {
-  return tipoAnexo(observacion) != null;
+export function esAnexo(
+  observacion: string | null | undefined,
+  ramo?: string | null
+): boolean {
+  return tipoAnexo(observacion, ramo) != null;
 }
 
 /**
@@ -131,14 +182,33 @@ export function esAnexo(observacion: string | null | undefined): boolean {
  * observación —la inmensa mayoría— y el panel pasó de 22 vencidas a 2.
  */
 export const SIN_ANEXOS = {
-  OR: [
-    { observacion: null },
+  AND: [
+    // Por observación: prórroga, incremento o modificación.
+    {
+      OR: [
+        { observacion: null },
+        {
+          NOT: {
+            OR: [
+              { observacion: { contains: "rorrog", mode: "insensitive" as const } },
+              { observacion: { contains: "rórrog", mode: "insensitive" as const } },
+              { observacion: { contains: "incremento", mode: "insensitive" as const } },
+              { observacion: { contains: "modificaci", mode: "insensitive" as const } },
+            ],
+          },
+        },
+      ],
+    },
+    // Y por ramo: los que no se renuevan nunca. Aquí no hace falta la rama del
+    // null porque `ramo` no admite nulos en el modelo.
     {
       NOT: {
         OR: [
-          { observacion: { contains: "rorrog", mode: "insensitive" as const } },
-          { observacion: { contains: "rórrog", mode: "insensitive" as const } },
-          { observacion: { contains: "incremento", mode: "insensitive" as const } },
+          { ramo: { startsWith: "CUMPLIMIENTO", mode: "insensitive" as const } },
+          // Entero, no «RC»: ver el comentario de RAMOS_OTRAS. RC ZC y compañía
+          // sí se renuevan.
+          { ramo: { startsWith: "RESPONSABILIDAD CIVIL", mode: "insensitive" as const } },
+          { ramo: { startsWith: "VIAJE", mode: "insensitive" as const } },
         ],
       },
     },

@@ -84,7 +84,7 @@ export default async function VencimientosPage({
       semaforo: semaforoVencimiento(dias),
       gestionada: "gestionada" in p ? p.gestionada : false,
       notaGestion: "notaGestion" in p ? p.notaGestion : null,
-      anexo: tipoAnexo(p.observacion),
+      anexo: tipoAnexo(p.observacion, p.ramo),
     };
   });
 
@@ -103,12 +103,24 @@ export default async function VencimientosPage({
   // lado de "18 vencidas" sugería que los 8 pesaban ahí, cuando solo 1 lo
   // estaba.
   const anexosVencidos = vista.filter((p) => p.anexo && p.dias != null && p.dias < 0);
-  const prorrogas = anexosVencidos.filter((p) => p.anexo === "PRORROGA").length;
-  const incrementos = anexosVencidos.filter((p) => p.anexo === "INCREMENTO").length;
-  const detalleAnexos = [
-    prorrogas > 0 ? `${prorrogas} ${prorrogas === 1 ? "prórroga" : "prórrogas"}` : null,
-    incrementos > 0 ? `${incrementos} ${incrementos === 1 ? "incremento" : "incrementos"}` : null,
-  ].filter(Boolean);
+  // Singular y plural de cada clase, para que el encabezado se lea como lo
+  // escribiría una persona y no como «1 prórrogas».
+  const NOMBRE: Record<string, [string, string]> = {
+    PRORROGA: ["prórroga", "prórrogas"],
+    INCREMENTO: ["incremento", "incrementos"],
+    MODIFICACION: ["modificación", "modificaciones"],
+    CUMPLIMIENTO: ["de cumplimiento", "de cumplimiento"],
+    RC: ["de RC", "de RC"],
+    VIAJE: ["de viaje", "de viaje"],
+  };
+  const detalleAnexos = Object.entries(
+    anexosVencidos.reduce<Record<string, number>>((acc, p) => {
+      if (p.anexo) acc[p.anexo] = (acc[p.anexo] ?? 0) + 1;
+      return acc;
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .map(([tipo, n]) => `${n} ${NOMBRE[tipo]?.[n === 1 ? 0 : 1] ?? tipo.toLowerCase()}`);
 
   return (
     <div className="space-y-6">

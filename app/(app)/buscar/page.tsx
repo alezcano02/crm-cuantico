@@ -121,7 +121,7 @@ export default async function BuscarPage({
                     semaforo: semaforoVencimiento(dias),
                     gestionada: p.gestionada,
                     notaGestion: p.notaGestion,
-                    anexo: tipoAnexo(p.observacion),
+                    anexo: tipoAnexo(p.observacion, p.ramo),
                   };
                 })}
               />
