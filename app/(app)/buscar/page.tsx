@@ -6,6 +6,11 @@ import { BusquedaResultados } from "@/components/busqueda-resultados";
 import { fmtCOP, fmtFecha } from "@/lib/format";
 import { exigirSesionPagina } from "@/lib/auth";
 import {
+  ESTADOS_ABIERTOS,
+  ETIQUETA_ESTADO,
+  type EstadoSiniestro,
+} from "@/lib/siniestros";
+import {
   Card,
   CardTitle,
   EstadoPagoBadge,
@@ -44,7 +49,23 @@ export default async function BuscarPage({
   // aquí; se piden siempre porque no dependen del término buscado.
   const listas = await listasParaFormularios();
 
-  const [polizas, otras, canceladas] = q
+  /*
+   * Los siniestros se buscan por otros campos: no tienen `numero` ni `ccNit`
+   * sino `poliza`, `nit` y `radicado`. Y el radicado importa: cuando la
+   * aseguradora llama, lo que da es ese número y nada más.
+   */
+  const filtroSiniestro = q
+    ? {
+        OR: variantes.flatMap((v) => [
+          { asegurado: { contains: v } },
+          { nit: { contains: v } },
+          { poliza: { contains: v } },
+          { radicado: { contains: v } },
+        ]),
+      }
+    : undefined;
+
+  const [polizas, otras, canceladas, siniestros] = q
     ? await Promise.all([
         prisma.policy.findMany({ where: filtro, take: 100, orderBy: { asegurado: "asc" } }),
         prisma.otherPolicy.findMany({ where: filtro, take: 100, orderBy: { asegurado: "asc" } }),
@@ -53,14 +74,27 @@ export default async function BuscarPage({
           take: 100,
           orderBy: [{ fechaCancelacion: "desc" }, { fechaRenovacion: "desc" }],
         }),
+        prisma.siniestro.findMany({
+          where: filtroSiniestro,
+          take: 100,
+          // Los abiertos primero: es lo que hay que atender si el cliente
+          // llama. Dentro de cada grupo, el más reciente arriba.
+          orderBy: [{ cerrado: "asc" }, { fechaOcurrencia: "desc" }],
+        }),
       ])
-    : [[], [], []];
+    : [[], [], [], []];
+
+  // Cuántos de los encontrados siguen requiriendo gestión: es lo que decide si
+  // el título lleva aviso. Un caso cerrado es historia; uno abierto es trabajo.
+  const abiertos = siniestros.filter(
+    (s) => !s.cerrado && ESTADOS_ABIERTOS.includes(s.estado as EstadoSiniestro)
+  ).length;
 
   return (
     <div className="space-y-6">
       <PageHeader
         titulo="Búsqueda"
-        descripcion="Por número de póliza, nombre de asegurado o CC/NIT, en la cartera activa, en otras pólizas y en las cancelaciones"
+        descripcion="Por número de póliza, radicado, nombre de asegurado o CC/NIT: busca en la cartera activa, los siniestros, otras pólizas y las cancelaciones"
       />
 
       <form method="get" className="flex max-w-xl gap-2">
@@ -125,6 +159,93 @@ export default async function BuscarPage({
                   };
                 })}
               />
+            )}
+          </Card>
+
+          {/* Los siniestros van justo después de la cartera y antes del
+              archivo: si el cliente que se está buscando tiene un caso abierto,
+              eso es lo que hay que saber antes de descolgar, no algo que se
+              descubra tras pasar dos tablas históricas. */}
+          <Card>
+            <CardTitle
+              accion={
+                siniestros.length > 0 ? (
+                  <Link
+                    href="/siniestros"
+                    className="text-xs font-medium text-brand hover:underline"
+                  >
+                    Ver todos
+                  </Link>
+                ) : undefined
+              }
+            >
+              Siniestros · {siniestros.length} resultado{siniestros.length !== 1 && "s"}
+              {abiertos > 0 && (
+                <span className="ml-2 rounded bg-status-warning/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#8a6100]">
+                  {abiertos} abierto{abiertos !== 1 && "s"}
+                </span>
+              )}
+            </CardTitle>
+            {siniestros.length === 0 ? (
+              <p className="text-sm text-ink-muted">Sin coincidencias en los siniestros.</p>
+            ) : (
+              <div className="overflow-x-auto scroll-fino">
+                <table className="w-full border-collapse whitespace-nowrap">
+                  <thead>
+                    <tr>
+                      <Th>Estado</Th>
+                      <Th>Cliente</Th>
+                      <Th>Cobertura / evento</Th>
+                      <Th>Aseguradora</Th>
+                      <Th>Póliza</Th>
+                      <Th>Radicado</Th>
+                      <Th>Responsable</Th>
+                      <Th derecha>Reclamado</Th>
+                      <Th derecha>Pagado</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {siniestros.map((s) => {
+                      const abierto =
+                        !s.cerrado && ESTADOS_ABIERTOS.includes(s.estado as EstadoSiniestro);
+                      return (
+                        <tr key={s.id} className="hover:bg-surface-page">
+                          <Td>
+                            <span
+                              className={
+                                "rounded px-1.5 py-0.5 text-[11px] font-semibold " +
+                                (abierto
+                                  ? "bg-status-warning/15 text-[#8a6100]"
+                                  : "bg-surface-sunken text-ink-secondary")
+                              }
+                            >
+                              {ETIQUETA_ESTADO[s.estado as EstadoSiniestro] ?? s.estado}
+                            </span>
+                          </Td>
+                          <Td className="font-medium">
+                            <div className="max-w-[220px] truncate" title={s.asegurado}>
+                              {s.asegurado}
+                            </div>
+                          </Td>
+                          <Td>
+                            <div className="max-w-[220px] truncate" title={s.cobertura ?? ""}>
+                              {s.cobertura ?? "—"}
+                            </div>
+                          </Td>
+                          <Td>{s.aseguradora ?? "—"}</Td>
+                          <Td>{s.poliza ?? "—"}</Td>
+                          <Td>{s.radicado ?? "—"}</Td>
+                          <Td>{s.responsable ?? "—"}</Td>
+                          <Td derecha>
+                            {s.valorSiniestro == null ? "—" : fmtCOP(s.valorSiniestro)}
+                          </Td>
+                          <Td derecha>{s.valorPagado == null ? "—" : fmtCOP(s.valorPagado)}</Td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Card>
 
