@@ -5,6 +5,7 @@ import { pareceEmpresa, proximoCumpleanos } from "./cumpleanos";
 import {
   PRIMER_ANIO,
   calcularSeguimiento,
+  esAnexo,
   hoyUTC,
   Seguimiento,
   CancelacionRow,
@@ -104,7 +105,17 @@ export async function seguimientoAnio(anio: number): Promise<Seguimiento> {
 export const contadoresNav = cachearCartera(["contadores-nav"], async () => {
   const hoy = hoyUTC();
   const [vencidas, mora] = await Promise.all([
-    prisma.policy.count({ where: { vencimiento: { lt: hoy }, colectivaDe: null } }),
+    /*
+     * SIN_ANEXOS aquí también, igual que en el dashboard.
+     *
+     * El círculo rojo del menú contaba TODO lo vencido, y lo que hay en «Otras
+     * pólizas» vence a propósito: una de cumplimiento muere con la obra, una
+     * prórroga dura lo que dura. Ninguna se renueva, así que ninguna es trabajo
+     * pendiente. El contador decía 90 cuando lo que había que renovar eran 22:
+     * 31 de cumplimiento, 30 de RC, 6 prórrogas y 1 incremento inflaban la
+     * alarma. Un número que exagera se deja de mirar.
+     */
+    prisma.policy.count({ where: { vencimiento: { lt: hoy }, colectivaDe: null, ...SIN_ANEXOS } }),
     prisma.policy.count({ where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } } }),
   ]);
   return { vencidas, mora };
@@ -235,6 +246,10 @@ export const resumenOperativo = cachearCartera(["resumen-operativo"], leerResume
 export async function produccionPorAsesor(anio: number, campo: "asesor1" | "asesor2") {
   const hoy = hoyUTC();
   const polizas = await prisma.policy.findMany({
+    // Los recibos de una colectiva no son trabajo de nadie: se renueva la
+    // colectiva, no cada inclusión. Sin esto, Asesores contaba 24 vencidas
+    // donde el menú y el dashboard contaban 21.
+    where: { colectivaDe: null },
     select: {
       asesor1: true,
       asesor2: true,
@@ -243,6 +258,9 @@ export async function produccionPorAsesor(anio: number, campo: "asesor1" | "ases
       vencimiento: true,
       estadoPago: true,
       fechaMaxPago: true,
+      // Para saber si la póliza se renueva o es de «Otras pólizas».
+      ramo: true,
+      observacion: true,
     },
   });
   const cancelaciones = await prisma.cancellation.findMany({
@@ -287,7 +305,12 @@ export async function produccionPorAsesor(anio: number, campo: "asesor1" | "ases
     if (p.vencimiento && p.vencimiento.getUTCFullYear() === anio + 1) {
       f.produccion += p.primaNeta || 0;
     }
-    if (p.vencimiento && p.vencimiento < hoy) f.vencidas++;
+    // «Vencidas por gestionar» es trabajo pendiente, y lo que está en «Otras
+    // pólizas» no se renueva: cumplimiento, RC, viaje, prórrogas e
+    // incrementos vencen a propósito. Contarlas aquí le colgaba a cada asesor
+    // una lista de pendientes que no existe.
+    if (p.vencimiento && p.vencimiento < hoy && !esAnexo(p.observacion, p.ramo))
+      f.vencidas++;
     if (p.estadoPago === "PENDIENTE" && p.fechaMaxPago && p.fechaMaxPago < hoy) f.mora++;
   }
 
