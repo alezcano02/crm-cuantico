@@ -8,6 +8,15 @@ import { exigirSesionPagina } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * «a, b, c y d». Encadenar todo con «y» se lee mal en cuanto hay más de dos,
+ * y aquí hay hasta seis clases de póliza que no se renuevan.
+ */
+function enumerar(partes: string[]): string {
+  if (partes.length <= 1) return partes[0] ?? "";
+  return partes.slice(0, -1).join(", ") + " y " + partes[partes.length - 1];
+}
+
 export default async function VencimientosPage({
   searchParams,
 }: {
@@ -132,7 +141,7 @@ export default async function VencimientosPage({
             : `${vencidas} pólizas vencidas pendientes de gestión · ` +
               `${proximas} vencen en los próximos 30 días` +
               (detalleAnexos.length > 0
-                ? ` · ${detalleAnexos.join(" y ")} (no se renuevan)`
+                ? ` · ${enumerar(detalleAnexos)} (no se renuevan)`
                 : "")
         }
       />

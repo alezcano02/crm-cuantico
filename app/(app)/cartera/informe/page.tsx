@@ -12,12 +12,16 @@ export const dynamic = "force-dynamic";
 export default async function InformeCarteraPage({
   searchParams,
 }: {
-  searchParams: { asesor?: string };
+  searchParams: { asesor?: string; ramo?: string | string[] };
 }) {
   // Antes de tocar la base: el layout no alcanza a cortar el render.
   await exigirSesionPagina();
 
   const asesorParam = searchParams.asesor ?? "";
+  // ?ramo puede venir una vez o varias; Next lo entrega como texto o lista.
+  const ramosParam = (
+    Array.isArray(searchParams.ramo) ? searchParams.ramo : searchParams.ramo ? [searchParams.ramo] : []
+  ).filter(Boolean);
 
   const polizas = await prisma.policy.findMany({
     select: {
@@ -39,7 +43,10 @@ export default async function InformeCarteraPage({
     },
   });
 
-  const informe = construirInforme(polizas as PolizaInforme[], { asesor: asesorParam });
+  const informe = construirInforme(polizas as PolizaInforme[], {
+    asesor: asesorParam,
+    ramos: ramosParam,
+  });
 
   // Asesores disponibles para cambiar el destinatario del informe
   const asesores = Array.from(
@@ -51,18 +58,49 @@ export default async function InformeCarteraPage({
     )
   ).sort((a, b) => a.localeCompare(b, "es"));
 
+  // Solo los ramos que tienen cartera pendiente: ofrecer un ramo que daría un
+  // informe vacío es una promesa que no se cumple.
+  const ramosDisponibles = Array.from(
+    new Set(
+      polizas
+        .filter((p) => (p.estadoPago ?? "").toUpperCase() !== "OK PAGO" && p.fechaMaxPago != null)
+        .map((p) => p.ramo.trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, "es"));
+
   const nPendientes =
     informe.vencida.reduce((s, g) => s + g.lineas.length, 0) +
     informe.proxima.reduce((s, g) => s + g.lineas.length, 0);
 
+  const parametros = new URLSearchParams();
+  if (asesorParam) parametros.set("asesor", asesorParam);
+  for (const r of ramosParam) parametros.append("ramo", r);
   const urlWord = api(
-    `/api/informe-cartera${asesorParam ? `?asesor=${encodeURIComponent(asesorParam)}` : ""}`
+    `/api/informe-cartera${parametros.toString() ? "?" + parametros : ""}`
   );
+
+  /** Enlace conservando el asesor y alternando un ramo. */
+  const urlConRamo = (ramo: string | null) => {
+    const q = new URLSearchParams();
+    if (asesorParam) q.set("asesor", asesorParam);
+    if (ramo === null) {
+      // «Todos los ramos»
+    } else if (ramosParam.includes(ramo)) {
+      for (const r of ramosParam.filter((x) => x !== ramo)) q.append("ramo", r);
+    } else {
+      for (const r of [...ramosParam, ramo]) q.append("ramo", r);
+    }
+    return `/cartera/informe${q.toString() ? "?" + q : ""}`;
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        titulo={`Informe de cartera${informe.asesor ? " · " + informe.asesor : ""}`}
+        titulo={
+          `Informe de cartera${informe.asesor ? " · " + informe.asesor : ""}` +
+          (informe.ramos.length ? ` · ${informe.ramos.join(", ")}` : "")
+        }
         descripcion={`Pólizas pendientes de pago al ${fmtFecha(informe.generadoEl)} · mismo formato del documento de Word`}
       >
         <Link
@@ -84,7 +122,11 @@ export default async function InformeCarteraPage({
       <div className="no-imprimir flex flex-wrap items-center gap-2">
         <span className="text-sm text-ink-secondary">Asesor:</span>
         <Link
-          href="/cartera/informe"
+          href={(() => {
+            const q = new URLSearchParams();
+            for (const r of ramosParam) q.append("ramo", r);
+            return `/cartera/informe${q.toString() ? "?" + q : ""}`;
+          })()}
           className={`rounded-lg border px-2.5 py-1.5 text-sm ${
             !asesorParam
               ? "border-brand bg-brand text-white"
@@ -96,7 +138,12 @@ export default async function InformeCarteraPage({
         {asesores.map((a) => (
           <Link
             key={a}
-            href={`/cartera/informe?asesor=${encodeURIComponent(a)}`}
+              href={(() => {
+              const q = new URLSearchParams();
+              q.set("asesor", a);
+              for (const r of ramosParam) q.append("ramo", r);
+              return `/cartera/informe?${q}`;
+            })()}
             className={`rounded-lg border px-2.5 py-1.5 text-sm ${
               asesorParam === a
                 ? "border-brand bg-brand text-white"
@@ -104,6 +151,35 @@ export default async function InformeCarteraPage({
             }`}
           >
             {a}
+          </Link>
+        ))}
+      </div>
+
+      {/* Selector de ramo. Se acumulan: el informe de una copropiedad se arma
+          con ZONA COMUN y RC ZC juntos, que es como se le presenta. */}
+      <div className="no-imprimir flex flex-wrap items-center gap-2">
+        <span className="text-sm text-ink-secondary">Ramo:</span>
+        <Link
+          href={urlConRamo(null)}
+          className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+            ramosParam.length === 0
+              ? "border-brand bg-brand text-white"
+              : "border-line-axis text-ink-secondary hover:bg-surface-page"
+          }`}
+        >
+          Todos
+        </Link>
+        {ramosDisponibles.map((r) => (
+          <Link
+            key={r}
+            href={urlConRamo(r)}
+            className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+              ramosParam.includes(r)
+                ? "border-brand bg-brand text-white"
+                : "border-line-axis text-ink-secondary hover:bg-surface-page"
+            }`}
+          >
+            {r}
           </Link>
         ))}
       </div>
@@ -152,7 +228,10 @@ export default async function InformeCarteraPage({
                     quince pólizas se leía como un bloque corrido. */}
                 <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
                   {g.lineas.map((l, i) => (
-                    <li key={i}>{l.texto}</li>
+                    <li key={i}>
+                      <strong>{l.asegurado}</strong>
+                      {l.resto}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -168,7 +247,10 @@ export default async function InformeCarteraPage({
                 <h3 className="font-bold">{g.mes}</h3>
                 <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
                   {g.lineas.map((l, i) => (
-                    <li key={i}>{l.texto}</li>
+                    <li key={i}>
+                      <strong>{l.asegurado}</strong>
+                      {l.resto}
+                    </li>
                   ))}
                 </ul>
               </div>

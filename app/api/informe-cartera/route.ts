@@ -22,6 +22,9 @@ export async function GET(req: NextRequest) {
   const noAutorizado = await exigirSesion();
   if (noAutorizado) return noAutorizado;
   const asesor = req.nextUrl.searchParams.get("asesor");
+  // ?ramo=AUTOS&ramo=HOGAR — repetido, no separado por comas: los nombres de
+  // ramo llevan espacios y alguno podría llevar coma.
+  const ramos = req.nextUrl.searchParams.getAll("ramo").filter(Boolean);
 
   const polizas = await prisma.policy.findMany({
     select: {
@@ -43,7 +46,7 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  const informe = construirInforme(polizas as PolizaInforme[], { asesor });
+  const informe = construirInforme(polizas as PolizaInforme[], { asesor, ramos });
 
   const parrafos: Paragraph[] = [];
 
@@ -72,9 +75,14 @@ export async function GET(req: NextRequest) {
    * escrito en el texto: así se puede sangrar, continuar en la línea siguiente
    * y copiar a otro documento sin que se rompa.
    */
-  const linea = (texto: string) =>
+  const linea = (nombre: string, resto: string) =>
     new Paragraph({
-      text: texto,
+      children: [
+        // El nombre en negrilla: el informe se repasa buscando clientes, y
+        // destacarlo es lo que permite encontrar uno a mitad de una lista.
+        new TextRun({ text: nombre, bold: true }),
+        new TextRun({ text: resto }),
+      ],
       numbering: { reference: "vinetas", level: 0 },
       spacing: { after: 60 },
     });
@@ -88,7 +96,9 @@ export async function GET(req: NextRequest) {
     new Paragraph({
       children: [
         new TextRun({
-          text: `CARTERA${informe.asesor ? " " + informe.asesor : ""}`,
+          text:
+            `CARTERA${informe.asesor ? " " + informe.asesor : ""}` +
+            (informe.ramos.length ? ` · ${informe.ramos.join(", ")}` : ""),
           bold: true,
           size: 32,
         }),
@@ -117,7 +127,7 @@ export async function GET(req: NextRequest) {
   } else {
     for (const g of informe.vencida) {
       parrafos.push(mes(g.mes));
-      for (const l of g.lineas) parrafos.push(linea(l.texto));
+      for (const l of g.lineas) parrafos.push(linea(l.asegurado, l.resto));
     }
   }
 
@@ -127,13 +137,13 @@ export async function GET(req: NextRequest) {
   } else {
     for (const g of informe.proxima) {
       parrafos.push(mes(g.mes));
-      for (const l of g.lineas) parrafos.push(linea(l.texto));
+      for (const l of g.lineas) parrafos.push(linea(l.asegurado, l.resto));
     }
   }
 
   if (informe.casos.length > 0) {
     parrafos.push(titulo("CASOS:"));
-    for (const c of informe.casos) parrafos.push(linea(c));
+    for (const c of informe.casos) parrafos.push(suelto(c));
   }
 
   const doc = new Document({

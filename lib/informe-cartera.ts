@@ -38,6 +38,8 @@ export interface PolizaInforme {
 
 export interface LineaInforme {
   texto: string;
+  /** La línea sin el nombre, para pintar el nombre en negrilla aparte. */
+  resto: string;
   /** Para ordenar y para la sección de casos */
   fecha: Date;
   asegurado: string;
@@ -50,6 +52,8 @@ export interface GrupoMes {
 
 export interface Informe {
   asesor: string | null;
+  /** Ramos con que se filtró, vacío si son todos. */
+  ramos: string[];
   generadoEl: Date;
   vencida: GrupoMes[];
   proxima: GrupoMes[];
@@ -79,10 +83,18 @@ function diaMes(d: Date): string {
  * cuadrar con los documentos viejos, hay que restar un día a propósito, no
  * "arreglar" esto.
  */
-export function lineaDePoliza(p: PolizaInforme): string {
+/**
+ * El resto de la línea, SIN el nombre del asegurado.
+ *
+ * Se devuelve partido para que quien pinte pueda poner el nombre en negrilla:
+ * el informe se repasa buscando clientes, y el nombre destacado es lo que
+ * permite encontrar uno a mitad de una lista de quince. Concatenando
+ * `asegurado + restoDePoliza` se obtiene la línea completa de siempre.
+ */
+export function restoDePoliza(p: PolizaInforme): string {
   const partes: string[] = [];
   partes.push(
-    `${p.asegurado}, ${p.ramo}${p.aseguradora ? " " + p.aseguradora : ""}. Póliza: ${p.numero}.`
+    `, ${p.ramo}${p.aseguradora ? " " + p.aseguradora : ""}. Póliza: ${p.numero}.`
   );
   if (p.placa) partes.push(`Placa: ${p.placa}.`);
   if (p.fechaMaxPago) partes.push(`Fecha límite de pago: ${diaMes(p.fechaMaxPago)}.`);
@@ -94,7 +106,13 @@ export function lineaDePoliza(p: PolizaInforme): string {
     partes.push(`Cuota: ${pesos(p.valorCuota)}.`);
   }
   if (p.notaCartera) partes.push(p.notaCartera.toUpperCase());
-  return partes.join(" ");
+  // El primer trozo ya empieza por coma, así que se pega sin espacio delante.
+  return partes[0] + (partes.length > 1 ? " " + partes.slice(1).join(" ") : "");
+}
+
+/** La línea entera, como se ha escrito siempre. */
+export function lineaDePoliza(p: PolizaInforme): string {
+  return p.asegurado + restoDePoliza(p);
 }
 
 function agrupar(polizas: PolizaInforme[]): GrupoMes[] {
@@ -105,6 +123,7 @@ function agrupar(polizas: PolizaInforme[]): GrupoMes[] {
     const lista = mapa.get(m) ?? [];
     lista.push({
       texto: lineaDePoliza(p),
+      resto: restoDePoliza(p),
       fecha: p.fechaMaxPago,
       asegurado: p.asegurado,
     });
@@ -120,10 +139,13 @@ function agrupar(polizas: PolizaInforme[]): GrupoMes[] {
 
 export function construirInforme(
   polizas: PolizaInforme[],
-  opciones: { asesor?: string | null; hoy?: Date } = {}
+  opciones: { asesor?: string | null; ramos?: string[] | null; hoy?: Date } = {}
 ): Informe {
   const hoy = opciones.hoy ?? hoyUTC();
   const asesor = opciones.asesor?.trim() || null;
+  // Varios ramos a la vez: el informe de copropiedades se arma con ZONA COMUN
+  // y RC ZC juntos, que es como se le presenta al administrador.
+  const ramos = (opciones.ramos ?? []).map((r) => r.trim()).filter(Boolean);
 
   const normalizar = (v: string) => v.trim().replace(/\s+/g, " ").toUpperCase();
 
@@ -137,6 +159,10 @@ export function construirInforme(
         (p.asesor1 && normalizar(p.asesor1) === a) ||
         (p.asesor2 && normalizar(p.asesor2) === a)
     );
+  }
+  if (ramos.length) {
+    const buscados = new Set(ramos.map(normalizar));
+    base = base.filter((p) => buscados.has(normalizar(p.ramo)));
   }
 
   const vencidas = base.filter((p) => p.fechaMaxPago! < hoy);
@@ -164,6 +190,7 @@ export function construirInforme(
 
   return {
     asesor,
+    ramos,
     generadoEl: hoy,
     vencida: agrupar(vencidas),
     proxima: agrupar(proximas),
