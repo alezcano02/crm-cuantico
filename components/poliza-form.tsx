@@ -158,11 +158,11 @@ export function CamposPoliza({
       </div>
       <div>
         <label className={claseLabel}>Asesor 1</label>
-        <Select clave="asesor1" opciones={listas.asesores} />
+        <Select clave="asesor1" opciones={listas.asesoresCanal} />
       </div>
       <div>
         <label className={claseLabel}>Asesor 2</label>
-        <Select clave="asesor2" opciones={listas.asesores} />
+        <Select clave="asesor2" opciones={listas.asesoresApoyo} />
       </div>
       <div>
         <label className={claseLabel}>Prima neta</label>

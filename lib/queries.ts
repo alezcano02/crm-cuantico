@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { prisma } from "./prisma";
 import { cachearCartera } from "./cache";
+import { ASESORES_PRINCIPALES, valeComoAsesorApoyo } from "./asesores";
 import { pareceEmpresa, proximoCumpleanos } from "./cumpleanos";
 import {
   PRIMER_ANIO,
@@ -346,8 +347,17 @@ export async function listasParaFormularios() {
     }),
   ]);
   const de = (tipo: string) => listas.filter((l) => l.tipo === tipo).map((l) => l.valor);
+  // Los espacios de más también se colapsan, no solo los de los extremos:
+  // «JUAN  MORALES» y «JUAN MORALES» son la misma persona y salían como dos
+  // opciones distintas en el desplegable.
+  const limpiar = (v: string) => v.trim().replace(/\s+/g, " ");
   const unir = (base: string[], extras: (string | null)[]) =>
-    Array.from(new Set([...base, ...extras.filter((v): v is string => !!v).map((v) => v.trim())]))
+    Array.from(
+      new Set([
+        ...base.map(limpiar),
+        ...extras.filter((v): v is string => !!v).map(limpiar),
+      ])
+    )
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b, "es"));
   return {
@@ -356,7 +366,14 @@ export async function listasParaFormularios() {
     estadosPago: de("ESTADO_PAGO"),
     formasPago: unir(de("FORMA_PAGO"), polizas.map((p) => p.formaPago)),
     aseguradoras: unir(de("ASEGURADORA"), polizas.map((p) => p.aseguradora)),
-    asesores: unir(de("ASESOR"), polizas.flatMap((p) => [p.asesor1, p.asesor2])),
+    /*
+     * Dos listas, no una: asesor 1 es el CANAL y asesor 2 la PERSONA.
+     * Ver lib/asesores.ts.
+     */
+    asesoresCanal: ASESORES_PRINCIPALES,
+    asesoresApoyo: unir(de("ASESOR"), polizas.map((p) => p.asesor2)).filter(
+      valeComoAsesorApoyo
+    ),
   };
 }
 
