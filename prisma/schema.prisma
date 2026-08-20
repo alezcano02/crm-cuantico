@@ -490,6 +490,14 @@ model Prospecto {
   nota          String?
   // Si se gana, aquí queda el número de la póliza que salió de este prospecto.
   polizaNumero  String?
+  // Bitácora de la gestión, igual que las observaciones de un siniestro: cada
+  // nota se antepone con su fecha, de modo que lo último queda arriba. Es un
+  // solo campo de texto y no una tabla aparte porque lo que se necesita es
+  // leerlo de corrido, no consultarlo ni contarlo.
+  historia          String?
+  // Cuándo se tocó por última vez. Un prospecto que lleva semanas sin
+  // movimiento es tan revelador como uno con la vigencia encima.
+  ultimoSeguimiento DateTime?
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 

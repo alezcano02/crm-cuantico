@@ -19,7 +19,7 @@ type Pestania = "pendientes" | "perdidas" | "todas";
 
 const PESTANIAS: { id: Pestania; etiqueta: string }[] = [
   { id: "pendientes", etiqueta: "Pendientes" },
-  { id: "perdidas", etiqueta: "No conseguidas" },
+  { id: "perdidas", etiqueta: "Perdidos" },
   { id: "todas", etiqueta: "Todas" },
 ];
 
@@ -46,6 +46,7 @@ export function ProspectosTabla({ prospectos }: { prospectos: ProspectoVista[] }
   const [selAdmin, setSelAdmin] = useState<string[]>([]);
   const [creando, setCreando] = useState(false);
   const [editando, setEditando] = useState<ProspectoVista | null>(null);
+  const [gestionando, setGestionando] = useState<ProspectoVista | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const companias = useMemo(() => opciones(prospectos.map((p) => p.compania)), [prospectos]);
@@ -222,6 +223,7 @@ export function ProspectosTabla({ prospectos }: { prospectos: ProspectoVista[] }
               <Th>Compañía</Th>
               <Th>Situación</Th>
               <Th>Estado</Th>
+              <Th>Último toque</Th>
               <Th />
             </tr>
           </thead>
@@ -263,19 +265,30 @@ export function ProspectosTabla({ prospectos }: { prospectos: ProspectoVista[] }
                     {p.estado ?? "—"}
                   </div>
                 </Td>
+                <Td className="text-ink-muted">
+                  {p.ultimoSeguimiento ? fmtFecha(new Date(p.ultimoSeguimiento)) : "—"}
+                </Td>
                 <Td>
-                  <button
-                    onClick={() => setEditando(p)}
-                    className="rounded-lg border border-line-axis px-2 py-1 text-xs text-ink-secondary hover:bg-surface-page"
-                  >
-                    Editar
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setGestionando(p)}
+                      className="rounded-lg bg-brand px-2 py-1 text-xs font-semibold text-white hover:bg-brand-dark"
+                    >
+                      Gestionar
+                    </button>
+                    <button
+                      onClick={() => setEditando(p)}
+                      className="rounded-lg border border-line-axis px-2 py-1 text-xs text-ink-secondary hover:bg-surface-page"
+                    >
+                      Editar
+                    </button>
+                  </div>
                 </Td>
               </tr>
             ))}
             {filtrados.length === 0 && (
               <tr>
-                <Td className="py-6 text-center text-ink-muted" colSpan={8}>
+                <Td className="py-6 text-center text-ink-muted" colSpan={9}>
                   No hay prospectos que cumplan los filtros.
                 </Td>
               </tr>
@@ -291,6 +304,14 @@ export function ProspectosTabla({ prospectos }: { prospectos: ProspectoVista[] }
         total={filtrados.length}
         etiqueta="prospectos"
       />
+
+      {gestionando && (
+        <PanelGestion
+          prospecto={gestionando}
+          onCerrar={() => setGestionando(null)}
+          onGuardar={guardar}
+        />
+      )}
 
       {(creando || editando) && (
         <FormProspecto
@@ -408,6 +429,141 @@ function FormProspecto({
             className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
           >
             {guardando ? "Guardando…" : "Guardar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Panel de gestión: la historia del prospecto y el sitio donde se le añade.
+ *
+ * Mismo criterio que los siniestros: lo que se escribe no reemplaza nada, se
+ * antepone con su fecha. La gracia de una bitácora es poder reconstruir tres
+ * meses después por qué se perdió un negocio, y eso solo funciona si nadie
+ * puede borrar lo anterior sin querer.
+ */
+function PanelGestion({
+  prospecto,
+  onCerrar,
+  onGuardar,
+}: {
+  prospecto: ProspectoVista;
+  onCerrar: () => void;
+  onGuardar: (url: string, metodo: string, cuerpo: unknown) => Promise<boolean>;
+}) {
+  const [nota, setNota] = useState("");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [situacion, setSituacion] = useState(prospecto.situacion);
+  const [estado, setEstado] = useState(prospecto.estado ?? "");
+  const [guardando, setGuardando] = useState(false);
+  const clase =
+    "w-full rounded-lg border border-line-axis bg-surface px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
+
+  const entradas = (prospecto.historia ?? "").split("\n\n").filter((x) => x.trim());
+
+  const enviar = async () => {
+    setGuardando(true);
+    const ok = await onGuardar(`/api/prospectos/${prospecto.id}`, "PATCH", {
+      notaSeguimiento: nota,
+      fechaSeguimiento: fecha,
+      situacion,
+      estado,
+    });
+    setGuardando(false);
+    if (ok) onCerrar();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4">
+      <div className="mt-10 w-full max-w-2xl rounded-xl border border-line-grid bg-surface p-5 shadow-lg">
+        <h2 className="text-lg font-semibold">{prospecto.nombre}</h2>
+        <p className="mb-4 text-sm text-ink-secondary">
+          {prospecto.compania ?? "Sin compañía"}
+          {prospecto.administrador ? ` · ${prospecto.administrador}` : ""}
+          {prospecto.dias != null &&
+            ` · vigencia ${
+              prospecto.dias < 0 ? `arrancó hace ${-prospecto.dias} días` : `en ${prospecto.dias} días`
+            }`}
+        </p>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-3">
+            <label className="block text-sm">
+              <span className="text-ink-secondary">¿Qué se hizo? *</span>
+              <textarea
+                rows={4}
+                className={clase}
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                placeholder="Ej: se llamó a la administradora, quedó de confirmar el jueves."
+              />
+              <span className="mt-1 block text-[11px] text-ink-muted">
+                Queda con la fecha al comienzo de la historia. No borra lo anterior.
+              </span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="text-ink-secondary">Fecha</span>
+                <input type="date" className={clase} value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-ink-secondary">Situación</span>
+                <select className={clase} value={situacion} onChange={(e) => setSituacion(e.target.value)}>
+                  {SITUACIONES.map((s) => (
+                    <option key={s} value={s}>
+                      {ETIQUETA_SITUACION[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="block text-sm">
+              <span className="text-ink-secondary">Estado (resumen de una línea)</span>
+              <input className={clase} value={estado} onChange={(e) => setEstado(e.target.value)} />
+            </label>
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">Historia</h3>
+            {entradas.length === 0 ? (
+              <p className="text-sm text-ink-muted">
+                Todavía no hay gestiones registradas. La primera que escriba aparecerá aquí.
+              </p>
+            ) : (
+              <ol className="max-h-72 space-y-2 overflow-y-auto scroll-fino border-l border-line-grid pl-3 text-sm">
+                {entradas.map((e, i) => {
+                  const corte = e.indexOf(" · ");
+                  const sello = corte > 0 ? e.slice(0, corte) : null;
+                  const texto = corte > 0 ? e.slice(corte + 3) : e;
+                  return (
+                    <li key={i}>
+                      {sello && (
+                        <span className="mr-1.5 text-[11px] font-semibold text-ink-muted">{sello}</span>
+                      )}
+                      <span className="whitespace-pre-wrap">{texto}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            onClick={onCerrar}
+            className="rounded-lg border border-line-axis px-3 py-2 text-sm text-ink-secondary hover:bg-surface-page"
+          >
+            Cerrar
+          </button>
+          <button
+            onClick={enviar}
+            disabled={guardando || !nota.trim()}
+            className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+          >
+            {guardando ? "Guardando…" : "Registrar gestión"}
           </button>
         </div>
       </div>

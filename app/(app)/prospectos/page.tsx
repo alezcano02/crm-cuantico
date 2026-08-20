@@ -32,6 +32,8 @@ export default async function ProspectosPage() {
     asesor: p.asesor,
     nota: p.nota,
     polizaNumero: p.polizaNumero,
+    historia: p.historia,
+    ultimoSeguimiento: p.ultimoSeguimiento?.toISOString() ?? null,
     dias: diasParaInicio(p.fechaInicio, hoy),
   }));
 

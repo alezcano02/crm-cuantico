@@ -17,7 +17,7 @@ export type Situacion = (typeof SITUACIONES)[number];
 
 export const ETIQUETA_SITUACION: Record<Situacion, string> = {
   PENDIENTE: "Pendiente",
-  PERDIDA: "No conseguida",
+  PERDIDA: "Perdido",
   GANADA: "Ganada",
 };
 
@@ -63,6 +63,9 @@ export interface ProspectoVista {
   asesor: string | null;
   nota: string | null;
   polizaNumero: string | null;
+  /** Bitácora de la gestión, lo último arriba. Ver la API de prospectos. */
+  historia: string | null;
+  ultimoSeguimiento: string | null;
   /** Días hasta el inicio de vigencia; negativo si ya pasó. */
   dias: number | null;
 }
