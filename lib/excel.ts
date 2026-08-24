@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { mesDeFecha } from "./calculos";
+import { ramoCanonico } from "./colectivas";
 import { TipoLista } from "./constants";
 
 // ---------------------------------------------------------------------------
@@ -405,7 +406,10 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
         filas.forEach((f, i) => {
           const filaExcel = i + 3;
           let poliza = texto(v(f, "poliza"));
-          const ramo = texto(v(f, "ramo"));
+          const ramoBruto = texto(v(f, "ramo"));
+          // MAYÚSCULAS y sin sinónimos: VIDA GRUPO y COLECTIVA VIDA son el
+          // mismo producto. Ver ramoCanonico en lib/colectivas.ts.
+          const ramo = ramoBruto ? ramoCanonico(ramoBruto) : ramoBruto;
           const asegurado = texto(v(f, "asegurado"));
           if (!poliza && !ramo && !asegurado) return; // fila vacía
           res.leidos++;
@@ -522,7 +526,10 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
         filas.forEach((f, i) => {
           const filaExcel = i + 3;
           let poliza = texto(v(f, "poliza"));
-          const ramo = texto(v(f, "ramo"));
+          const ramoBruto = texto(v(f, "ramo"));
+          // MAYÚSCULAS y sin sinónimos: VIDA GRUPO y COLECTIVA VIDA son el
+          // mismo producto. Ver ramoCanonico en lib/colectivas.ts.
+          const ramo = ramoBruto ? ramoCanonico(ramoBruto) : ramoBruto;
           const asegurado = texto(v(f, "asegurado"));
           if (!poliza && !ramo && !asegurado) return;
           res.leidos++;
@@ -627,7 +634,10 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
         filas.forEach((f, i) => {
           const filaExcel = i + 3;
           let poliza = texto(v(f, "poliza"));
-          const ramo = texto(v(f, "ramo"));
+          const ramoBruto = texto(v(f, "ramo"));
+          // MAYÚSCULAS y sin sinónimos: VIDA GRUPO y COLECTIVA VIDA son el
+          // mismo producto. Ver ramoCanonico en lib/colectivas.ts.
+          const ramo = ramoBruto ? ramoCanonico(ramoBruto) : ramoBruto;
           if (!poliza && !ramo) return;
           res.leidos++;
           if (!ramo) {
@@ -726,7 +736,10 @@ export function parsearLibro(buffer: ArrayBuffer | Buffer): DatosImportados {
         filas.forEach((f, i) => {
           const filaExcel = i + 2;
           let poliza = texto(v(f, "poliza"));
-          const ramo = texto(v(f, "ramo"));
+          const ramoBruto = texto(v(f, "ramo"));
+          // MAYÚSCULAS y sin sinónimos: VIDA GRUPO y COLECTIVA VIDA son el
+          // mismo producto. Ver ramoCanonico en lib/colectivas.ts.
+          const ramo = ramoBruto ? ramoCanonico(ramoBruto) : ramoBruto;
           if (!poliza && !ramo) return;
           res.leidos++;
           if (!ramo) {

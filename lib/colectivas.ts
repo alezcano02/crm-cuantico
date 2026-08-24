@@ -138,3 +138,28 @@ export interface ResumenEmpresa {
   incluidosMes: number;
   primaMensual: number;
 }
+
+/**
+ * Nombre canónico de un ramo: MAYÚSCULAS y sin sinónimos.
+ *
+ * Dos cosas, por el mismo motivo —que un ramo no se cuente dos veces:
+ *
+ *  · MAYÚSCULAS. El informe los trae así y las colectivas se renombraron como
+ *    «Colectiva Vida», de modo que en la misma tabla convivían «AUTOS» y
+ *    «Colectiva Autos». Además de leerse mal, cualquier comparación exacta
+ *    entre las dos grafías fallaba.
+ *
+ *  · VIDA GRUPO ES COLECTIVA VIDA. Son el mismo producto con dos nombres: el
+ *    del informe y el del módulo de colectivas. Mientras los dos existieran,
+ *    una póliza dada de alta como VIDA GRUPO quedaba fuera del grupo de su
+ *    propia colectiva y salía como un ramo aparte en el seguimiento.
+ */
+const SINONIMOS: Record<string, string> = {
+  "VIDA GRUPO": "COLECTIVA VIDA",
+  "VIDA GRUPAL": "COLECTIVA VIDA",
+};
+
+export function ramoCanonico(ramo: string): string {
+  const limpio = ramo.trim().replace(/\s+/g, " ").toUpperCase();
+  return SINONIMOS[limpio] ?? limpio;
+}

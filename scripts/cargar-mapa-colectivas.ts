@@ -19,6 +19,7 @@
  */
 import { prisma } from "../lib/prisma";
 import { libroATexto } from "../lib/debitos";
+import { ramoCanonico } from "../lib/colectivas";
 import { aplicarMapaColectivas, normalizarNumero } from "../lib/mapa-colectivas";
 
 const args = process.argv.slice(2);
@@ -63,7 +64,7 @@ async function main() {
   for (const f of hojaRamos.slice(1)) {
     const [numero, nombre] = f;
     if (!numero || !nombre || /^n[uú]mero/i.test(numero)) continue;
-    madres.push({ numero: numero.trim(), ramo: nombre.trim() });
+    madres.push({ numero: numero.trim(), ramo: ramoCanonico(nombre) });
   }
 
   // --- Hoja de recibos ----------------------------------------------------

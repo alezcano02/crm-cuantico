@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { prisma } from "./prisma";
 import { cachearCartera } from "./cache";
+import { ramoCanonico } from "./colectivas";
 import { ASESORES_PRINCIPALES, valeComoAsesorApoyo } from "./asesores";
 import { pareceEmpresa, proximoCumpleanos } from "./cumpleanos";
 import {
@@ -361,7 +362,9 @@ export async function listasParaFormularios() {
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b, "es"));
   return {
-    ramos: unir(de("RAMO"), polizas.map((p) => p.ramo)),
+    // Canónicos: si no, el desplegable ofrecía VIDA GRUPO y COLECTIVA VIDA
+    // como si fueran ramos distintos.
+    ramos: unir(de("RAMO").map(ramoCanonico), polizas.map((p) => ramoCanonico(p.ramo))),
     tiposNegocio: de("TIPO_NEGOCIO"),
     estadosPago: de("ESTADO_PAGO"),
     formasPago: unir(de("FORMA_PAGO"), polizas.map((p) => p.formaPago)),
