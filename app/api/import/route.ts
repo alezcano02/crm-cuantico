@@ -45,7 +45,13 @@ export async function POST(req: NextRequest) {
   //  · la cobranza de las pólizas cuyo recaudo se registró aquí, que va por
   //    delante del informe (ver lib/cobranza.ts).
   const previas = await prisma.policy.findMany({
-    where: { OR: [{ gestionada: true }, { cobranzaEditadaEn: { not: null } }] },
+    where: {
+      OR: [
+        { gestionada: true },
+        { cobranzaEditadaEn: { not: null } },
+        { renovadaEn: { not: null } },
+      ],
+    },
     select: {
       numero: true,
       ramo: true,
@@ -53,6 +59,12 @@ export async function POST(req: NextRequest) {
       notaGestion: true,
       gestionadaEn: true,
       cobranzaEditadaEn: true,
+      renovadaEn: true,
+      vencimiento: true,
+      mesVencimiento: true,
+      tipoNegocio: true,
+      primaNeta: true,
+      primaTotal: true,
       estadoPago: true,
       fechaPago: true,
       fechaMaxPago: true,
@@ -62,6 +74,7 @@ export async function POST(req: NextRequest) {
   });
   const buscarPrevia = buscadorDePrevias(previas, await numerosColectivos());
   let cobranzaConservada = 0;
+  let renovacionesConservadas = 0;
 
   // La importación borra y recrea casi todo. Si se cae a mitad (dos personas
   // importando a la vez, la transacción pasa de 55 s, o la base se cae) la
@@ -90,11 +103,35 @@ export async function POST(req: NextRequest) {
             const previa = buscarPrevia(p.numero, p.ramo);
             const conservarCobranza = previa?.cobranzaEditadaEn != null;
             if (conservarCobranza) cobranzaConservada++;
+            /*
+             * La renovación hecha en el CRM manda MIENTRAS el informe siga
+             * atrasado. En cuanto el Excel trae un vencimiento igual o
+             * posterior, es que ya recogió la renovación y vuelve a mandar él:
+             * si no se cediera, la póliza quedaría congelada en el CRM y la
+             * renovación del año siguiente no entraría nunca.
+             */
+            const conservarRenovacion =
+              previa?.renovadaEn != null &&
+              previa.vencimiento != null &&
+              (p.vencimiento == null || p.vencimiento < previa.vencimiento);
+            if (conservarRenovacion) renovacionesConservadas++;
             return {
               ...p,
               gestionada: previa?.gestionada ?? false,
               notaGestion: previa?.notaGestion ?? null,
               gestionadaEn: previa?.gestionadaEn ?? null,
+              // Manda el CRM: la renovación se hizo aquí y el informe aún no
+              // la refleja.
+              ...(conservarRenovacion
+                ? {
+                    vencimiento: previa!.vencimiento,
+                    mesVencimiento: previa!.mesVencimiento,
+                    tipoNegocio: previa!.tipoNegocio,
+                    primaNeta: previa!.primaNeta,
+                    primaTotal: previa!.primaTotal,
+                    renovadaEn: previa!.renovadaEn,
+                  }
+                : {}),
               // Manda el CRM: el pago se registró aquí, no en el informe.
               ...(conservarCobranza
                 ? {
@@ -158,6 +195,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     resumen: datos.resumen,
     cobranzaConservada,
+    renovacionesConservadas,
     colectivas: {
       renombradas: mapa.madresRenombradas,
       recibosAbsorbidos: mapa.recibosMarcados,

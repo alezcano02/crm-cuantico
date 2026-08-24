@@ -75,6 +75,9 @@ export async function PATCH(
         vencimiento: nuevoVencimiento,
         mesVencimiento: mesDeFecha(nuevoVencimiento),
         tipoNegocio: TIPO_RENOVACION,
+        // Marca de que la renovación se hizo aquí: sin ella, la siguiente
+        // importación del informe devolvía NUEVO y el vencimiento viejo.
+        renovadaEn: new Date(),
         primaNeta: numero(body.primaNeta, actual.primaNeta),
         primaTotal: numero(body.primaTotal, actual.primaTotal),
         estadoPago,

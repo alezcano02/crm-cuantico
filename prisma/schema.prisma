@@ -48,6 +48,18 @@ model Policy {
   // póliza: manda el CRM, que es donde se registra el recaudo al día. Con la
   // fecha en null la póliza sigue tomando la cobranza del informe.
   cobranzaEditadaEn DateTime?
+  // Cuándo se renovó la póliza DESDE la aplicación.
+  //
+  // La importación borra y recrea la cartera, así que una renovación hecha en
+  // el CRM se perdía en la siguiente carga: el Excel devolvía el tipo de
+  // negocio y el vencimiento viejos, y la póliza volvía a aparecer como NUEVO
+  // y pendiente de renovar. Con esta fecha puesta manda el CRM.
+  //
+  // Se limpia sola: en cuanto el Excel trae un vencimiento igual o posterior
+  // al del CRM, es que el informe ya recogió la renovación y vuelve a mandar
+  // él. Sin eso, la póliza quedaría congelada y la renovación del año
+  // siguiente no entraría nunca.
+  renovadaEn        DateTime?
   // Número de la póliza colectiva madre cuando esta fila es un recibo suyo
   // (una inclusión). Lo escribe `aplicarMapaColectivas` a partir de
   // ReciboColectiva, no viene del Excel. Con valor, la póliza NO sale en

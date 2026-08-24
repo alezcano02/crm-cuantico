@@ -34,15 +34,22 @@ async function main() {
   // Conservar lo que la aplicación administra y el Excel no debe pisar,
   // casando por número de póliza + ramo.
   const previas = await prisma.policy.findMany({
-    where: { OR: [{ gestionada: true }, { cobranzaEditadaEn: { not: null } }] },
+    where: {
+      OR: [
+        { gestionada: true },
+        { cobranzaEditadaEn: { not: null } },
+        { renovadaEn: { not: null } },
+      ],
+    },
     select: {
       numero: true, ramo: true, gestionada: true, notaGestion: true,
-      gestionadaEn: true, cobranzaEditadaEn: true, estadoPago: true,
+      gestionadaEn: true, cobranzaEditadaEn: true, renovadaEn: true, vencimiento: true, mesVencimiento: true, tipoNegocio: true, primaNeta: true, primaTotal: true, estadoPago: true,
       fechaPago: true, fechaMaxPago: true, valorCuota: true, notaCartera: true,
     },
   });
   const buscarPrevia = buscadorDePrevias(previas, await numerosColectivos());
   let cobranzaConservada = 0;
+  let renovacionesConservadas = 0;
 
   await prisma.$transaction(
     async (tx) => {
@@ -66,11 +73,35 @@ async function main() {
             const previa = buscarPrevia(p.numero, p.ramo);
             const conservarCobranza = previa?.cobranzaEditadaEn != null;
             if (conservarCobranza) cobranzaConservada++;
+            /*
+             * La renovación hecha en el CRM manda MIENTRAS el informe siga
+             * atrasado. En cuanto el Excel trae un vencimiento igual o
+             * posterior, es que ya recogió la renovación y vuelve a mandar él:
+             * si no se cediera, la póliza quedaría congelada en el CRM y la
+             * renovación del año siguiente no entraría nunca.
+             */
+            const conservarRenovacion =
+              previa?.renovadaEn != null &&
+              previa.vencimiento != null &&
+              (p.vencimiento == null || p.vencimiento < previa.vencimiento);
+            if (conservarRenovacion) renovacionesConservadas++;
             return {
               ...p,
               gestionada: previa?.gestionada ?? false,
               notaGestion: previa?.notaGestion ?? null,
               gestionadaEn: previa?.gestionadaEn ?? null,
+              // Manda el CRM: la renovación se hizo aquí y el informe aún no
+              // la refleja.
+              ...(conservarRenovacion
+                ? {
+                    vencimiento: previa!.vencimiento,
+                    mesVencimiento: previa!.mesVencimiento,
+                    tipoNegocio: previa!.tipoNegocio,
+                    primaNeta: previa!.primaNeta,
+                    primaTotal: previa!.primaTotal,
+                    renovadaEn: previa!.renovadaEn,
+                  }
+                : {}),
               // Manda el CRM: el pago se registró aquí, no en el informe.
               ...(conservarCobranza
                 ? {
