@@ -73,28 +73,28 @@ export default async function SeguimientoPage({
   const resumen = hayMes ? filas12[idxMes] : filas12[12];
   const nivel = nivelCumplimiento(resumen.cumplimiento);
 
-  // --- Desglose por ramo del mes elegido ---
-  // Con un mes seleccionado la tabla de detalle se queda en una sola fila, así
-  // que se abre el mes por ramo: la meta de cada uno, no solo la consolidada.
-  // Se omiten los ramos sin nada ese mes (ni base, ni meta, ni producción, ni
-  // cancelaciones); listarlos en cero solo alarga la tabla.
+  /*
+   * Desglose por ramo del mes elegido.
+   *
+   * Con un mes seleccionado la tabla de detalle se queda en una sola fila, así
+   * que se abre el mes por ramo: la meta de cada uno, no solo la consolidada.
+   *
+   * Salen TODOS los ramos del año, también los que ese mes están en cero. Antes
+   * se ocultaban los vacíos para no alargar la tabla, pero un ramo con meta que
+   * no produjo nada es justo lo que hay que ver: si desaparece, el mes parece
+   * cumplido porque solo se enseña lo que sí se vendió. Y comparar dos meses
+   * era imposible cuando cada uno traía una lista de ramos distinta.
+   */
   const ramosDelMes = hayMes
     ? seguimiento.ramos
         .map((r) => ({ ramo: r, fila: seguimiento.porRamo.get(r)![idxMes] }))
-        .filter(
-          ({ fila }) =>
-            fila.base !== 0 ||
-            fila.meta !== 0 ||
-            fila.real !== 0 ||
-            fila.cancelaciones !== 0
-        )
-        // De mayor a menor meta: primero dónde hay más por cumplir. Sin base
-        // calculable (filtro de aseguradora) se ordena por producción real.
+        // De mayor a menor meta: primero dónde hay más por cumplir, y los ceros
+        // caen solos al final. Sin base calculable (filtro de aseguradora) se
+        // ordena por producción real.
         .sort((a, b) =>
           mostrarBase ? b.fila.meta - a.fila.meta : b.fila.real - a.fila.real
         )
     : [];
-  const ramosOcultos = hayMes ? seguimiento.ramos.length - ramosDelMes.length : 0;
 
   const serieCumplimiento = filas12.slice(0, 12).map((f, i) => ({
     mes: MESES_CORTO[i],
@@ -219,13 +219,6 @@ export default async function SeguimientoPage({
                 anio={anio}
                 mostrarBase={mostrarBase}
               />
-              {ramosOcultos > 0 && (
-                <p className="mt-2 text-xs text-ink-muted">
-                  Se omiten {ramosOcultos}{" "}
-                  {ramosOcultos === 1 ? "ramo" : "ramos"} sin base, meta ni
-                  producción en {MES_TITULO[mesParam]}.
-                </p>
-              )}
             </>
           )}
         </Card>
