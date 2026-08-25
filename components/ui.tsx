@@ -320,6 +320,69 @@ export function EstadoPagoBadge({ estado }: { estado: string | null }) {
   );
 }
 
+const ENDOSO_INFO: Record<
+  string,
+  { etiqueta: string; punto: string; texto: string; fondo: string }
+> = {
+  NUEVA_SOLICITUD: {
+    etiqueta: "Nueva",
+    punto: "bg-brand-400",
+    texto: "text-brand",
+    fondo: "bg-brand/10",
+  },
+  DATOS_INCOMPLETOS: {
+    etiqueta: "Datos incompletos",
+    punto: "bg-status-warning",
+    texto: "text-[#8a6100]",
+    fondo: "bg-status-warning/15",
+  },
+  RADICADO: {
+    etiqueta: "Radicado",
+    punto: "bg-status-serious",
+    texto: "text-[#c05a2e]",
+    fondo: "bg-status-serious/10",
+  },
+  REPROCESO: {
+    etiqueta: "Reproceso",
+    punto: "bg-status-critical",
+    texto: "text-status-critical",
+    fondo: "bg-status-critical/10",
+  },
+  ENVIADO_CLIENTE: {
+    etiqueta: "Enviado al cliente",
+    punto: "bg-status-good",
+    texto: "text-status-good",
+    fondo: "bg-status-good/10",
+  },
+  CERRADO: {
+    etiqueta: "Cerrado",
+    punto: "bg-ink-muted",
+    texto: "text-ink-secondary",
+    fondo: "bg-surface-page",
+  },
+};
+
+export function EndosoEstadoBadge({ estado }: { estado: string }) {
+  const c = ENDOSO_INFO[estado] ?? {
+    etiqueta: estado,
+    punto: "bg-ink-muted",
+    texto: "text-ink-muted",
+    fondo: "bg-surface-page",
+  };
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold",
+        c.fondo,
+        c.texto
+      )}
+    >
+      <span className={clsx("h-1.5 w-1.5 rounded-full", c.punto)} aria-hidden />
+      {c.etiqueta}
+    </span>
+  );
+}
+
 export function Th({
   children,
   className,

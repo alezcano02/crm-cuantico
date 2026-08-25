@@ -151,6 +151,17 @@ export const IconSiniestro = (p: IconProps) =>
     </>
   ));
 
+/** Documento sellado: el certificado que se le entrega al banco. */
+export const IconEndoso = (p: IconProps) =>
+  base(p, (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6" />
+      <polyline points="14 2 14 8 20 8" />
+      <circle cx="17.5" cy="16.5" r="3.5" />
+      <path d="m16 19.5-.6 2.5 2.1-1.1L19.6 22l-.6-2.5" />
+    </>
+  ));
+
 export const IconRegalo = (p: IconProps) =>
   base(p, (
     <>

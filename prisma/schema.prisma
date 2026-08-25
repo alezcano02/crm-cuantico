@@ -87,6 +87,8 @@ model Policy {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  endosos           Endoso[]
+
   @@index([colectivaDe])
   @@index([vencimiento])
   @@index([ramo])
@@ -515,4 +517,139 @@ model Prospecto {
 
   @@index([situacion])
   @@index([fechaInicio])
+}
+
+// ---------------------------------------------------------------------------
+// Endosos
+//
+// Un ENDOSO es el certificado que le dice al banco «de la póliza de áreas
+// comunes de este edificio, la parte que le corresponde al apartamento 1406
+// queda a su favor por $X». Se emite porque el propietario sacó un crédito
+// hipotecario o un leasing y el banco exige ser beneficiario del seguro; como
+// el apartamento ya está cubierto por la póliza de la copropiedad, no se
+// expide una póliza nueva.
+//
+// El trámite lo devuelve el banco con una frecuencia altísima —227 reprocesos
+// entre abril y agosto de 2026 sobre 2.163 correos, y 118 solo en julio— y casi
+// siempre por lo mismo: la dirección no coincide con la registrada en el
+// crédito, el beneficiario o su NIT están mal, o el paz y salvo no está al día.
+// Por eso el modelo guarda la dirección desmenuzada en piezas (ciudad, torre,
+// apartamento, cuarto útil, parqueadero) en vez de un solo campo de texto: solo
+// así se puede avisar QUÉ falta antes de radicar. Ver lib/endosos.ts.
+// ---------------------------------------------------------------------------
+
+// La ficha del edificio: lo que hay que saber ANTES de tramitar cualquier
+// endoso suyo. Se llena una vez y sirve para todos los apartamentos.
+//
+// Reemplaza dos hojas del Excel «ENDOSOS DÍA A DÍA» que hoy llevan esto suelto:
+// «Importante» (si la copropiedad admite endosos hoy) y «Consolidado» (hasta
+// cuándo va su paz y salvo).
+model Copropiedad {
+  id     Int     @id @default(autoincrement())
+  nombre String  @unique
+  nit    String?
+
+  aseguradora   String?
+  numeroPoliza  String?
+  // Hasta cuándo va la vigencia de la póliza de áreas comunes.
+  vigenciaHasta DateTime?
+
+  // Valor asegurado del EDIFICIO completo. Es el que se multiplica por el
+  // coeficiente del apartamento para saber cuánto le corresponde a cada uno.
+  valorAseguradoTotal Float?
+
+  // Certificado de pago. Sin él la aseguradora no emite el endoso, y BBVA y
+  // Davivienda además exigen que diga textualmente «Pagado en su Totalidad».
+  pazSalvoVigenteHasta DateTime?
+  pazSalvoEstado       String? // AL DIA | POR VENCER | VENCIDO | SIN PAZ Y SALVO
+
+  // Semáforo de una sola pregunta: ¿se pueden enviar endosos de este edificio
+  // hoy? Se guarda a mano y no se deduce de las fechas porque hay motivos que
+  // ninguna fecha refleja —«la póliza no cubre áreas privadas», «está en
+  // proceso de renovación»— y son justo los que hacen perder el trámite.
+  admiteEndosos  Boolean @default(true)
+  motivoBloqueo  String?
+
+  nota String?
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  endosos Endoso[]
+
+  @@index([admiteEndosos])
+}
+
+model Endoso {
+  id Int @id @default(autoincrement())
+
+  copropiedadId Int?
+  copropiedad   Copropiedad? @relation(fields: [copropiedadId], references: [id], onDelete: SetNull)
+  // Se guarda además el nombre en texto para que el caso siga siendo legible
+  // aunque todavía no se haya creado la ficha del edificio. La solicitud llega
+  // por correo antes de que nadie dé de alta la copropiedad.
+  urbanizacion  String
+
+  // Deudor principal y, cuando el crédito es de dos, el segundo. En leasing
+  // estos dos son los LOCATARIOS y el propietario es el banco.
+  cliente String
+  cedula  String?
+  cliente2 String?
+  cedula2  String?
+
+  correoSolicitante String?
+  celular           String?
+
+  // La dirección va partida a propósito: la causa nº 1 de devolución es que no
+  // coincida exactamente con la registrada en el crédito, y en piezas se puede
+  // avisar cuál falta.
+  direccion   String?
+  ciudad      String?
+  torre       String?
+  apartamento String?
+  cuartoUtil  String?
+  parqueadero String?
+
+  // Coeficiente de copropiedad del apartamento, en porcentaje (0.36 = 0,36%).
+  // Juan lo digita cuando lo consigue y queda guardado: el año siguiente, en la
+  // renovación del mismo apartamento, ya no hay que volver a pedirlo.
+  coeficiente Float?
+
+  // Lo que pide el banco.
+  valorSolicitado Float?
+  banco           String?
+  bancoNit        String?
+  tipoCredito     String? // HIPOTECARIO | LEASING
+
+  // Trámite ante la aseguradora.
+  aseguradora           String?
+  numeroPoliza          String?
+  radicado              String?
+  fechaEnvioAseguradora DateTime?
+
+  estado String @default("NUEVA_SOLICITUD")
+
+  // Bitácora, mismo formato que Prospecto.historia y Siniestro: cada nota se
+  // antepone con su fecha y no se borra nunca lo anterior.
+  historia          String?
+  ultimoSeguimiento DateTime?
+
+  // internetMessageId del correo que originó el caso, para poder volver al hilo
+  // sin buscarlo a mano.
+  origenCorreoId String?
+
+  // Póliza de la cartera con la que se emparejó, si se encontró. Es opcional y
+  // se confirma a mano: el nombre del cliente en un correo rara vez coincide
+  // letra por letra con el asegurado del informe.
+  policyId Int?
+  policy   Policy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([estado])
+  @@index([copropiedadId])
+  @@index([aseguradora])
+  @@index([cliente])
+  @@index([policyId])
 }

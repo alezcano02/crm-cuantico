@@ -10,6 +10,7 @@ import {
   IconCartera,
   IconDashboard,
   IconDinero,
+  IconEndoso,
   IconHistorial,
   IconImportar,
   IconPersonas,
@@ -74,6 +75,7 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
       { href: "/cartera", etiqueta: "Cartera", Icono: IconCartera, contador: "mora" },
       { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
       { href: "/siniestros", etiqueta: "Siniestros", Icono: IconSiniestro },
+      { href: "/endosos", etiqueta: "Endosos", Icono: IconEndoso },
       { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconRegalo },
       {
         href: "/colectivas",
