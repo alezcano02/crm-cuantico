@@ -28,6 +28,7 @@ import {
   type EndosoVista,
   type EstadoEndoso,
   type Resultado,
+  claveFormatoPorAseguradora,
 } from "@/lib/endosos";
 import { exigirOk } from "@/lib/respuesta";
 import { api } from "@/lib/rutas";
@@ -919,9 +920,40 @@ function PanelSeguimiento({
   const [estado, setEstado] = useState(endoso.estado);
   const [radicado, setRadicado] = useState(endoso.radicado ?? "");
   const [guardando, setGuardando] = useState(false);
+  const [descargando, setDescargando] = useState(false);
+  const [faltantesFormato, setFaltantesFormato] = useState<string[] | null>(null);
+  const [errorFormato, setErrorFormato] = useState<string | null>(null);
 
   const entradas = (endoso.historia ?? "").split("\n\n").filter((x) => x.trim());
   const chequeos = useMemo(() => revisarEndoso(endoso, copropiedad), [endoso, copropiedad]);
+  const claveFormato = claveFormatoPorAseguradora(endoso.aseguradora);
+
+  const descargarFormato = async () => {
+    setDescargando(true);
+    setErrorFormato(null);
+    setFaltantesFormato(null);
+    try {
+      const res = await fetch(api(`/api/endosos/${endoso.id}/formato`));
+      if (!res.ok) {
+        const cuerpo = await res.json().catch(() => null);
+        setErrorFormato(cuerpo?.error ?? "No se pudo generar el formato.");
+        return;
+      }
+      const faltantesHeader = res.headers.get("X-Campos-Faltantes");
+      if (faltantesHeader) setFaltantesFormato(JSON.parse(decodeURIComponent(faltantesHeader)));
+      const disposicion = res.headers.get("Content-Disposition") ?? "";
+      const nombre = /filename="([^"]+)"/.exec(disposicion)?.[1] ?? "endoso.xlsx";
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nombre;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDescargando(false);
+    }
+  };
 
   const enviar = async () => {
     setGuardando(true);
@@ -1035,20 +1067,50 @@ function PanelSeguimiento({
           </div>
         </div>
 
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onCerrar}
-            className="rounded-lg border border-line-axis px-3 py-2 text-sm text-ink-secondary hover:bg-surface-page"
-          >
-            Cerrar
-          </button>
-          <button
-            onClick={enviar}
-            disabled={guardando || !nota.trim()}
-            className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
-          >
-            {guardando ? "Guardando…" : "Registrar gestión"}
-          </button>
+        {faltantesFormato && (
+          <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+            {faltantesFormato.length === 0
+              ? "El formato se generó con todos los datos que tenía el caso."
+              : `El formato se descargó, pero faltan estos campos por llenar a mano antes de enviarlo: ${faltantesFormato.join(
+                  " · "
+                )}.`}
+          </p>
+        )}
+        {errorFormato && (
+          <p className="mt-3 rounded-lg border border-red-300 bg-red-50 p-2 text-xs text-red-800">{errorFormato}</p>
+        )}
+
+        <div className="mt-4 flex items-center justify-between gap-2">
+          {claveFormato ? (
+            <button
+              onClick={descargarFormato}
+              disabled={descargando}
+              className="rounded-lg border border-line-axis px-3 py-2 text-sm text-ink-secondary hover:bg-surface-page disabled:opacity-50"
+            >
+              {descargando ? "Generando…" : `Generar formato ${endoso.aseguradora}`}
+            </button>
+          ) : (
+            <span className="text-xs text-ink-muted">
+              {endoso.aseguradora
+                ? `Sin generador de formato para "${endoso.aseguradora}" todavía.`
+                : "Asigna una aseguradora para poder generar su formato."}
+            </span>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onCerrar}
+              className="rounded-lg border border-line-axis px-3 py-2 text-sm text-ink-secondary hover:bg-surface-page"
+            >
+              Cerrar
+            </button>
+            <button
+              onClick={enviar}
+              disabled={guardando || !nota.trim()}
+              className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+            >
+              {guardando ? "Guardando…" : "Registrar gestión"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

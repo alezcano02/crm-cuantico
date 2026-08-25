@@ -93,6 +93,31 @@ export function normalizarAseguradora(nombre: string | null | undefined): string
 }
 
 /**
+ * Aseguradoras para las que ya existe un generador de formato de solicitud
+ * (lib/formatos-aseguradora.ts). Vive aquí y no allá porque ese módulo lee
+ * archivos de disco (fs/path) y no se puede importar desde un componente de
+ * cliente; esta función sí, y es lo único que la interfaz necesita para
+ * decidir si mostrar el botón de descarga.
+ */
+export type ClaveAseguradoraFormato = "AXA_COLPATRIA" | "ZURICH" | "PREVISORA" | "SBS";
+
+export function claveFormatoPorAseguradora(aseguradora: string | null | undefined): ClaveAseguradoraFormato | null {
+  switch (aseguradora) {
+    case "Axa Colpatria":
+      return "AXA_COLPATRIA";
+    case "Zurich":
+      return "ZURICH";
+    case "Previsora":
+      return "PREVISORA";
+    case "SBS":
+    case "Escritorio Virtual SBS":
+      return "SBS";
+    default:
+      return null;
+  }
+}
+
+/**
  * Días que la aseguradora puede tardar antes de que el caso se considere
  * represado. Es el mismo umbral de la columna ALERTA del Excel actual.
  */
