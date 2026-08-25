@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
+import { normalizarAseguradora } from "@/lib/endosos";
 
 export const runtime = "nodejs";
 
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
       data: {
         nombre,
         nit: texto(b, "nit"),
-        aseguradora: texto(b, "aseguradora"),
+        aseguradora: normalizarAseguradora(texto(b, "aseguradora")),
         numeroPoliza: texto(b, "numeroPoliza"),
         vigenciaHasta: vig ? new Date(vig) : null,
         valorAseguradoTotal: numero(b, "valorAseguradoTotal"),

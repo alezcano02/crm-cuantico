@@ -56,6 +56,43 @@ export const ESTADOS_ABIERTOS: EstadoEndoso[] = [
 export const TIPOS_CREDITO = ["HIPOTECARIO", "LEASING"] as const;
 
 /**
+ * Aseguradoras conocidas, con su escritura canónica.
+ *
+ * Antes de esto el campo era texto libre y cada quien lo escribía distinto:
+ * «Axa Colpatria», «axa Colpatria», «AXA COLPATRIA» contaban como tres
+ * aseguradoras diferentes en los filtros. Sale de las que de verdad aparecen
+ * en la cartera y en el histórico de endosos — «Escritorio Virtual SBS» se
+ * deja aparte porque es un canal de radicación distinto de SBS, no una
+ * aseguradora distinta, y así lo maneja la propia agencia.
+ */
+export const ASEGURADORAS = [
+  "SURA",
+  "MUNDIAL",
+  "Axa Colpatria",
+  "Previsora",
+  "Allianz",
+  "Seguros del Estado",
+  "HDI",
+  "Zurich",
+  "SBS",
+  "Escritorio Virtual SBS",
+  "Mapfre",
+  "Solidaria",
+  "BBVA Seguros",
+  "Bolívar",
+  "Equidad",
+  "Quálitas",
+] as const;
+
+/** Encuentra la escritura canónica de una aseguradora por su nombre. */
+export function normalizarAseguradora(nombre: string | null | undefined): string | null {
+  const n = normalizar(nombre);
+  if (!n) return null;
+  const encontrada = ASEGURADORAS.find((a) => normalizar(a) === n);
+  return encontrada ?? (nombre ? nombre.trim() : null);
+}
+
+/**
  * Días que la aseguradora puede tardar antes de que el caso se considere
  * represado. Es el mismo umbral de la columna ALERTA del Excel actual.
  */

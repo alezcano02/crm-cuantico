@@ -12,6 +12,7 @@ import { PanelFiltros } from "@/components/panel-filtros";
 import { BuscadorTabla } from "@/components/buscador-tabla";
 import { FiltroSeleccion, FichasFiltros } from "@/components/filtro-seleccion";
 import {
+  ASEGURADORAS,
   BANCOS,
   DIAS_ALERTA_ASEGURADORA,
   DIAS_AVISO_RENOVACION,
@@ -846,7 +847,13 @@ function FormEndoso({
                   value={f.aseguradora}
                   onChange={(e) => set("aseguradora", e.target.value)}
                   placeholder={copropiedad?.aseguradora ?? "Previsora, Zurich, AXA Colpatria…"}
+                  list="lista-aseguradoras"
                 />
+                <datalist id="lista-aseguradoras">
+                  {ASEGURADORAS.map((a) => (
+                    <option key={a} value={a} />
+                  ))}
+                </datalist>
               </label>
               <label className="block text-sm">
                 <span className="text-ink-secondary">Número de póliza</span>
@@ -1242,6 +1249,7 @@ function FormCopropiedad({
                 className={CLASE_INPUT}
                 value={f.aseguradora}
                 onChange={(e) => set("aseguradora", e.target.value)}
+                list="lista-aseguradoras"
               />
             </label>
             <label className="block text-sm">

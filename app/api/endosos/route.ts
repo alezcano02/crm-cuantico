@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
-import { ESTADOS_ENDOSO, normalizar, type EstadoEndoso } from "@/lib/endosos";
+import { ESTADOS_ENDOSO, normalizar, normalizarAseguradora, type EstadoEndoso } from "@/lib/endosos";
 
 export const runtime = "nodejs";
 
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
       banco: texto(b, "banco"),
       bancoNit: texto(b, "bancoNit"),
       tipoCredito: texto(b, "tipoCredito"),
-      aseguradora: texto(b, "aseguradora"),
+      aseguradora: normalizarAseguradora(texto(b, "aseguradora")),
       numeroPoliza: texto(b, "numeroPoliza"),
       radicado: texto(b, "radicado"),
       fechaEnvioAseguradora: fechaEnvio ? new Date(fechaEnvio) : null,

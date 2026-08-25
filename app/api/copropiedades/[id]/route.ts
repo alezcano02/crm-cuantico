@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
+import { normalizarAseguradora } from "@/lib/endosos";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   for (const k of [
     "nombre",
     "nit",
-    "aseguradora",
     "numeroPoliza",
     "pazSalvoEstado",
     "motivoBloqueo",
@@ -38,6 +38,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const v = t(k);
     if (v !== undefined) datos[k] = v;
   }
+
+  const aseg = t("aseguradora");
+  if (aseg !== undefined) datos.aseguradora = normalizarAseguradora(aseg);
 
   if ("valorAseguradoTotal" in b) {
     const v = b.valorAseguradoTotal;

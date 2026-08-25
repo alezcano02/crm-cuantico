@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
-import { ESTADOS_ENDOSO, type EstadoEndoso } from "@/lib/endosos";
+import { ESTADOS_ENDOSO, normalizarAseguradora, type EstadoEndoso } from "@/lib/endosos";
 
 export const runtime = "nodejs";
 
@@ -89,7 +89,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     "banco",
     "bancoNit",
     "tipoCredito",
-    "aseguradora",
     "numeroPoliza",
     "radicado",
   ] as const) {
@@ -99,6 +98,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const valor = n("valorSolicitado");
   if (valor !== undefined) datos.valorSolicitado = valor;
+
+  // Se pasa por la lista canónica: sin esto, «Zurich» y «zurich» contaban como
+  // dos aseguradoras distintas en los filtros de la tabla.
+  const aseg = t("aseguradora");
+  if (aseg !== undefined) datos.aseguradora = normalizarAseguradora(aseg);
 
   // El coeficiente lleva decimales y no puede pasar por el limpiador de dígitos.
   if ("coeficiente" in b) {
