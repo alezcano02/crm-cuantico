@@ -183,7 +183,8 @@ parrafos.push(
   vineta(
     "5. Se le envían cuatro documentos al cliente (Juan). ",
     "El endoso, la carátula de la póliza, el certificado de pago y el clausulado general. Los " +
-      "cuatro, siempre. Estado: enviado al cliente, y es el momento que cuenta para la cifra del mes."
+      "cuatro, siempre. Estado: enviado al cliente. AQUÍ SE CIERRA EL CASO: la entrega es el " +
+      "cierre, no hay nada que marcar después. Es además el momento que cuenta para la cifra del mes."
   ),
   vineta(
     "6. El cliente lo lleva al banco (cliente). ",
@@ -192,8 +193,21 @@ parrafos.push(
   ),
   vineta(
     "7. El banco lo acepta… o lo devuelve (banco). ",
-    "Si lo acepta, el caso se cierra. Si lo devuelve, vuelve al paso 2 y hay que rehacer el " +
-      "trámite entero: otro formato, otra espera de 15 días, otro envío. Estado: reproceso."
+    "Si lo acepta, no hay que hacer nada: el caso ya quedó cerrado en el paso 5. Si lo devuelve y " +
+      "el cliente avisa, el caso REABRE y vuelve al paso 2: otro formato, otra espera de 15 días, " +
+      "otro envío. Estado: reproceso. Ese es el único camino de vuelta."
+  ),
+  subtitulo("Dónde empieza y dónde termina"),
+  suelto(
+    "Un caso se cierra al entregarle los documentos al cliente, y solo vuelve a abrirse si él " +
+      "reporta un reproceso. Nadie tiene que acordarse de «cerrarlo» a mano: el correo de " +
+      "agradecimiento del cliente, o su confirmación de que ya lo radicó en el banco, no cambia " +
+      "nada — se queda como nota en la bitácora."
+  ),
+  suelto(
+    "El estado «Cerrado sin entregar» es para otra cosa: el trámite que muere sin llegar al " +
+      "cliente, porque se resolvió por otro lado, se duplicó o la copropiedad lo retiró. Si hubo " +
+      "entrega, el estado correcto es «Enviado al cliente», no ese."
   ),
   suelto(
     "El endoso no es de una sola vez. Vive lo que viva la póliza de áreas comunes del edificio. " +

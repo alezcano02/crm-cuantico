@@ -42,8 +42,25 @@ export const ETIQUETA_ESTADO_ENDOSO: Record<EstadoEndoso, string> = {
   RADICADO: "Radicado ante aseguradora",
   REPROCESO: "Reproceso",
   ENVIADO_CLIENTE: "Enviado al cliente",
-  CERRADO: "Cerrado",
+  CERRADO: "Cerrado sin entregar",
 };
+
+/**
+ * DÓNDE TERMINA UN CASO.
+ *
+ * En «Enviado al cliente», y ahí se acaba: entregarle los cuatro documentos ES
+ * el cierre del trámite. No hay que marcar nada después, y pedirlo sería un
+ * paso que alguien tiene que acordarse de dar para nada — los datos lo dicen
+ * solos: 1.848 casos se quedaron en «enviado» y solo 2 llegaron a «cerrado».
+ *
+ * Si el cliente vuelve porque el banco se lo devolvió, el caso REABRE en
+ * REPROCESO. Ese es el único camino de vuelta.
+ *
+ * `CERRADO` queda para lo que de verdad no encaja en ninguno de los dos: el
+ * trámite que muere sin entregarse —se resolvió por otro lado, se duplicó, la
+ * copropiedad lo retiró—. Por eso se llama «cerrado sin entregar»: si hubo
+ * entrega, el estado correcto es ENVIADO_CLIENTE, no este.
+ */
 
 /** Estados en los que el caso sigue vivo y consume atención. */
 export const ESTADOS_ABIERTOS: EstadoEndoso[] = [
