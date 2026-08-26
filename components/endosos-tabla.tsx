@@ -228,6 +228,16 @@ export function EndososTabla({
   const [selEstado, setSelEstado] = useState<string[]>([]);
   const [selAseguradora, setSelAseguradora] = useState<string[]>([]);
   const [selCopropiedad, setSelCopropiedad] = useState<string[]>([]);
+  /*
+   * Rango sobre la fecha en que entró la solicitud del cliente. Mismo patrón
+   * que cancelaciones y vencimientos: dos campos de fecha y comparación de
+   * texto sobre el ISO recortado a AAAA-MM-DD, que evita construir un Date por
+   * fila y esquiva el corrimiento de zona horaria —el servidor va en UTC y
+   * Colombia en UTC-5, así que un `new Date()` por fila movía de día a los
+   * casos que entraron de noche.
+   */
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
   const [creando, setCreando] = useState(false);
   /*
    * Se guarda el id y no el objeto: así, al guardar y refrescar, el panel
@@ -243,6 +253,10 @@ export function EndososTabla({
   const [aviso, setAviso] = useState<string | null>(null);
 
   const abierto = abiertoId != null ? (endosos.find((e) => e.id === abiertoId) ?? null) : null;
+
+  // El mismo recuadro de fecha que usan cancelaciones y vencimientos.
+  const claseFecha =
+    "rounded-md border border-line-axis bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
 
   /*
    * Las opciones se agrupan por su forma normalizada: «Cantapiedra» y «Canta
@@ -288,6 +302,14 @@ export function EndososTabla({
       lista = lista.filter((e) => acepta.has(normalizarTxt(e.urbanizacion)));
     }
 
+    /*
+     * Los casos sin fecha de recepción quedan fuera en cuanto se pide un
+     * rango, y es lo correcto: preguntar «qué entró en agosto» no puede
+     * devolver los que no se sabe cuándo entraron. Sin rango se ven todos.
+     */
+    if (desde) lista = lista.filter((e) => e.fechaRecepcion && e.fechaRecepcion.slice(0, 10) >= desde);
+    if (hasta) lista = lista.filter((e) => e.fechaRecepcion && e.fechaRecepcion.slice(0, 10) <= hasta);
+
     if (q.trim()) {
       const t = q.trim().toLowerCase();
       lista = lista.filter(
@@ -317,7 +339,7 @@ export function EndososTabla({
      * al fondo detrás de casos de hace meses que llevaban más días esperando.
      */
     return [...lista].sort((a, b) => b.creadoEn.localeCompare(a.creadoEn));
-  }, [endosos, q, selSituacion, selEstado, selAseguradora, selCopropiedad, aseguradoras, urbanizaciones]);
+  }, [endosos, q, selSituacion, selEstado, selAseguradora, selCopropiedad, desde, hasta, aseguradoras, urbanizaciones]);
 
   const totales = useMemo(() => {
     const abiertos = endosos.filter((e) => ESTADOS_ABIERTOS.includes(e.estado as EstadoEndoso));
@@ -485,6 +507,41 @@ export function EndososTabla({
           valores={selEstado}
           onCambiar={setSelEstado}
         />
+        {/* Recibido entre dos fechas: es la pregunta de «qué entró esta semana»
+            y la que permite medir un mes contra otro. */}
+        <label className="flex items-center gap-1 text-sm text-ink-secondary">
+          Recibido desde
+          <input
+            type="date"
+            aria-label="Recibido desde"
+            className={claseFecha}
+            value={desde}
+            max={hasta || undefined}
+            onChange={(e) => setDesde(e.target.value)}
+          />
+        </label>
+        <label className="flex items-center gap-1 text-sm text-ink-secondary">
+          hasta
+          <input
+            type="date"
+            aria-label="Recibido hasta"
+            className={claseFecha}
+            value={hasta}
+            min={desde || undefined}
+            onChange={(e) => setHasta(e.target.value)}
+          />
+        </label>
+        {(desde || hasta) && (
+          <button
+            onClick={() => {
+              setDesde("");
+              setHasta("");
+            }}
+            className="rounded-md border border-line-axis px-2.5 py-1.5 text-sm text-ink-secondary hover:bg-surface-page"
+          >
+            Limpiar fechas
+          </button>
+        )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <BotonExportar
             nombre="endosos"

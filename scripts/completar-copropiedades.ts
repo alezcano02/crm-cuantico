@@ -125,7 +125,7 @@ const SENDERO_VERDE = {
     {
       nombre: "Edificio Sendero Verde",
       asegurado: "EDIFICIO SENDERO VERDE P.H",
-      aseguradorasEnEndosos: ["SBS", "Seguros del Estado", "Escritorio Virtual SBS"],
+      aseguradorasEnEndosos: ["SBS", "Seguros del Estado"],
     },
   ],
 };

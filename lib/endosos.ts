@@ -61,9 +61,7 @@ export const TIPOS_CREDITO = ["HIPOTECARIO", "LEASING"] as const;
  * Antes de esto el campo era texto libre y cada quien lo escribía distinto:
  * «Axa Colpatria», «axa Colpatria», «AXA COLPATRIA» contaban como tres
  * aseguradoras diferentes en los filtros. Sale de las que de verdad aparecen
- * en la cartera y en el histórico de endosos — «Escritorio Virtual SBS» se
- * deja aparte porque es un canal de radicación distinto de SBS, no una
- * aseguradora distinta, y así lo maneja la propia agencia.
+ * en la cartera y en el histórico de endosos.
  */
 export const ASEGURADORAS = [
   "SURA",
@@ -75,7 +73,6 @@ export const ASEGURADORAS = [
   "HDI",
   "Zurich",
   "SBS",
-  "Escritorio Virtual SBS",
   "Mapfre",
   "Solidaria",
   "BBVA Seguros",
@@ -83,6 +80,20 @@ export const ASEGURADORAS = [
   "Equidad",
   "Quálitas",
 ] as const;
+
+/**
+ * Otros nombres con los que aparece una misma aseguradora.
+ *
+ * «Escritorio Virtual SBS» es el portal por el que se radica ante SBS, no otra
+ * compañía: tenerlo como opción aparte partía en dos los casos de SBS —quien
+ * filtraba por una perdía los de la otra— y obligaba a acordarse de cuál de las
+ * dos había usado el caso. El canal por el que se radica no cambia quién
+ * asegura, así que se unifican.
+ */
+const ALIAS_ASEGURADORA: Record<string, string> = {
+  "escritorio virtual sbs": "SBS",
+  "escritorio virtual": "SBS",
+};
 
 /**
  * Agrupa las opciones de un desplegable de filtro para que una misma cosa
@@ -124,6 +135,8 @@ export function agruparOpciones(valores: (string | null)[]): OpcionFiltro[] {
 export function normalizarAseguradora(nombre: string | null | undefined): string | null {
   const n = normalizar(nombre);
   if (!n) return null;
+  const alias = ALIAS_ASEGURADORA[n];
+  if (alias) return alias;
   const encontrada = ASEGURADORAS.find((a) => normalizar(a) === n);
   return encontrada ?? (nombre ? nombre.trim() : null);
 }
@@ -153,7 +166,6 @@ export function claveFormatoPorAseguradora(aseguradora: string | null | undefine
     case "Previsora":
       return "PREVISORA";
     case "SBS":
-    case "Escritorio Virtual SBS":
       return "SBS";
     default:
       return null;
