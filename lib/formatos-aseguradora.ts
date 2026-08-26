@@ -123,6 +123,28 @@ interface Celda {
   falta?: string;
 }
 
+/**
+ * Lo que el generador sabe de la plantilla mientras la llena.
+ *
+ * Hace falta porque algunas plantillas traen sus propias listas y hay que
+ * escribir EXACTAMENTE lo que ellas esperan, no lo que nosotros llamamos a esa
+ * entidad.
+ */
+interface Contexto {
+  /**
+   * El nombre del banco tal como lo escribe la aseguradora en su lista.
+   *
+   * Zurich no pide el NIT del beneficiario: lo calcula con un VLOOKUP contra
+   * su hoja «NIT BANCOS» a partir del nombre. Si le mandamos «BANCOLOMBIA
+   * S.A.» y su lista dice «BANCOLOMBIA S.A» (sin punto), el VLOOKUP falla y la
+   * planilla llega a la aseguradora con un #N/A donde va el NIT. Solo 6 de
+   * nuestros 21 bancos coincidían al pie de la letra.
+   *
+   * Se cruza por NIT, que es lo único inequívoco, y se devuelve su grafía.
+   */
+  nombreBancoDeLaLista(banco: string | null | undefined, nit: string | null | undefined): string | null;
+}
+
 interface Constructor {
   archivo: string;
   hoja: string;
@@ -133,8 +155,8 @@ interface Constructor {
    * copropiedad y no el caso. Solo Zurich lo usa.
    */
   cabecera?: { fila: number; celdas: (c: DatosCopropiedadFormato | null) => Celda[] };
-  /** Un caso, en su fila. `n` es el número de orden dentro del lote. */
-  fila: (e: DatosEndosoFormato, c: DatosCopropiedadFormato | null, n: number) => Celda[];
+  /** Un caso, en su fila. `ctx` da acceso a las listas de la propia plantilla. */
+  fila: (e: DatosEndosoFormato, c: DatosCopropiedadFormato | null, ctx: Contexto) => Celda[];
   /** Si el archivo describe una sola copropiedad, no admite mezclar edificios. */
   unaCopropiedadPorArchivo?: boolean;
 }
@@ -153,6 +175,10 @@ const CONSTRUCTORES: Record<ClaveAseguradoraFormato, Constructor> = {
       { col: "D", valor: null, falta: "dirección de la copropiedad" },
       { col: "E", valor: e.ciudad ?? null, falta: "ciudad" },
       { col: "F", valor: e.banco ?? null, falta: "banco beneficiario" },
+      // La columna G es el NIT del beneficiario. La plantilla de la que se
+      // partía —una copia de 2024— la traía sin título y se saltaba, así que
+      // el NIT del banco no viajaba en ninguna planilla de AXA.
+      { col: "G", valor: e.bancoNit ?? null, falta: "NIT del banco" },
       { col: "H", valor: propietarios(e), falta: "nombre del propietario" },
       { col: "I", valor: cedulas(e), falta: "cédula del propietario" },
       { col: "J", valor: e.valorSolicitado ?? null, falta: "valor asegurado a certificar" },
@@ -190,13 +216,20 @@ const CONSTRUCTORES: Record<ClaveAseguradoraFormato, Constructor> = {
         { col: "K", valor: null, falta: "% índice variable" },
       ],
     },
-    fila: (e, _c, n) => [
-      { col: "A", valor: n },
+    // Zurich rellena sola dos columnas y no hay que tocarlas: la A (N°) con
+    // ROW()-5 y la G (NIT BENEFICIARIO) con un VLOOKUP sobre el nombre del
+    // banco. Escribir encima de cualquiera de las dos borraría su fórmula.
+    fila: (e, _c, ctx) => [
       { col: "C", valor: propietarios(e), falta: "nombre del propietario" },
       { col: "D", valor: cedulas(e), falta: "cédula del propietario" },
       { col: "E", valor: nomenclaturaInterior(e), falta: "torre/apartamento" },
-      { col: "F", valor: e.banco ?? null, falta: "banco beneficiario" },
-      { col: "G", valor: e.bancoNit ?? null, falta: "NIT del banco" },
+      {
+        col: "F",
+        valor: ctx.nombreBancoDeLaLista(e.banco, e.bancoNit),
+        falta: e.banco
+          ? `«${e.banco}» no está en la lista de bancos de Zurich: el NIT saldrá como #N/A y hay que escribirlo a mano`
+          : "banco beneficiario",
+      },
       { col: "H", valor: e.coeficiente ?? null, falta: "coeficiente" },
       { col: "I", valor: e.valorSolicitado ?? null, falta: "valor comercial requerido" },
     ],
@@ -264,6 +297,49 @@ const CONSTRUCTORES: Record<ClaveAseguradoraFormato, Constructor> = {
 };
 
 
+/**
+ * Lee las listas que la propia plantilla trae, para poder escribir lo que ella
+ * espera y no lo que nosotros llamamos a cada entidad.
+ *
+ * Hoy solo importa la de Zurich («NIT BANCOS»): su columna del NIT es un
+ * VLOOKUP sobre el nombre del banco, así que un nombre que no esté en su lista
+ * al pie de la letra deja un #N/A en la planilla que recibe la aseguradora.
+ * El cruce se hace por NIT, que es lo único inequívoco —los nombres varían en
+ * puntos, tildes y sufijos— y admite el NIT con y sin dígito de verificación.
+ */
+function contextoDe(wb: XLSX.WorkBook): Contexto {
+  const porNit = new Map<string, string>();
+  const hoja = wb.Sheets["NIT BANCOS"];
+  if (hoja) {
+    const filas = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, defval: "", raw: true });
+    for (const f of filas.slice(1)) {
+      const nombre = String(f[1] ?? "").trim();
+      const nit = String(f[2] ?? "").replace(/\D/g, "");
+      if (!nombre || !nit || nit === "0") continue;
+      porNit.set(nit, nombre);
+      // Sin el dígito de verificación, para poder cruzar «860034594-1» con
+      // «860034594» y al revés.
+      if (nit.length > 9) porNit.set(nit.slice(0, -1), nombre);
+    }
+  }
+
+  return {
+    nombreBancoDeLaLista(banco, nit) {
+      if (!banco?.trim()) return null;
+      const digitos = (nit ?? "").replace(/\D/g, "");
+      if (!porNit.size) return banco; // plantilla sin lista: se manda tal cual
+      const encontrado =
+        porNit.get(digitos) ??
+        (digitos.length > 9 ? porNit.get(digitos.slice(0, -1)) : undefined) ??
+        porNit.get(digitos + "0") ??
+        undefined;
+      // Si no está en su lista se devuelve null para que el generador lo
+      // cuente como faltante y avise, en vez de mandar algo que dará #N/A.
+      return encontrado ?? null;
+    },
+  };
+}
+
 export interface FormatoGenerado {
   buffer: Buffer;
   nombreArchivo: string;
@@ -326,9 +402,10 @@ export function generarFormatoAseguradora(
     }
   };
 
+  const ctx = contextoDe(wb);
   if (c.cabecera) escribir(c.cabecera.celdas(casos[0].copropiedad), c.cabecera.fila);
   casos.forEach((caso, i) => {
-    escribir(c.fila(caso.endoso, caso.copropiedad, i + 1), c.filaDatos + i);
+    escribir(c.fila(caso.endoso, caso.copropiedad, ctx), c.filaDatos + i);
   });
 
   /*
