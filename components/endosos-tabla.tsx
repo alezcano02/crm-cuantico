@@ -504,6 +504,10 @@ export function EndososTabla({
               { encabezado: "Aseguradora", valor: (e) => e.aseguradora ?? "" },
               { encabezado: "Radicado", valor: (e) => e.radicado ?? "" },
               {
+                encabezado: "Solicitud recibida",
+                valor: (e) => (e.fechaRecepcion ? new Date(e.fechaRecepcion) : ""),
+              },
+              {
                 encabezado: "Enviado a aseguradora",
                 valor: (e) => (e.fechaEnvioAseguradora ? new Date(e.fechaEnvioAseguradora) : ""),
               },
@@ -1894,6 +1898,22 @@ function PanelEndoso({
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{endoso.cliente}</h2>
+          {/* Cuándo entró la solicitud: es lo que dice si el cliente lleva
+              esperando dos días o dos meses, y no se veía en ningún sitio. */}
+          {endoso.fechaRecepcion && (
+            <p className="text-xs text-ink-muted">
+              Solicitud recibida el{" "}
+              {new Intl.DateTimeFormat("es-CO", {
+                timeZone: "America/Bogota",
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              }).format(new Date(endoso.fechaRecepcion))}
+            </p>
+          )}
           <p className="text-sm text-ink-secondary">
             {endoso.urbanizacion}
             {endoso.apartamento ? ` · Apto ${endoso.apartamento}` : ""}

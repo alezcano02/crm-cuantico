@@ -193,6 +193,9 @@ export async function POST(req: NextRequest) {
   }
 
   const fechaEnvio = texto(b, "fechaEnvioAseguradora");
+  // Cuándo entró la solicitud del cliente. La revisión del buzón manda aquí el
+  // receivedDateTime de su correo; el formulario, la fecha que se teclee.
+  const fechaRecep = texto(b, "fechaRecepcion");
 
   const creado = await prisma.endoso.create({
     data: {
@@ -218,6 +221,7 @@ export async function POST(req: NextRequest) {
       aseguradora: normalizarAseguradora(aseguradora),
       numeroPoliza,
       radicado: texto(b, "radicado"),
+      fechaRecepcion: fechaRecep ? new Date(fechaRecep) : null,
       fechaEnvioAseguradora: fechaEnvio ? new Date(fechaEnvio) : null,
       estado: estado ?? "NUEVA_SOLICITUD",
       origenCorreoId: texto(b, "origenCorreoId"),

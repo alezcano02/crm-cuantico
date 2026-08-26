@@ -679,6 +679,11 @@ model Endoso {
   aseguradora           String?
   numeroPoliza          String?
   radicado              String?
+  // Cuándo entró la solicitud del cliente. Con ella se sabe cuánto lleva
+  // esperando ANTES de que se radicara, que es el tramo que depende de la
+  // agencia; `fechaEnvioAseguradora` solo mide lo que tarda la aseguradora.
+  fechaRecepcion DateTime?
+
   fechaEnvioAseguradora DateTime?
 
   // Cuándo se le entregaron los documentos al cliente. Es la cifra con la que

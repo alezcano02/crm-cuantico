@@ -67,6 +67,7 @@ export default async function EndososPage() {
         aseguradora: true,
         numeroPoliza: true,
         radicado: true,
+        fechaRecepcion: true,
         fechaEnvioAseguradora: true,
         fechaEnvioCliente: true,
         estado: true,
@@ -147,6 +148,7 @@ export default async function EndososPage() {
     aseguradora: e.aseguradora,
     numeroPoliza: e.numeroPoliza,
     radicado: e.radicado,
+    fechaRecepcion: e.fechaRecepcion?.toISOString() ?? null,
     fechaEnvioAseguradora: e.fechaEnvioAseguradora?.toISOString() ?? null,
     fechaEnvioCliente: e.fechaEnvioCliente?.toISOString() ?? null,
     pazSalvoPendiente: pazSalvoPendiente(ficha, hoy),
@@ -184,10 +186,12 @@ export default async function EndososPage() {
         <span className="text-ink-secondary">
           Última revisión del correo: <strong>{enBogota(ultimaRevision.ejecutadaEn)}</strong> (hora
           de Colombia)
+          {/* Qué modelo la hizo se sigue guardando en RevisionBuzon.modelo, pero
+              no se enseña: a quien mira el tablero le importa cuándo se revisó
+              y qué salió, no con qué se hizo. */}
           {ultimaRevision.correosNuevos > 0
             ? ` · ${ultimaRevision.correosNuevos} correo(s) nuevo(s), ${ultimaRevision.casosTocados} caso(s) actualizado(s)`
             : " · sin novedades"}
-          {ultimaRevision.modelo ? ` · ${ultimaRevision.modelo}` : ""}
         </span>
       ) : (
         <span className="text-ink-muted">Todavía no se ha registrado ninguna revisión del correo.</span>

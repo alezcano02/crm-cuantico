@@ -151,6 +151,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const fe = t("fechaEnvioAseguradora");
   if (fe !== undefined) datos.fechaEnvioAseguradora = fe ? new Date(fe) : null;
 
+  const fr = t("fechaRecepcion");
+  if (fr !== undefined) datos.fechaRecepcion = fr ? new Date(fr) : null;
+
   if ("copropiedadId" in b) {
     datos.copropiedadId = typeof b.copropiedadId === "number" ? b.copropiedadId : null;
   }

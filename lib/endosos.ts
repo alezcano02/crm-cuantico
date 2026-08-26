@@ -859,6 +859,12 @@ export interface EndosoVista {
   aseguradora: string | null;
   numeroPoliza: string | null;
   radicado: string | null;
+  /**
+   * Cuándo entró la solicitud del cliente. Es lo que dice si lleva esperando
+   * dos días o dos meses; `fechaEnvioAseguradora` solo mide desde que se
+   * radicó, que es el tramo que no depende de la agencia.
+   */
+  fechaRecepcion: string | null;
   fechaEnvioAseguradora: string | null;
   /** Cuándo se le entregaron los documentos al cliente. Es la cifra del mes. */
   fechaEnvioCliente: string | null;
