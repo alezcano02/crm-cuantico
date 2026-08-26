@@ -12,10 +12,24 @@ export const maxDuration = 300;
 /**
  * El reemplazo automático de "leer el correo de endosos y pasarlo al CRM".
  *
- * La dispara el cron de Vercel (ver vercel.json) cada hora. No depende de
- * ninguna sesión de Claude Code ni de la plataforma de rutinas de
- * Anthropic — corre en la misma infraestructura que el resto del CRM, así
- * que llega a la base de datos sin ningún bloqueo de red que sortear.
+ * Corre en la misma infraestructura que el resto del CRM, así que llega a la
+ * base de datos sin ningún bloqueo de red que sortear, y no depende de una
+ * sesión de Claude Code ni de la plataforma de rutinas de Anthropic.
+ *
+ * NO ESTÁ PROGRAMADA TODAVÍA. Llevaba un vercel.json con `0 * * * *`, pero el
+ * plan Hobby de Vercel solo admite cron DIARIO y rechaza la expresión horaria
+ * con `deploy_failed` — es decir, ese archivo tumbaba TODOS los despliegues,
+ * no solo el cron. Se quitó. Para encenderla hacen falta dos cosas:
+ *
+ *   1. Las variables MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID,
+ *      MICROSOFT_CLIENT_SECRET, ANTHROPIC_API_KEY y CRON_SECRET en Vercel.
+ *      Hoy no hay ninguna, así que la ruta responde 503 a propósito.
+ *   2. Un disparador horario: o el plan Pro de Vercel (vuelve a valer un
+ *      vercel.json con `0 * * * *`), o algo externo que llame a esta URL con
+ *      la cabecera Authorization: Bearer <CRON_SECRET>.
+ *
+ * Mientras tanto, del buzón se ocupa la rutina en la nube «Endorsement email
+ * processor», que sí corre cada hora.
  *
  * Ventana de 90 minutos (no 60) a propósito: si una corrida se atrasa o
  * falla, la siguiente igual cubre el hueco. El solape no duplica nada porque

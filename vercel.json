@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/funcionarios/api/cron/procesar-endosos",
-      "schedule": "0 * * * *"
-    }
-  ]
-}
