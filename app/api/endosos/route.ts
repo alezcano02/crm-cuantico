@@ -20,7 +20,7 @@ function texto(b: Record<string, unknown>, k: string): string | null {
  */
 function numero(b: Record<string, unknown>, k: string): number | null {
   const v = b[k];
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "number") return Number.isFinite(v) ? Math.round(v) : null;
   if (typeof v !== "string" || !v.trim()) return null;
   const limpio = v.replace(/[^\d]/g, "");
   if (!limpio) return null;

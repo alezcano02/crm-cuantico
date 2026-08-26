@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { fmtCOP, fmtFecha } from "@/lib/format";
@@ -141,8 +141,17 @@ function DistintivoRevision({
   );
 }
 
-/** Formatea mientras se escribe: 162369194 → «162.369.194». */
-function formatearMiles(v: string): string {
+/**
+ * Formatea mientras se escribe: 162369194 → «162.369.194».
+ *
+ * OJO con los decimales: quitar todo lo que no sea dígito convierte
+ * «244906811.6» en «2.449.068.116», diez veces más. Varias planillas traen
+ * céntimos, así que primero se redondea. Un endoso se pide en pesos enteros.
+ */
+function formatearMiles(v: string | number): string {
+  if (typeof v === "number") {
+    return Number.isFinite(v) ? Math.round(v).toLocaleString("es-CO") : "";
+  }
   const d = v.replace(/[^\d]/g, "");
   return d ? Number(d).toLocaleString("es-CO") : "";
 }
@@ -650,6 +659,10 @@ export function EndososTabla({
 
       {abierto && (
         <PanelEndoso
+          /* El formulario se rellena una sola vez al montar. Sin la clave,
+             pasar de un caso a otro reutilizaría la instancia y enseñaría los
+             datos del anterior. */
+          key={abierto.id}
           endoso={abierto}
           copropiedad={fichaDe(abierto)}
           copropiedades={copropiedades}
@@ -856,7 +869,7 @@ function CambioEnLote({
   };
 
   return (
-    <Marco onCerrar={onCerrar} ancho="max-w-lg">
+    <Marco ancho="max-w-lg">
       <h2 className="text-lg font-semibold">Cambiar {seleccion.length} endosos</h2>
       <p className="mb-4 text-sm text-ink-secondary">
         Lo que escribas se anota en la historia de cada uno, con su fecha, sin borrar lo anterior.
@@ -1128,8 +1141,7 @@ function datosIniciales(endoso: EndosoVista | null): DatosForm {
     cuartoUtil: endoso?.cuartoUtil ?? "",
     parqueadero: endoso?.parqueadero ?? "",
     coeficiente: endoso?.coeficiente != null ? String(endoso.coeficiente) : "",
-    valorSolicitado:
-      endoso?.valorSolicitado != null ? formatearMiles(String(endoso.valorSolicitado)) : "",
+    valorSolicitado: endoso?.valorSolicitado != null ? formatearMiles(endoso.valorSolicitado) : "",
     banco: endoso?.banco ?? "",
     bancoNit: endoso?.bancoNit ?? "",
     tipoCredito: endoso?.tipoCredito ?? "",
@@ -1543,7 +1555,7 @@ function FormEndoso({
   };
 
   return (
-    <Marco onCerrar={onCerrar} ancho="max-w-5xl">
+    <Marco ancho="max-w-5xl">
       <h2 className="mb-3 text-lg font-semibold">Nuevo endoso</h2>
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <CamposEndoso f={f} set={set} copropiedad={copropiedad} copropiedades={copropiedades} />
@@ -1574,23 +1586,17 @@ function FormEndoso({
 // El caso abierto
 // ---------------------------------------------------------------------------
 
-/** El fondo oscuro y la caja blanca, iguales en todas las ventanas del módulo. */
-function Marco({
-  children,
-  onCerrar,
-  ancho,
-}: {
-  children: React.ReactNode;
-  onCerrar: () => void;
-  ancho: string;
-}) {
+/**
+ * El fondo oscuro y la caja blanca, iguales en todas las ventanas del módulo.
+ *
+ * Pulsar el fondo NO cierra a propósito. Estas ventanas llevan formularios con
+ * lo que se acaba de escribir, y un clic despistado fuera de la caja borraría
+ * el trabajo sin preguntar. Se cierra con su botón, que es explícito.
+ */
+function Marco({ children, ancho }: { children: React.ReactNode; ancho: string }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4"
-      onClick={onCerrar}
-    >
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4">
       <div
-        onClick={(e) => e.stopPropagation()}
         className={clsx(
           "mt-8 w-full rounded-xl border border-line-grid bg-surface p-5 shadow-lg",
           ancho
@@ -1643,7 +1649,29 @@ function PanelEndoso({
     [f, copropiedades, copropiedad]
   );
   const chequeos = useMemo(() => revisarEndoso(aRevisable(f), ficha), [f, ficha]);
-  const entradas = (endoso.historia ?? "").split("\n\n").filter((x) => x.trim());
+  /*
+   * La bitácora se pide al abrir la ventana: no viaja en el listado porque es
+   * el campo que más crece y solo se mira aquí. `null` mientras llega.
+   */
+  const [historia, setHistoria] = useState<string | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    setHistoria(null);
+    fetch(api(`/api/endosos/${endoso.id}`))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (vigente) setHistoria(j?.endoso?.historia ?? "");
+      })
+      .catch(() => {
+        if (vigente) setHistoria("");
+      });
+    return () => {
+      vigente = false;
+    };
+    // `ultimoSeguimiento` cambia al registrar una gestión: así se recarga.
+  }, [endoso.id, endoso.ultimoSeguimiento]);
+
+  const entradas = (historia ?? "").split("\n\n").filter((x) => x.trim());
   const claveFormato = claveFormatoPorAseguradora(f.aseguradora);
 
   const irACampo = (campo: CampoEndoso) => {
@@ -1700,7 +1728,7 @@ function PanelEndoso({
   };
 
   return (
-    <Marco onCerrar={onCerrar} ancho="max-w-6xl">
+    <Marco ancho="max-w-6xl">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{endoso.cliente}</h2>
@@ -1764,7 +1792,10 @@ function PanelEndoso({
             {(
               [
                 { id: "datos", etiqueta: "Datos" },
-                { id: "seguimiento", etiqueta: `Seguimiento (${entradas.length})` },
+                {
+                  id: "seguimiento",
+                  etiqueta: historia == null ? "Seguimiento" : `Seguimiento (${entradas.length})`,
+                },
               ] as const
             ).map((t) => (
               <button
@@ -1836,7 +1867,9 @@ function PanelEndoso({
 
               <div>
                 <h3 className="mb-2 text-sm font-semibold">Historia</h3>
-                {entradas.length === 0 ? (
+                {historia == null ? (
+                  <p className="text-sm text-ink-muted">Cargando la historia…</p>
+                ) : entradas.length === 0 ? (
                   <p className="text-sm text-ink-muted">
                     Todavía no hay gestiones registradas. La primera que escriba aparecerá aquí.
                   </p>

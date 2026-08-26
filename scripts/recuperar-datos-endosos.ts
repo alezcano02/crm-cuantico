@@ -311,7 +311,9 @@ function leerPlanilla(
 function valorA(v: unknown): number | null {
   const n = numero(v);
   if (n == null || n < 1_000_000) return null;
-  return n;
+  // En pesos enteros: las planillas traen céntimos y el formulario, que separa
+  // los miles con puntos, confundiría el punto decimal con uno de millares.
+  return Math.round(n);
 }
 
 function archivosDe(dir: string): string[] {

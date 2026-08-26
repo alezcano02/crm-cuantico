@@ -799,7 +799,11 @@ export interface EndosoVista {
   radicado: string | null;
   fechaEnvioAseguradora: string | null;
   estado: string;
-  historia: string | null;
+  /**
+   * La bitácora NO viaja en el listado: es el campo que más crece —una línea
+   * por cada gestión de cada caso— y solo hace falta al abrir uno. La ventana
+   * del caso la pide aparte, a GET /api/endosos/[id].
+   */
   ultimoSeguimiento: string | null;
   creadoEn: string;
   /** Días esperando respuesta de la aseguradora; null si aún no se ha enviado. */

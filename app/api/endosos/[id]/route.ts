@@ -5,6 +5,27 @@ import { ESTADOS_ENDOSO, normalizarAseguradora, type EstadoEndoso } from "@/lib/
 
 export const runtime = "nodejs";
 
+/**
+ * Un caso completo, con su bitácora.
+ *
+ * El listado de la página no lleva `historia` —es lo que más pesa y solo se
+ * mira al abrir un caso—, así que la ventana la pide por aquí.
+ */
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const noAutorizado = await exigirSesion();
+  if (noAutorizado) return noAutorizado;
+
+  const id = Number(params.id);
+  if (!Number.isFinite(id)) {
+    return NextResponse.json({ error: "Identificador inválido." }, { status: 400 });
+  }
+  const endoso = await prisma.endoso.findUnique({ where: { id } });
+  if (!endoso) {
+    return NextResponse.json({ error: "El endoso no existe." }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true, endoso });
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const noAutorizado = await exigirSesion();
   if (noAutorizado) return noAutorizado;
@@ -25,10 +46,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const v = b[k];
     return typeof v === "string" ? v.trim() || null : undefined;
   };
+  /*
+   * Importes en pesos, siempre enteros. Se redondea a propósito: las planillas
+   * de las aseguradoras traen céntimos («244906811.6») y el formulario los
+   * muestra con separador de miles, donde un punto decimal se confundiría con
+   * uno de millares y multiplicaría la cifra por diez.
+   */
   const n = (k: string) => {
     const v = b[k];
     if (v === null) return null;
-    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    if (typeof v === "number") return Number.isFinite(v) ? Math.round(v) : null;
     if (typeof v !== "string") return undefined;
     if (!v.trim()) return null;
     const limpio = v.replace(/[^\d]/g, "");
