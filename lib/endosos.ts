@@ -214,6 +214,12 @@ export interface ReglaBanco {
   /** Se compara contra el nombre normalizado del banco. */
   coincide: string[];
   gravedad: Resultado;
+  /**
+   * Por omisión «riesgo»: es algo que hay que resolver antes de radicar. Con
+   * «nota» solo hay que acordarse más tarde, y no ensucia el semáforo del
+   * caso —si no, todo endoso de Bancolombia viviría en ámbar para siempre.
+   */
+  categoria?: CategoriaChequeo;
   mensaje: string;
 }
 
@@ -239,6 +245,10 @@ export const REGLAS_BANCO: ReglaBanco[] = [
   {
     coincide: ["bancolombia"],
     gravedad: "aviso",
+    // Es para el final del trámite, no para radicar: no debe teñir el
+    // semáforo del caso, o todo endoso de Bancolombia —que son muchos—
+    // viviría en ámbar sin que nadie tenga nada que arreglar.
+    categoria: "nota",
     mensaje:
       "Bancolombia exige que el cliente descargue el formulario de su web, lo firme y cargue 4 documentos en el portal: póliza, clausulado, paz y salvo y endoso. Hay que recordárselo al enviarle los documentos.",
   },
@@ -295,11 +305,51 @@ function dias(desde: Date, hasta: Date): number {
 
 export type Resultado = "ok" | "aviso" | "bloqueo";
 
+/**
+ * De qué tipo es lo que encontró la revisión. Separarlas es lo que hace que
+ * la revisión sirva de algo:
+ *
+ *  · «falta» — todavía no se puede juzgar porque el dato no está. Casi todos
+ *    los casos que vienen del Excel «Día a Día» están así: esa hoja no tenía
+ *    columnas para cédula, dirección, valor ni coeficiente, así que esos datos
+ *    solo existían dentro del correo.
+ *  · «riesgo» — el dato SÍ está, y es de los que hacen que el banco devuelva.
+ *  · «nota» — no afecta a si se puede radicar; hay que acordarse más tarde,
+ *    al entregarle los documentos al cliente.
+ *
+ * Mezclarlas fue el error de la primera versión: 39 de los 40 casos abiertos
+ * salían en rojo por datos que faltaban, y un rojo que sale siempre se deja de
+ * mirar. Los pocos problemas de verdad quedaban enterrados en el ruido.
+ */
+export type CategoriaChequeo = "falta" | "riesgo" | "nota";
+
+/** Campo del formulario que resuelve un punto de la revisión. */
+export type CampoEndoso =
+  | "urbanizacion"
+  | "direccion"
+  | "ciudad"
+  | "torre"
+  | "apartamento"
+  | "cuartoUtil"
+  | "parqueadero"
+  | "banco"
+  | "bancoNit"
+  | "tipoCredito"
+  | "valorSolicitado"
+  | "coeficiente"
+  | "correoSolicitante";
+
 export interface Chequeo {
   /** Nombre corto de lo que se revisó, para la interfaz. */
   regla: string;
   resultado: Resultado;
+  categoria: CategoriaChequeo;
   mensaje: string;
+  /**
+   * Campo que resolvería este punto. La interfaz lo usa para llevar directo
+   * al recuadro que hay que llenar, en vez de obligar a buscarlo.
+   */
+  campo?: CampoEndoso;
 }
 
 /** Lo mínimo que necesita la revisión de un endoso. */
@@ -354,67 +404,95 @@ export function revisarEndoso(
   hoy: Date = new Date()
 ): Chequeo[] {
   const out: Chequeo[] = [];
-  const add = (regla: string, resultado: Resultado, mensaje: string) =>
-    out.push({ regla, resultado, mensaje });
+  const add = (
+    regla: string,
+    resultado: Resultado,
+    categoria: CategoriaChequeo,
+    mensaje: string,
+    campo?: CampoEndoso
+  ) => out.push({ regla, resultado, categoria, mensaje, campo });
 
   // --- Dirección -----------------------------------------------------------
   // Es la causa nº 1 de devolución, y lo dice el propio formulario de la
   // agencia: «este es el ítem por el que devuelven mayor cantidad de endosos».
-  const faltan: string[] = [];
-  if (!endoso.direccion?.trim()) faltan.push("la nomenclatura");
-  if (!endoso.ciudad?.trim()) faltan.push("la ciudad");
-  if (!endoso.apartamento?.trim()) faltan.push("el número de apartamento");
+  const faltan: { texto: string; campo: CampoEndoso }[] = [];
+  if (!endoso.direccion?.trim()) faltan.push({ texto: "la nomenclatura", campo: "direccion" });
+  if (!endoso.ciudad?.trim()) faltan.push({ texto: "la ciudad", campo: "ciudad" });
+  if (!endoso.apartamento?.trim())
+    faltan.push({ texto: "el número de apartamento", campo: "apartamento" });
   if (faltan.length) {
     add(
       "Dirección completa",
       "bloqueo",
-      `Falta ${faltan.join(", ")}. La dirección debe quedar exactamente como figura en el crédito del banco; es lo que más devoluciones causa.`
+      "falta",
+      `Falta ${faltan.map((f) => f.texto).join(", ")}. La dirección debe quedar exactamente como figura en el crédito del banco; es lo que más devoluciones causa.`,
+      faltan[0].campo
     );
   } else {
-    const sinDetalle: string[] = [];
-    if (!endoso.torre?.trim()) sinDetalle.push("torre/etapa");
-    if (!endoso.cuartoUtil?.trim()) sinDetalle.push("cuarto útil");
-    if (!endoso.parqueadero?.trim()) sinDetalle.push("parqueadero");
+    const sinDetalle: { texto: string; campo: CampoEndoso }[] = [];
+    if (!endoso.torre?.trim()) sinDetalle.push({ texto: "torre/etapa", campo: "torre" });
+    if (!endoso.cuartoUtil?.trim()) sinDetalle.push({ texto: "cuarto útil", campo: "cuartoUtil" });
+    if (!endoso.parqueadero?.trim())
+      sinDetalle.push({ texto: "parqueadero", campo: "parqueadero" });
     if (sinDetalle.length) {
       add(
         "Dirección completa",
         "aviso",
-        `Sin ${sinDetalle.join(", ")}. Si el inmueble no tiene, se escribe "No aplica"; dejarlo en blanco hace dudar al banco.`
+        "falta",
+        `Sin ${sinDetalle.map((s) => s.texto).join(", ")}. Si el inmueble no tiene, se escribe "No aplica"; dejarlo en blanco hace dudar al banco.`,
+        sinDetalle[0].campo
       );
     } else {
-      add("Dirección completa", "ok", "Nomenclatura, ciudad, torre, apartamento, cuarto útil y parqueadero.");
+      add(
+        "Dirección completa",
+        "ok",
+        "falta",
+        "Nomenclatura, ciudad, torre, apartamento, cuarto útil y parqueadero."
+      );
     }
   }
 
   // --- Beneficiario y NIT --------------------------------------------------
   const banco = buscarBanco(endoso.banco);
   if (!endoso.banco?.trim()) {
-    add("Banco y NIT", "bloqueo", "Falta el banco beneficiario del endoso.");
+    add("Banco y NIT", "bloqueo", "falta", "Falta el banco beneficiario del endoso.", "banco");
   } else if (!banco) {
     add(
       "Banco y NIT",
       "aviso",
-      `"${endoso.banco}" no está en la lista de entidades conocidas. Verifica el nombre y el NIT con el cliente antes de radicar.`
+      "riesgo",
+      `"${endoso.banco}" no está en la lista de entidades conocidas. Verifica el nombre y el NIT con el cliente antes de radicar.`,
+      "banco"
     );
   } else {
     const dado = soloDigitos(endoso.bancoNit);
     const oficial = soloDigitos(banco.nit);
     const base = oficial.slice(0, -1); // NIT sin dígito de verificación
     if (!dado) {
-      add("Banco y NIT", "aviso", `Falta el NIT. El de ${banco.nombre} es ${banco.nit}.`);
+      add(
+        "Banco y NIT",
+        "aviso",
+        "falta",
+        `Falta el NIT. El de ${banco.nombre} es ${banco.nit}.`,
+        "bancoNit"
+      );
     } else if (dado === oficial) {
-      add("Banco y NIT", "ok", `${banco.nombre} · NIT ${banco.nit}.`);
+      add("Banco y NIT", "ok", "riesgo", `${banco.nombre} · NIT ${banco.nit}.`);
     } else if (dado === base) {
       add(
         "Banco y NIT",
         "aviso",
-        `Al NIT le falta el dígito de verificación: debe ser ${banco.nit}.`
+        "riesgo",
+        `Al NIT le falta el dígito de verificación: debe ser ${banco.nit}.`,
+        "bancoNit"
       );
     } else {
       add(
         "Banco y NIT",
         "bloqueo",
-        `El NIT no corresponde. Para ${banco.nombre} es ${banco.nit}, no ${endoso.bancoNit}.`
+        "riesgo",
+        `El NIT no corresponde. Para ${banco.nombre} es ${banco.nit}, no ${endoso.bancoNit}.`,
+        "bancoNit"
       );
     }
 
@@ -425,7 +503,9 @@ export function revisarEndoso(
       add(
         "Davivienda vs. DAVIbank",
         "bloqueo",
-        'Escribiste solo "Davi". Son dos entidades distintas: DAVIVIENDA (NIT 860034313-7) y DAVIbank, el antiguo Scotiabank Colpatria (NIT 860034594-1). Confírmalo con el cliente.'
+        "riesgo",
+        'Escribiste solo "Davi". Son dos entidades distintas: DAVIVIENDA (NIT 860034313-7) y DAVIbank, el antiguo Scotiabank Colpatria (NIT 860034594-1). Confírmalo con el cliente.',
+        "banco"
       );
     }
   }
@@ -433,43 +513,61 @@ export function revisarEndoso(
   // --- Manías del banco ----------------------------------------------------
   const nBanco = normalizar(endoso.banco);
   const reglas = REGLAS_BANCO.filter((r) => r.coincide.some((c) => nBanco.includes(normalizar(c))));
-  for (const r of reglas) add("Requisitos del banco", r.gravedad, r.mensaje);
+  for (const r of reglas)
+    add("Requisitos del banco", r.gravedad, r.categoria ?? "riesgo", r.mensaje);
 
   // --- Leasing -------------------------------------------------------------
   if (!endoso.tipoCredito) {
     add(
       "Tipo de crédito",
       "aviso",
-      "Sin definir si es hipotecario o leasing. En leasing el banco va como PROPIETARIO y el cliente como locatario, y el formato cambia."
+      "falta",
+      "Sin definir si es hipotecario o leasing. En leasing el banco va como PROPIETARIO y el cliente como locatario, y el formato cambia.",
+      "tipoCredito"
     );
   } else if (endoso.tipoCredito === "LEASING") {
     add(
       "Leasing",
       "aviso",
+      "riesgo",
       `En leasing habitacional el endoso debe mostrar a ${endoso.banco ?? "el banco"} como PROPIETARIO y a ${
         endoso.cliente2 ? "los locatarios" : "el locatario"
       } aparte. Verifica que el formato lo refleje así.`
     );
   } else {
-    add("Tipo de crédito", "ok", "Crédito hipotecario.");
+    add("Tipo de crédito", "ok", "falta", "Crédito hipotecario.");
   }
 
   // --- Valor razonable -----------------------------------------------------
   if (endoso.valorSolicitado == null) {
-    add("Valor solicitado", "bloqueo", "Falta el valor que exige el banco para el endoso.");
+    add(
+      "Valor solicitado",
+      "bloqueo",
+      "falta",
+      "Falta el valor que exige el banco para el endoso.",
+      "valorSolicitado"
+    );
   } else if (endoso.valorSolicitado < VALOR_MINIMO_CREIBLE) {
     add(
       "Valor solicitado",
       "bloqueo",
-      `$${endoso.valorSolicitado.toLocaleString("es-CO")} es demasiado bajo para un inmueble. Lo más probable es que falten dígitos: confírmalo con el cliente antes de radicar.`
+      "riesgo",
+      `$${endoso.valorSolicitado.toLocaleString("es-CO")} es demasiado bajo para un inmueble. Lo más probable es que falten dígitos: confírmalo con el cliente antes de radicar.`,
+      "valorSolicitado"
     );
   } else {
-    add("Valor solicitado", "ok", `$${endoso.valorSolicitado.toLocaleString("es-CO")}.`);
+    add("Valor solicitado", "ok", "riesgo", `$${endoso.valorSolicitado.toLocaleString("es-CO")}.`);
   }
 
   // --- Correo del solicitante ---------------------------------------------
   if (!endoso.correoSolicitante?.trim()) {
-    add("Correo del cliente", "aviso", "Sin correo no hay a dónde enviarle el endoso cuando llegue.");
+    add(
+      "Correo del cliente",
+      "aviso",
+      "falta",
+      "Sin correo no hay a dónde enviarle el endoso cuando llegue.",
+      "correoSolicitante"
+    );
   }
 
   // --- Todo lo que depende de la ficha del edificio ------------------------
@@ -477,7 +575,9 @@ export function revisarEndoso(
     add(
       "Ficha de la copropiedad",
       "aviso",
-      "Este endoso no está enlazado a una copropiedad, así que no se puede verificar la vigencia de la póliza, el paz y salvo ni el coeficiente. Crea o enlaza la ficha del edificio."
+      "falta",
+      "Este endoso no está enlazado a una copropiedad, así que no se puede verificar la vigencia de la póliza, el paz y salvo ni el coeficiente. Crea o enlaza la ficha del edificio.",
+      "urbanizacion"
     );
     return out;
   }
@@ -487,34 +587,42 @@ export function revisarEndoso(
     add(
       "Copropiedad habilitada",
       "bloqueo",
+      "riesgo",
       copropiedad.motivoBloqueo?.trim()
         ? `No se pueden enviar endosos de este edificio: ${copropiedad.motivoBloqueo}`
         : "Esta copropiedad está marcada como que no admite endosos por ahora."
     );
   } else {
-    add("Copropiedad habilitada", "ok", "El edificio admite endosos.");
+    add("Copropiedad habilitada", "ok", "riesgo", "El edificio admite endosos.");
   }
 
   // Vigencia de la póliza de áreas comunes.
   const vig = aFecha(copropiedad.vigenciaHasta);
   if (!vig) {
-    add("Póliza vigente", "aviso", "La ficha del edificio no dice hasta cuándo va la póliza.");
+    add(
+      "Póliza vigente",
+      "aviso",
+      "falta",
+      "La ficha del edificio no dice hasta cuándo va la póliza."
+    );
   } else {
     const d = dias(hoy, vig);
     if (d < 0) {
       add(
         "Póliza vigente",
         "bloqueo",
+        "riesgo",
         `La póliza del edificio venció hace ${-d} días. Mientras esté en renovación la aseguradora no emite endosos.`
       );
     } else if (d <= 30) {
       add(
         "Póliza vigente",
         "aviso",
+        "riesgo",
         `La póliza vence en ${d} días. En el periodo previo a la renovación las aseguradoras suelen restringir la emisión de endosos: conviene radicar ya o esperar a la nueva vigencia.`
       );
     } else {
-      add("Póliza vigente", "ok", `Vigente ${d} días más.`);
+      add("Póliza vigente", "ok", "riesgo", `Vigente ${d} días más.`);
     }
   }
 
@@ -525,22 +633,34 @@ export function revisarEndoso(
     add(
       "Paz y salvo",
       "bloqueo",
+      "riesgo",
       "El paz y salvo de la copropiedad no está al día. Sin certificado de pago la aseguradora no emite el endoso."
     );
   } else if (!pys) {
-    add("Paz y salvo", "aviso", "La ficha del edificio no dice hasta cuándo vale el paz y salvo.");
+    add(
+      "Paz y salvo",
+      "aviso",
+      "falta",
+      "La ficha del edificio no dice hasta cuándo vale el paz y salvo."
+    );
   } else {
     const d = dias(hoy, pys);
     if (d < 0) {
       add(
         "Paz y salvo",
         "bloqueo",
+        "riesgo",
         `El paz y salvo venció hace ${-d} días. Hay que pedir uno actualizado antes de radicar.`
       );
     } else if (d <= 15) {
-      add("Paz y salvo", "aviso", `El paz y salvo vence en ${d} días. Conviene renovarlo ya.`);
+      add(
+        "Paz y salvo",
+        "aviso",
+        "riesgo",
+        `El paz y salvo vence en ${d} días. Conviene renovarlo ya.`
+      );
     } else {
-      add("Paz y salvo", "ok", `Al día, vence en ${d} días.`);
+      add("Paz y salvo", "ok", "riesgo", `Al día, vence en ${d} días.`);
     }
   }
 
@@ -549,13 +669,22 @@ export function revisarEndoso(
   const coef = endoso.coeficiente ?? null;
   if (total == null || coef == null || endoso.valorSolicitado == null) {
     const falta: string[] = [];
+    let campo: CampoEndoso | undefined;
     if (total == null) falta.push("el valor asegurado del edificio (ficha de la copropiedad)");
-    if (coef == null) falta.push("el coeficiente del apartamento");
-    if (endoso.valorSolicitado == null) falta.push("el valor que pide el banco");
+    if (coef == null) {
+      falta.push("el coeficiente del apartamento");
+      campo = "coeficiente";
+    }
+    if (endoso.valorSolicitado == null) {
+      falta.push("el valor que pide el banco");
+      campo = campo ?? "valorSolicitado";
+    }
     add(
       "Valor vs. coeficiente",
       "aviso",
-      `No se puede verificar: falta ${falta.join(" y ")}.`
+      "falta",
+      `No se puede verificar: falta ${falta.join(" y ")}.`,
+      campo
     );
   } else {
     const corresponde = total * (coef / 100);
@@ -566,19 +695,23 @@ export function revisarEndoso(
       add(
         "Valor vs. coeficiente",
         "ok",
+        "riesgo",
         `Cabe. Al apartamento le corresponden ${cop(corresponde)} (${coef}% de ${cop(total)}); con el 20% admitido el tope es ${cop(limite20)}.`
       );
     } else if (endoso.valorSolicitado <= limite40) {
       add(
         "Valor vs. coeficiente",
         "aviso",
+        "riesgo",
         `Se pasa del primer filtro (${cop(limite20)}) pero cabe en el segundo, al 40% (${cop(limite40)}). La aseguradora puede pedir justificación.`
       );
     } else {
       add(
         "Valor vs. coeficiente",
         "bloqueo",
-        `Se pasa. Al apartamento le corresponden ${cop(corresponde)} y ni con el 40% adicional (${cop(limite40)}) alcanza para los ${cop(endoso.valorSolicitado)} que pide el banco. Hay que cobrar prima adicional o ajustar el valor.`
+        "riesgo",
+        `Se pasa. Al apartamento le corresponden ${cop(corresponde)} y ni con el 40% adicional (${cop(limite40)}) alcanza para los ${cop(endoso.valorSolicitado)} que pide el banco. Hay que cobrar prima adicional o ajustar el valor.`,
+        "valorSolicitado"
       );
     }
   }
@@ -586,11 +719,53 @@ export function revisarEndoso(
   return out;
 }
 
-/** Resume la revisión en un solo semáforo, para pintarlo en la tabla. */
-export function resumirRevision(chequeos: Chequeo[]): Resultado {
-  if (chequeos.some((c) => c.resultado === "bloqueo")) return "bloqueo";
-  if (chequeos.some((c) => c.resultado === "aviso")) return "aviso";
-  return "ok";
+// ---------------------------------------------------------------------------
+// El resumen de la revisión
+// ---------------------------------------------------------------------------
+
+/**
+ * En qué situación está el caso, en una sola palabra.
+ *
+ * El orden importa: un problema real tapa a un dato que falta, porque el dato
+ * se completa en un minuto y el problema es el que cuesta tres semanas.
+ */
+export type EstadoRevision = "listo" | "incompleto" | "revisar" | "no-enviar";
+
+export interface ResumenRevision {
+  estado: EstadoRevision;
+  /** Datos por diligenciar. No son un problema: es trabajo pendiente. */
+  faltan: number;
+  /** Problemas de verdad, de los que hacen que el banco lo devuelva. */
+  problemas: number;
+  /** Cosas que conviene mirar, con el dato ya puesto. */
+  avisos: number;
+}
+
+/**
+ * Resume la revisión separando lo que falta de lo que está mal.
+ *
+ * Un caso al que solo le faltan datos NO sale en rojo: sale como incompleto,
+ * que es lo que de verdad es. El rojo queda reservado para los casos en los
+ * que hay un dato puesto y ese dato devolvería el endoso.
+ */
+export function evaluarRevision(chequeos: Chequeo[]): ResumenRevision {
+  const faltan = chequeos.filter((c) => c.categoria === "falta" && c.resultado !== "ok").length;
+  const problemas = chequeos.filter(
+    (c) => c.categoria === "riesgo" && c.resultado === "bloqueo"
+  ).length;
+  const avisos = chequeos.filter(
+    (c) => c.categoria === "riesgo" && c.resultado === "aviso"
+  ).length;
+
+  const estado: EstadoRevision = problemas
+    ? "no-enviar"
+    : avisos
+      ? "revisar"
+      : faltan
+        ? "incompleto"
+        : "listo";
+
+  return { estado, faltan, problemas, avisos };
 }
 
 // ---------------------------------------------------------------------------
@@ -636,14 +811,13 @@ export interface EndosoVista {
    */
   diasParaRenovar: number | null;
   /**
-   * Semáforo de la revisión y cuántos puntos salieron en rojo.
+   * Resumen de la revisión: en qué situación está y por qué.
    *
-   * Se calculan en el servidor a propósito: varias comprobaciones comparan
+   * Se calcula en el servidor a propósito: varias comprobaciones comparan
    * contra la fecha de hoy, y si la tabla las recalculara en el navegador el
    * texto renderizado podría no coincidir con el del servidor.
    */
-  revision: Resultado;
-  bloqueos: number;
+  revision: ResumenRevision;
 }
 
 export interface CopropiedadVista {

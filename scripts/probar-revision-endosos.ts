@@ -12,7 +12,7 @@
  */
 import {
   revisarEndoso,
-  resumirRevision,
+  evaluarRevision,
   type Chequeo,
   type DatosCopropiedad,
   type DatosEndoso,
@@ -215,13 +215,27 @@ for (const caso of CASOS) {
   const bloqueos = reglasPorResultado(chequeos, "bloqueo");
   const oks = reglasPorResultado(chequeos, "ok");
 
+  const r = evaluarRevision(chequeos);
+
   console.log(`\n── ${caso.titulo} ─────────────────────────────`);
   console.log(`   ${caso.queePaso}`);
-  console.log(`   Resumen: ${resumirRevision(chequeos).toUpperCase()}`);
+  console.log(
+    `   Resumen: ${r.estado.toUpperCase()} · ${r.problemas} problema(s), ${r.avisos} aviso(s), ${r.faltan} dato(s) por llenar`
+  );
 
   for (const c of chequeos) {
     const marca = c.resultado === "ok" ? "  ok " : c.resultado === "aviso" ? "  !! " : "  XX ";
-    console.log(`${marca}${c.regla}: ${c.mensaje}`);
+    console.log(`${marca}[${c.categoria}] ${c.regla}: ${c.mensaje}`);
+  }
+
+  /*
+   * Un caso al que solo le faltan datos NO puede salir como «no-enviar»: ese
+   * era el fallo que ponía 39 de 40 casos abiertos en rojo y volvía inútil el
+   * semáforo. El rojo se reserva para un dato puesto que devolvería el endoso.
+   */
+  if (r.estado === "no-enviar" && r.problemas === 0) {
+    console.log(`   FALLA: sale "no-enviar" sin ningún problema real, solo por datos que faltan.`);
+    fallos++;
   }
 
   // Lo que tenía que salir en rojo, salió en rojo.

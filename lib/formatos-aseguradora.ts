@@ -2,17 +2,20 @@
  * Genera el formato de solicitud de endoso de cada aseguradora, listo para
  * enviar por correo, a partir de los datos que ya están en el CRM.
  *
- * Parte de la plantilla REAL de cada aseguradora (una copia sin datos de
- * cliente en lib/plantillas-aseguradoras/), y solo escribe en las celdas de
- * ENTRADA. Previsora, SBS y Zurich traen fórmulas propias que calculan tasa,
- * prima, IVA y los filtros de coeficiente — esas celdas NUNCA se tocan ni se
- * recalculan aquí; se dejan intactas para que Excel las recalcule solo al
- * abrir el archivo (fullCalcOnLoad). AXA no tiene fórmulas: es un mapeo de
- * datos puro.
+ * Va por LOTES a propósito: un envío real no es un caso suelto, es «todos los
+ * de Marsella que están listos hoy» en un mismo archivo. Cada plantilla trae
+ * sitio para sesenta casos, que es muchísimo más de lo que se manda de una vez.
  *
- * Cuando falta un dato que el CRM no guarda (p. ej. la dirección de la
- * copropiedad, o la tasa negociada con la aseguradora), la celda se deja en
- * blanco y se reporta en `faltantes` — nunca se inventa ni se adivina.
+ * Parte de una copia real de cada plantilla (lib/plantillas-aseguradoras/, sin
+ * datos de clientes; ver scripts/preparar-plantillas-aseguradora.ts) y solo
+ * escribe en las celdas de ENTRADA. Previsora, SBS y Zurich traen fórmulas
+ * propias que calculan tasa, prima, IVA y los filtros de coeficiente — esas
+ * celdas NUNCA se tocan: se dejan intactas para que Excel las recalcule al
+ * abrir el archivo. AXA no tiene fórmulas: es un mapeo de datos puro.
+ *
+ * Cuando falta un dato que el CRM no guarda (p. ej. la tasa negociada con la
+ * aseguradora), la celda se deja en blanco y se reporta en `faltantes` — nunca
+ * se inventa ni se adivina.
  */
 import fs from "fs";
 import path from "path";
@@ -46,7 +49,17 @@ export interface DatosCopropiedadFormato {
   valorAseguradoTotal?: number | null;
 }
 
+/** Un caso del lote: el endoso y la ficha del edificio al que pertenece. */
+export interface CasoFormato {
+  endoso: DatosEndosoFormato;
+  copropiedad: DatosCopropiedadFormato | null;
+}
+
 const PLANTILLAS_DIR = path.join(process.cwd(), "lib", "plantillas-aseguradoras");
+
+// ---------------------------------------------------------------------------
+// Utilidades de presentación
+// ---------------------------------------------------------------------------
 
 function fechaCorta(v: Date | string | null | undefined): string | null {
   if (!v) return null;
@@ -66,171 +79,270 @@ function cedulas(e: DatosEndosoFormato): string {
 /** Torre/apto/cuarto útil/parqueadero, sin la nomenclatura de la calle. */
 function nomenclaturaInterior(e: DatosEndosoFormato): string {
   const partes: string[] = [];
-  if (e.torre?.trim()) partes.push(`Torre ${e.torre.trim()}`);
-  if (e.apartamento?.trim()) partes.push(`Apto ${e.apartamento.trim()}`);
-  if (e.cuartoUtil?.trim()) partes.push(`Cuarto útil ${e.cuartoUtil.trim()}`);
-  if (e.parqueadero?.trim()) partes.push(`Parqueadero ${e.parqueadero.trim()}`);
+  const util = (v: string | null | undefined) =>
+    v?.trim() && v.trim().toLowerCase() !== "no aplica" ? v.trim() : null;
+  if (util(e.torre)) partes.push(`Torre ${util(e.torre)}`);
+  if (util(e.apartamento)) partes.push(`Apto ${util(e.apartamento)}`);
+  if (util(e.cuartoUtil)) partes.push(`Cuarto útil ${util(e.cuartoUtil)}`);
+  if (util(e.parqueadero)) partes.push(`Parqueadero ${util(e.parqueadero)}`);
   return partes.join(", ");
 }
 
-/** Dirección completa del riesgo: calle + torre/apto/cuarto útil/parqueadero. */
+/**
+ * Dirección completa del riesgo: calle + torre/apto/cuarto útil/parqueadero.
+ *
+ * No repite lo que la dirección ya diga. Varias planillas guardan el riesgo en
+ * una sola frase —«Carrera 67 Nro 52 sur-72 Apto 504»— y al añadirle detrás el
+ * apartamento otra vez saldría «… Apto 504, Apto 504», que es justo el tipo de
+ * detalle raro que hace que en el banco lo miren dos veces.
+ */
 function direccionRiesgo(e: DatosEndosoFormato): string {
-  const interior = nomenclaturaInterior(e);
-  return [e.direccion?.trim(), interior].filter(Boolean).join(", ");
+  const calle = e.direccion?.trim() ?? "";
+  const yaEsta = (v: string | null | undefined) =>
+    !!v?.trim() && new RegExp(`\\b${v.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(calle);
+
+  const interior = nomenclaturaInterior({
+    ...e,
+    torre: yaEsta(e.torre) ? null : e.torre,
+    apartamento: yaEsta(e.apartamento) ? null : e.apartamento,
+    cuartoUtil: yaEsta(e.cuartoUtil) ? null : e.cuartoUtil,
+    parqueadero: yaEsta(e.parqueadero) ? null : e.parqueadero,
+  });
+  return [calle, interior].filter(Boolean).join(", ");
 }
+
+// ---------------------------------------------------------------------------
+// Qué va en cada celda
+// ---------------------------------------------------------------------------
 
 interface Celda {
-  addr: string;
+  /** Columna en letras: la fila la pone el generador según el caso. */
+  col: string;
   valor: string | number | null;
-  /** Si no hay valor, qué le falta a este campo — para mostrarlo a Juan. */
-  etiquetaFaltante?: string;
+  /** Qué falta, si no hay valor. Se le muestra a Juan antes de enviar. */
+  falta?: string;
 }
 
-interface Resultado {
-  celdas: Record<string, string | number>;
-  faltantes: string[];
+interface Constructor {
+  archivo: string;
+  hoja: string;
+  /** Primera fila (1-based) donde van los casos. */
+  filaDatos: number;
+  /**
+   * Datos que en esta plantilla van una sola vez, arriba, porque describen la
+   * copropiedad y no el caso. Solo Zurich lo usa.
+   */
+  cabecera?: { fila: number; celdas: (c: DatosCopropiedadFormato | null) => Celda[] };
+  /** Un caso, en su fila. `n` es el número de orden dentro del lote. */
+  fila: (e: DatosEndosoFormato, c: DatosCopropiedadFormato | null, n: number) => Celda[];
+  /** Si el archivo describe una sola copropiedad, no admite mezclar edificios. */
+  unaCopropiedadPorArchivo?: boolean;
 }
 
-function empaquetar(celdas: Celda[]): Resultado {
-  const out: Record<string, string | number> = {};
-  const faltantes: string[] = [];
-  for (const c of celdas) {
-    if (c.valor != null && c.valor !== "") out[c.addr] = c.valor;
-    else if (c.etiquetaFaltante) faltantes.push(c.etiquetaFaltante);
-  }
-  return { celdas: out, faltantes };
-}
+const CONSTRUCTORES: Record<ClaveAseguradoraFormato, Constructor> = {
+  AXA_COLPATRIA: {
+    archivo: "axa-colpatria.xlsx",
+    hoja: "Relacion_cert",
+    filaDatos: 2,
+    fila: (e, c) => [
+      { col: "A", valor: c?.numeroPoliza ?? null, falta: "número de póliza de la copropiedad" },
+      { col: "B", valor: c?.nombre ?? null, falta: "tomador (nombre de la copropiedad)" },
+      { col: "C", valor: c?.nit ?? null, falta: "NIT de la copropiedad" },
+      // La dirección del edificio no se guarda en el CRM todavía; se avisa en
+      // vez de dejar la columna vacía en silencio.
+      { col: "D", valor: null, falta: "dirección de la copropiedad" },
+      { col: "E", valor: e.ciudad ?? null, falta: "ciudad" },
+      { col: "F", valor: e.banco ?? null, falta: "banco beneficiario" },
+      { col: "H", valor: propietarios(e), falta: "nombre del propietario" },
+      { col: "I", valor: cedulas(e), falta: "cédula del propietario" },
+      { col: "J", valor: e.valorSolicitado ?? null, falta: "valor asegurado a certificar" },
+      { col: "K", valor: e.coeficiente ?? null, falta: "coeficiente" },
+      { col: "L", valor: direccionRiesgo(e), falta: "dirección de riesgo" },
+    ],
+  },
 
-function construirAxa(e: DatosEndosoFormato, cop: DatosCopropiedadFormato | null): Resultado {
-  return empaquetar([
-    { addr: "A2", valor: cop?.numeroPoliza ?? null, etiquetaFaltante: "número de póliza (ficha de la copropiedad)" },
-    { addr: "B2", valor: cop?.nombre ?? null, etiquetaFaltante: "tomador (nombre de la copropiedad)" },
-    { addr: "C2", valor: cop?.nit ?? null, etiquetaFaltante: "NIT de la copropiedad" },
-    { addr: "D2", valor: null, etiquetaFaltante: "dirección de la copropiedad (no se guarda en el CRM todavía)" },
-    { addr: "E2", valor: e.ciudad ?? null, etiquetaFaltante: "ciudad" },
-    { addr: "F2", valor: e.banco ?? null, etiquetaFaltante: "banco beneficiario" },
-    { addr: "H2", valor: propietarios(e), etiquetaFaltante: "nombre del propietario" },
-    { addr: "I2", valor: cedulas(e), etiquetaFaltante: "cédula del propietario" },
-    { addr: "J2", valor: e.valorSolicitado ?? null, etiquetaFaltante: "valor asegurado a certificar" },
-    { addr: "K2", valor: e.coeficiente ?? null, etiquetaFaltante: "coeficiente" },
-    { addr: "L2", valor: direccionRiesgo(e), etiquetaFaltante: "dirección de riesgo" },
-  ]);
-}
+  ZURICH: {
+    archivo: "zurich.xlsx",
+    hoja: "PLANTILLA ENDOSOS",
+    filaDatos: 6,
+    unaCopropiedadPorArchivo: true,
+    cabecera: {
+      fila: 2,
+      celdas: (c) => [
+        { col: "B", valor: c?.numeroPoliza ?? null, falta: "número de póliza de la copropiedad" },
+        { col: "C", valor: c?.nombre ?? null, falta: "tomador (nombre de la copropiedad)" },
+        { col: "D", valor: c?.nit ?? null, falta: "NIT de la copropiedad" },
+        { col: "E", valor: null, falta: "dirección de la copropiedad" },
+        { col: "F", valor: fechaCorta(new Date()) },
+        // De la vigencia solo se guarda el «hasta»; el «desde» hay que ponerlo.
+        { col: "G", valor: null, falta: "vigencia desde" },
+        {
+          col: "H",
+          valor: fechaCorta(c?.vigenciaHasta),
+          falta: "vigencia hasta (ficha de la copropiedad)",
+        },
+        {
+          col: "I",
+          valor: c?.valorAseguradoTotal ?? null,
+          falta: "valor asegurado del edificio (ficha de la copropiedad)",
+        },
+        { col: "J", valor: null, falta: "tasa (la negocia Juan con la aseguradora)" },
+        { col: "K", valor: null, falta: "% índice variable" },
+      ],
+    },
+    fila: (e, _c, n) => [
+      { col: "A", valor: n },
+      { col: "C", valor: propietarios(e), falta: "nombre del propietario" },
+      { col: "D", valor: cedulas(e), falta: "cédula del propietario" },
+      { col: "E", valor: nomenclaturaInterior(e), falta: "torre/apartamento" },
+      { col: "F", valor: e.banco ?? null, falta: "banco beneficiario" },
+      { col: "G", valor: e.bancoNit ?? null, falta: "NIT del banco" },
+      { col: "H", valor: e.coeficiente ?? null, falta: "coeficiente" },
+      { col: "I", valor: e.valorSolicitado ?? null, falta: "valor comercial requerido" },
+    ],
+  },
 
-function construirZurich(e: DatosEndosoFormato, cop: DatosCopropiedadFormato | null): Resultado {
-  return empaquetar([
-    { addr: "B2", valor: cop?.numeroPoliza ?? null, etiquetaFaltante: "número de póliza (ficha de la copropiedad)" },
-    { addr: "C2", valor: cop?.nombre ?? null, etiquetaFaltante: "tomador (nombre de la copropiedad)" },
-    { addr: "D2", valor: cop?.nit ?? null, etiquetaFaltante: "NIT de la copropiedad" },
-    { addr: "E2", valor: null, etiquetaFaltante: "dirección de la copropiedad (no se guarda en el CRM todavía)" },
-    { addr: "F2", valor: fechaCorta(new Date()) },
-    { addr: "G2", valor: null, etiquetaFaltante: "vigencia desde (solo se guarda el 'hasta' en la ficha de la copropiedad)" },
-    { addr: "H2", valor: fechaCorta(cop?.vigenciaHasta), etiquetaFaltante: "vigencia hasta (ficha de la copropiedad)" },
-    { addr: "I2", valor: cop?.valorAseguradoTotal ?? null, etiquetaFaltante: "valor asegurado del edificio (ficha de la copropiedad)" },
-    { addr: "J2", valor: null, etiquetaFaltante: "tasa (la negocia Juan con la aseguradora; llenar a mano)" },
-    { addr: "K2", valor: null, etiquetaFaltante: "% índice variable (llenar a mano)" },
-    { addr: "A6", valor: 1 },
-    { addr: "C6", valor: propietarios(e), etiquetaFaltante: "nombre del propietario" },
-    { addr: "D6", valor: cedulas(e), etiquetaFaltante: "cédula del propietario" },
-    { addr: "E6", valor: nomenclaturaInterior(e), etiquetaFaltante: "torre/apartamento/cuarto útil/parqueadero" },
-    { addr: "F6", valor: e.banco ?? null, etiquetaFaltante: "banco beneficiario" },
-    { addr: "G6", valor: e.bancoNit ?? null, etiquetaFaltante: "NIT del banco" },
-    { addr: "H6", valor: e.coeficiente ?? null, etiquetaFaltante: "coeficiente" },
-    { addr: "I6", valor: e.valorSolicitado ?? null, etiquetaFaltante: "valor comercial requerido" },
-  ]);
-}
+  PREVISORA: {
+    archivo: "previsora.xlsx",
+    hoja: "FORMATO ",
+    filaDatos: 2,
+    fila: (e, c) => [
+      { col: "A", valor: "CUANTICO SEGUROS" },
+      { col: "B", valor: null, falta: "tipo de endoso (Comercial / Reconstrucción)" },
+      { col: "C", valor: c?.numeroPoliza ?? null, falta: "número de póliza de la copropiedad" },
+      { col: "D", valor: fechaCorta(new Date()) },
+      {
+        col: "E",
+        valor: fechaCorta(c?.vigenciaHasta),
+        falta: "fecha fin de vigencia (ficha de la copropiedad)",
+      },
+      { col: "F", valor: c?.nombre ?? null, falta: "nombre de la copropiedad" },
+      { col: "G", valor: c?.nit ?? null, falta: "NIT de la copropiedad" },
+      { col: "H", valor: e.direccion ?? null, falta: "nomenclatura" },
+      { col: "I", valor: e.ciudad ?? null, falta: "municipio" },
+      { col: "J", valor: e.torre ?? null },
+      { col: "K", valor: e.apartamento ?? null, falta: "número de apartamento" },
+      { col: "L", valor: e.cuartoUtil ?? null },
+      { col: "M", valor: e.parqueadero ?? null },
+      { col: "N", valor: direccionRiesgo(e), falta: "dirección completa del riesgo" },
+      { col: "O", valor: propietarios(e), falta: "nombre del propietario" },
+      { col: "P", valor: cedulas(e), falta: "cédula del propietario" },
+      { col: "Q", valor: e.banco ?? null, falta: "banco/entidad solicitante" },
+      { col: "R", valor: e.bancoNit ?? null, falta: "NIT del banco" },
+      { col: "S", valor: e.coeficiente ?? null, falta: "coeficiente total" },
+      {
+        col: "T",
+        valor: c?.valorAseguradoTotal ?? null,
+        falta: "valor asegurado del edificio (ficha de la copropiedad)",
+      },
+      { col: "U", valor: e.valorSolicitado ?? null, falta: "valor requerido" },
+      { col: "V", valor: null, falta: "tasa Across (la negocia Juan con la aseguradora)" },
+    ],
+  },
 
-function construirPrevisora(e: DatosEndosoFormato, cop: DatosCopropiedadFormato | null): Resultado {
-  return empaquetar([
-    { addr: "A2", valor: "Cuántico Seguros" },
-    { addr: "B2", valor: null, etiquetaFaltante: "tipo de endoso (Comercial / Reconstrucción)" },
-    { addr: "C2", valor: cop?.numeroPoliza ?? null, etiquetaFaltante: "número de póliza (ficha de la copropiedad)" },
-    { addr: "D2", valor: fechaCorta(new Date()) },
-    { addr: "E2", valor: fechaCorta(cop?.vigenciaHasta), etiquetaFaltante: "fecha fin de vigencia (ficha de la copropiedad)" },
-    { addr: "F2", valor: cop?.nombre ?? null, etiquetaFaltante: "nombre de la copropiedad" },
-    { addr: "G2", valor: cop?.nit ?? null, etiquetaFaltante: "NIT de la copropiedad" },
-    { addr: "H2", valor: e.direccion ?? null, etiquetaFaltante: "nomenclatura" },
-    { addr: "I2", valor: e.ciudad ?? null, etiquetaFaltante: "municipio" },
-    { addr: "J2", valor: e.torre ?? null },
-    { addr: "K2", valor: e.apartamento ?? null, etiquetaFaltante: "número de apartamento" },
-    { addr: "L2", valor: e.cuartoUtil ?? null },
-    { addr: "M2", valor: e.parqueadero ?? null },
-    { addr: "N2", valor: direccionRiesgo(e), etiquetaFaltante: "dirección completa del riesgo" },
-    { addr: "O2", valor: propietarios(e), etiquetaFaltante: "nombre del propietario" },
-    { addr: "P2", valor: cedulas(e), etiquetaFaltante: "cédula del propietario" },
-    { addr: "Q2", valor: e.banco ?? null, etiquetaFaltante: "banco/entidad solicitante" },
-    { addr: "R2", valor: e.bancoNit ?? null, etiquetaFaltante: "NIT del banco" },
-    { addr: "S2", valor: e.coeficiente ?? null, etiquetaFaltante: "coeficiente total" },
-    { addr: "T2", valor: cop?.valorAseguradoTotal ?? null, etiquetaFaltante: "valor asegurado del edificio (ficha de la copropiedad)" },
-    { addr: "U2", valor: e.valorSolicitado ?? null, etiquetaFaltante: "valor requerido" },
-    { addr: "V2", valor: null, etiquetaFaltante: "tasa Across (la negocia Juan con la aseguradora; llenar a mano)" },
-  ]);
-}
-
-function construirSbs(e: DatosEndosoFormato, cop: DatosCopropiedadFormato | null): Resultado {
-  return empaquetar([
-    { addr: "A3", valor: propietarios(e), etiquetaFaltante: "nombre del propietario" },
-    { addr: "B3", valor: null, etiquetaFaltante: "tipo de documento (CC/CE/NIT)" },
-    { addr: "C3", valor: cedulas(e), etiquetaFaltante: "número de documento" },
-    { addr: "D3", valor: null, etiquetaFaltante: "tipo de propiedad (apartamento/casa/local)" },
-    { addr: "E3", valor: nomenclaturaInterior(e), etiquetaFaltante: "torre/apartamento/cuarto útil/parqueadero" },
-    { addr: "F3", valor: e.banco ?? null, etiquetaFaltante: "beneficiario" },
-    { addr: "G3", valor: e.bancoNit ?? null, etiquetaFaltante: "NIT del beneficiario" },
-    { addr: "H3", valor: e.valorSolicitado ?? null, etiquetaFaltante: "valor solicitado por el banco" },
-    { addr: "I3", valor: cop?.valorAseguradoTotal ?? null, etiquetaFaltante: "valor asegurado (ficha de la copropiedad)" },
-    { addr: "J3", valor: e.coeficiente ?? null, etiquetaFaltante: "coeficiente del apartamento" },
-  ]);
-}
-
-const PLANTILLAS: Record<ClaveAseguradoraFormato, { archivo: string; hoja: string; construir: typeof construirAxa }> = {
-  AXA_COLPATRIA: { archivo: "axa-colpatria.xlsx", hoja: "Relacion_cert", construir: construirAxa },
-  ZURICH: { archivo: "zurich.xlsx", hoja: "PLANTILLA ENDOSOS", construir: construirZurich },
-  PREVISORA: { archivo: "previsora.xlsx", hoja: "FORMATO ", construir: construirPrevisora },
-  SBS: { archivo: "sbs.xlsx", hoja: "Template endosos financieros", construir: construirSbs },
+  SBS: {
+    archivo: "sbs.xlsx",
+    hoja: "Template endosos financieros",
+    filaDatos: 3,
+    fila: (e, c) => [
+      { col: "A", valor: propietarios(e), falta: "nombre del propietario" },
+      { col: "B", valor: null, falta: "tipo de documento (CC/CE/NIT)" },
+      { col: "C", valor: cedulas(e), falta: "número de documento" },
+      { col: "D", valor: null, falta: "tipo de propiedad (apartamento/casa/local)" },
+      { col: "E", valor: nomenclaturaInterior(e), falta: "torre/apartamento" },
+      { col: "F", valor: e.banco ?? null, falta: "beneficiario" },
+      { col: "G", valor: e.bancoNit ?? null, falta: "NIT del beneficiario" },
+      { col: "H", valor: e.valorSolicitado ?? null, falta: "valor solicitado por el banco" },
+      {
+        col: "I",
+        valor: c?.valorAseguradoTotal ?? null,
+        falta: "valor asegurado (ficha de la copropiedad)",
+      },
+      { col: "J", valor: e.coeficiente ?? null, falta: "coeficiente del apartamento" },
+    ],
+  },
 };
+
+/** Cuántos casos caben en un archivo (las plantillas se preparan con 60). */
+export const CASOS_POR_ARCHIVO = 60;
 
 export interface FormatoGenerado {
   buffer: Buffer;
   nombreArchivo: string;
-  /** Datos que el CRM no tenía y quedaron en blanco: hay que llenarlos a mano antes de enviar. */
+  /** Datos que el CRM no tenía. Hay que llenarlos a mano antes de enviar. */
   faltantes: string[];
+  casos: number;
+}
+
+function nombreLimpio(v: string): string {
+  return (
+    v
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "endosos"
+  );
 }
 
 /**
- * Genera el archivo de solicitud de endoso para una aseguradora, a partir de
- * su plantilla real. Solo llena celdas de entrada; ninguna fórmula se toca.
+ * Genera el archivo de solicitud para una aseguradora con todos los casos del
+ * lote. Solo llena celdas de entrada; ninguna fórmula se toca.
  */
 export function generarFormatoAseguradora(
   clave: ClaveAseguradoraFormato,
-  endoso: DatosEndosoFormato,
-  copropiedad: DatosCopropiedadFormato | null,
-  nombreCaso: string
+  casos: CasoFormato[],
+  etiqueta: string
 ): FormatoGenerado {
-  const plantilla = PLANTILLAS[clave];
-  const ruta = path.join(PLANTILLAS_DIR, plantilla.archivo);
-  // XLSX.readFile (lectura directa de disco de SheetJS) no funciona dentro
-  // del bundle de Next: se lee el archivo con fs y se le pasa el buffer, como
-  // ya hace el resto del CRM (lib/excel.ts, lib/siniestros.ts) con Excel que
-  // llega por upload en vez de por disco.
-  const plantillaBuf = fs.readFileSync(ruta);
-  const wb = XLSX.read(plantillaBuf, { cellFormula: true, cellDates: true });
-  const ws = wb.Sheets[plantilla.hoja];
-  if (!ws) throw new Error(`La plantilla ${plantilla.archivo} no tiene la hoja "${plantilla.hoja}".`);
-
-  const { celdas, faltantes } = plantilla.construir(endoso, copropiedad);
-  for (const [addr, valor] of Object.entries(celdas)) {
-    ws[addr] = { t: typeof valor === "number" ? "n" : "s", v: valor };
+  if (casos.length === 0) throw new Error("El lote no tiene ningún caso.");
+  const c = CONSTRUCTORES[clave];
+  if (casos.length > CASOS_POR_ARCHIVO) {
+    throw new Error(
+      `La plantilla de ${clave} admite ${CASOS_POR_ARCHIVO} casos por archivo y se pidieron ${casos.length}.`
+    );
   }
 
+  const ruta = path.join(PLANTILLAS_DIR, c.archivo);
+  // XLSX.readFile (lectura directa de disco de SheetJS) no funciona dentro del
+  // bundle de Next: se lee con fs y se pasa el buffer, como el resto del CRM.
+  const wb = XLSX.read(fs.readFileSync(ruta), { cellFormula: true, cellDates: true });
+  const ws = wb.Sheets[c.hoja];
+  if (!ws) throw new Error(`La plantilla ${c.archivo} no tiene la hoja "${c.hoja}".`);
+
+  const faltantes = new Set<string>();
+
+  const escribir = (celdas: Celda[], fila: number) => {
+    for (const celda of celdas) {
+      const dir = `${celda.col}${fila}`;
+      if (celda.valor == null || celda.valor === "") {
+        if (celda.falta) faltantes.add(celda.falta);
+        continue;
+      }
+      // Si la celda de destino tiene fórmula, no se escribe: el cálculo es de
+      // la aseguradora. No debería pasar —los mapeos apuntan a entradas—, pero
+      // más vale que salte aquí que en un archivo enviado con dinero de por medio.
+      if (ws[dir]?.f) {
+        throw new Error(`${c.archivo}: ${dir} tiene una fórmula y el mapeo intentó sobrescribirla.`);
+      }
+      ws[dir] = { t: typeof celda.valor === "number" ? "n" : "s", v: celda.valor };
+    }
+  };
+
+  if (c.cabecera) escribir(c.cabecera.celdas(casos[0].copropiedad), c.cabecera.fila);
+  casos.forEach((caso, i) => {
+    escribir(c.fila(caso.endoso, caso.copropiedad, i + 1), c.filaDatos + i);
+  });
+
   /*
-   * No hace falta pedir explícitamente el recálculo (SheetJS 0.18.5 tampoco
-   * lo permite: ignora wb.Workbook.CalcPr al escribir). Como el archivo no
-   * trae calcChain.xml —SheetJS nunca lo genera—, Excel lo trata como no
-   * calculado por una sesión propia y recalcula todas las fórmulas al
-   * abrirlo, así que las celdas de fórmula reemplazan solo por eso el 0/""
-   * de relleno que dejaron las plantillas por el cálculo real.
+   * No hace falta pedir el recálculo explícitamente (SheetJS 0.18.5 ignora
+   * wb.Workbook.CalcPr al escribir). Como el archivo no lleva calcChain.xml,
+   * Excel lo trata como no calculado y recalcula todas las fórmulas al abrirlo.
    */
   const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
-  const slug = nombreCaso.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  return { buffer, nombreArchivo: `endoso-${slug}-${plantilla.archivo}`, faltantes };
+  return {
+    buffer,
+    nombreArchivo: `endosos-${nombreLimpio(etiqueta)}-${c.archivo}`,
+    faltantes: [...faltantes],
+    casos: casos.length,
+  };
 }

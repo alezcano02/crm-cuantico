@@ -53,6 +53,8 @@ export function StatCard({
   acento,
   href,
   Icono,
+  onClick,
+  activo,
 }: {
   etiqueta: string;
   valor: string;
@@ -61,6 +63,10 @@ export function StatCard({
   /** Si se indica, la tarjeta completa se vuelve un enlace. */
   href?: string;
   Icono?: (p: { className?: string }) => JSX.Element;
+  /** Si se indica, la tarjeta se vuelve un botón (p. ej. para filtrar). */
+  onClick?: () => void;
+  /** Resalta la tarjeta cuando su filtro es el que está puesto. */
+  activo?: boolean;
 }) {
   const contenido = (
     <>
@@ -88,6 +94,27 @@ export function StatCard({
       <Link href={href} className={clsx(clases, "hover:shadow-raised")}>
         {contenido}
       </Link>
+    );
+  }
+  /*
+   * Con onClick la tarjeta pasa a ser el filtro: enseñar «Represados 12» y que
+   * haya que ir a buscar la pestaña con el mismo nombre obliga a repetir a
+   * mano un gesto que la cifra ya invita a hacer.
+   */
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={activo}
+        className={clsx(
+          clases,
+          "w-full cursor-pointer text-left hover:shadow-raised",
+          activo && "ring-2 ring-brand ring-offset-1"
+        )}
+      >
+        {contenido}
+      </button>
     );
   }
   return <div className={clases}>{contenido}</div>;

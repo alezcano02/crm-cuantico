@@ -5,7 +5,7 @@ import { EndososTabla } from "@/components/endosos-tabla";
 import {
   diasEsperando,
   diasParaRenovar,
-  resumirRevision,
+  evaluarRevision,
   revisarEndoso,
   type CopropiedadVista,
   type EndosoVista,
@@ -98,8 +98,7 @@ export default async function EndososPage() {
     creadoEn: e.creadoEn.toISOString(),
     diasEsperando: diasEsperando(e.fechaEnvioAseguradora, e.estado, hoy),
     diasParaRenovar: diasParaRenovar(e.estado, e.copropiedad?.vigenciaHasta ?? null, hoy),
-    revision: resumirRevision(chequeos),
-    bloqueos: chequeos.filter((c) => c.resultado === "bloqueo").length,
+    revision: evaluarRevision(chequeos),
     };
   });
 
