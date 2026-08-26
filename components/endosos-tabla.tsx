@@ -14,6 +14,7 @@ import { FiltroSeleccion, FichasFiltros } from "@/components/filtro-seleccion";
 import {
   ASEGURADORAS,
   BANCOS,
+  CASOS_POR_ARCHIVO,
   DIAS_ALERTA_ASEGURADORA,
   DIAS_AVISO_RENOVACION,
   ESTADOS_ABIERTOS,
@@ -743,7 +744,9 @@ function BarraLote({
         ? `No hay planilla automática para ${aseguradoras[0]}.`
         : clave === "ZURICH" && copropiedadesSel.length > 1
           ? `La planilla de Zurich es de una sola copropiedad y hay ${copropiedadesSel.length} marcadas.`
-          : null;
+          : seleccion.length > CASOS_POR_ARCHIVO
+            ? `La planilla admite ${CASOS_POR_ARCHIVO} casos y hay ${seleccion.length} marcados. Afina los filtros o divide el envío.`
+            : null;
 
   const generar = async () => {
     setGenerando(true);

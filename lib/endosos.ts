@@ -101,6 +101,13 @@ export function normalizarAseguradora(nombre: string | null | undefined): string
  */
 export type ClaveAseguradoraFormato = "AXA_COLPATRIA" | "ZURICH" | "PREVISORA" | "SBS";
 
+/**
+ * Cuántos casos caben en una planilla. Las plantillas se preparan con sitio
+ * para estos (ver scripts/preparar-plantillas-aseguradora.ts) y la interfaz lo
+ * avisa antes de pulsar, no después de un error.
+ */
+export const CASOS_POR_ARCHIVO = 60;
+
 export function claveFormatoPorAseguradora(aseguradora: string | null | undefined): ClaveAseguradoraFormato | null {
   switch (aseguradora) {
     case "Axa Colpatria":

@@ -20,9 +20,9 @@
 import fs from "fs";
 import path from "path";
 import * as XLSX from "xlsx";
-import { claveFormatoPorAseguradora, type ClaveAseguradoraFormato } from "@/lib/endosos";
+import { CASOS_POR_ARCHIVO, claveFormatoPorAseguradora, type ClaveAseguradoraFormato } from "@/lib/endosos";
 
-export { claveFormatoPorAseguradora, type ClaveAseguradoraFormato };
+export { CASOS_POR_ARCHIVO, claveFormatoPorAseguradora, type ClaveAseguradoraFormato };
 
 export interface DatosEndosoFormato {
   cliente?: string | null;
@@ -263,8 +263,6 @@ const CONSTRUCTORES: Record<ClaveAseguradoraFormato, Constructor> = {
   },
 };
 
-/** Cuántos casos caben en un archivo (las plantillas se preparan con 60). */
-export const CASOS_POR_ARCHIVO = 60;
 
 export interface FormatoGenerado {
   buffer: Buffer;
