@@ -1316,6 +1316,14 @@ function ResumenFicha({
       </div>
       <p className="mt-2 text-[11px] text-ink-muted">
         Se aplican a todos los endosos de {ficha.nombre}. Cambiarlos aquí los cambia para todos.
+        {Object.keys(ficha.coeficientes ?? {}).length > 0 && (
+          <>
+            {" "}
+            El edificio ya sabe el coeficiente de{" "}
+            <strong>{Object.keys(ficha.coeficientes).length} apartamento(s)</strong>: se pone solo al
+            escribir el número.
+          </>
+        )}
       </p>
     </div>
   );
@@ -1473,16 +1481,27 @@ function CamposEndoso({
       {/* --- El inmueble ------------------------------------------------ */}
       <div className="rounded-lg border border-line-grid bg-surface-page/60 p-3">
         <p className="etiqueta-marca mb-2 text-[10px] text-ink-muted">
-          El inmueble — la calle y la ciudad vienen de la ficha del edificio
+          El inmueble — la dirección, tal como la escribió el cliente
         </p>
         <div className="grid gap-3 sm:grid-cols-4">
           <label className="block text-sm">
             <span className="text-ink-secondary">Apartamento *</span>
+            {/*
+              Al escribir el apartamento aparece su coeficiente, si el edificio
+              ya lo sabe. Es el dato que más cuesta conseguir —sale del
+              reglamento de propiedad horizontal— y no cambia nunca, así que
+              basta averiguarlo una vez por apartamento.
+            */}
             <input
               id="campo-apartamento"
               className={CLASE_INPUT}
               value={f.apartamento}
-              onChange={(e) => set("apartamento", e.target.value)}
+              onChange={(e) => {
+                const apto = e.target.value;
+                set("apartamento", apto);
+                const conocido = copropiedad?.coeficientes?.[apto.trim()];
+                if (conocido != null && !f.coeficiente) set("coeficiente", String(conocido));
+              }}
             />
           </label>
           <label className="block text-sm">
@@ -1517,39 +1536,42 @@ function CamposEndoso({
           </label>
         </div>
 
-        {/* La calle y la ciudad se enseñan, pero se corrigen en la ficha. */}
-        <details className="mt-3" open={!f.direccion || !f.ciudad}>
-          <summary className="cursor-pointer text-[11px] text-ink-muted">
-            Dirección: {f.direccion || "sin poner"}
-            {f.ciudad ? ` · ${f.ciudad}` : ""} — corregir solo para este caso
-          </summary>
-          <div className="mt-2 grid gap-3 sm:grid-cols-[2fr_1fr]">
-            <label className="block text-sm">
-              <span className="text-ink-secondary">Nomenclatura *</span>
-              <input
-                id="campo-direccion"
-                className={CLASE_INPUT}
-                value={f.direccion}
-                onChange={(e) => set("direccion", e.target.value)}
-                placeholder={copropiedad?.direccion ?? "Calle 54 # 86C - 66"}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="text-ink-secondary">Ciudad *</span>
-              <input
-                id="campo-ciudad"
-                className={CLASE_INPUT}
-                value={f.ciudad}
-                onChange={(e) => set("ciudad", e.target.value)}
-                placeholder={copropiedad?.ciudad ?? "Medellín"}
-              />
-            </label>
-          </div>
-          <p className="mt-1 text-[11px] text-ink-muted">
-            Si está mal para TODO el edificio, corrígela en la ficha con «Editar ficha»: así queda
-            bien en todos sus endosos y no solo en este.
-          </p>
-        </details>
+        {/*
+          La dirección es del CASO, no del edificio: la escribe el cliente en su
+          correo y es la que el banco compara, letra por letra, contra la
+          escritura del crédito. Por eso va visible y no heredada de la ficha.
+        */}
+        <div className="mt-3 grid gap-3 sm:grid-cols-[2fr_1fr]">
+          <label className="block text-sm">
+            <span className="text-ink-secondary">Nomenclatura *</span>
+            <input
+              id="campo-direccion"
+              className={CLASE_INPUT}
+              value={f.direccion}
+              onChange={(e) => set("direccion", e.target.value)}
+              placeholder="Como la escribió el cliente"
+            />
+            {copropiedad?.direccion && !f.direccion && (
+              <button
+                type="button"
+                onClick={() => set("direccion", copropiedad.direccion!)}
+                className="mt-1 text-[11px] text-ink-muted underline decoration-dotted underline-offset-2 hover:text-brand"
+              >
+                Usar la del edificio: {copropiedad.direccion}
+              </button>
+            )}
+          </label>
+          <label className="block text-sm">
+            <span className="text-ink-secondary">Ciudad *</span>
+            <input
+              id="campo-ciudad"
+              className={CLASE_INPUT}
+              value={f.ciudad}
+              onChange={(e) => set("ciudad", e.target.value)}
+              placeholder={copropiedad?.ciudad ?? "Medellín"}
+            />
+          </label>
+        </div>
       </div>
 
       {/* --- El crédito -------------------------------------------------- */}
@@ -1635,7 +1657,7 @@ function CamposEndoso({
           <span className="mt-1 block text-[11px] text-ink-muted">
             {corresponde != null
               ? `Le corresponden ${fmtCOP(Math.round(corresponde))}.`
-              : "Si este apartamento ya tuvo endoso, se reutiliza el suyo."}
+              : "Lo trae el edificio si ya se sabe el de este apartamento."}
           </span>
         </label>
         <label className="block text-sm">

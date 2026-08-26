@@ -910,6 +910,14 @@ export interface CopropiedadVista {
   admiteEndosos: boolean;
   motivoBloqueo: string | null;
   nota: string | null;
+  /**
+   * El coeficiente de cada apartamento del edificio, por número de apartamento.
+   *
+   * Viaja con la ficha —son unas pocas decenas por edificio— para que el
+   * formulario lo ponga en cuanto se escribe el apartamento, sin ir al
+   * servidor. Es el dato que más cuesta conseguir y el que no cambia nunca.
+   */
+  coeficientes: Record<string, number>;
 }
 
 /**

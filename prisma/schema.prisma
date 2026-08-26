@@ -583,9 +583,34 @@ model Copropiedad {
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
-  endosos Endoso[]
+  endosos      Endoso[]
+  coeficientes CoeficienteApartamento[]
 
   @@index([admiteEndosos])
+}
+
+// El coeficiente de copropiedad de cada apartamento de un edificio.
+//
+// Es el dato que más cuesta conseguir y el que nunca cambia: la participación
+// del apartamento en el edificio está en el reglamento de propiedad horizontal
+// y sirve año tras año. Vive aquí, colgado del edificio, para que se llene UNA
+// vez y lo hereden todos los endosos de ese apartamento — incluidos los del
+// año que viene, cuando toque renovar.
+//
+// La tabla se llena sola: cada endoso que se guarda con coeficiente lo deja
+// aquí para la próxima vez.
+model CoeficienteApartamento {
+  id            Int         @id @default(autoincrement())
+  copropiedadId Int
+  copropiedad   Copropiedad @relation(fields: [copropiedadId], references: [id], onDelete: Cascade)
+
+  apartamento String
+  // En porcentaje, como se habla de él: 0,36 % se guarda como 0.36.
+  coeficiente Float
+
+  actualizadoEn DateTime @updatedAt
+
+  @@unique([copropiedadId, apartamento])
 }
 
 // Cada pasada de la revisión automática del buzón de endosos.

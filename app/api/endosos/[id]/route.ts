@@ -221,9 +221,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (datos.numeroPoliza === undefined && !actual.numeroPoliza && ficha.numeroPoliza) {
           datos.numeroPoliza = ficha.numeroPoliza;
         }
-        if (datos.direccion === undefined && !actual.direccion && ficha.direccion) {
-          datos.direccion = ficha.direccion;
-        }
+        /*
+         * La dirección NO se hereda: la manda el cliente en su correo y es la
+         * que el banco compara contra la escritura del crédito. La ciudad sí,
+         * porque el edificio la sabe y que falte es la causa nº 1 de
+         * devolución; el correo, cuando la trae, manda igual.
+         */
         if (datos.ciudad === undefined && !actual.ciudad && ficha.ciudad) {
           datos.ciudad = ficha.ciudad;
         }
@@ -249,6 +252,36 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (!Object.keys(datos).length) {
     return NextResponse.json({ error: "No hay nada que cambiar." }, { status: 400 });
+  }
+
+  /*
+   * Si esta edición trae coeficiente, se guarda en la tabla del edificio para
+   * que el apartamento no lo vuelva a necesitar nunca. Y si no lo trae pero el
+   * edificio ya lo sabe, se le pone: es el dato que más cuesta conseguir.
+   */
+  {
+    const actual = await prisma.endoso.findUnique({
+      where: { id },
+      select: { copropiedadId: true, apartamento: true, coeficiente: true },
+    });
+    const idFicha = (datos.copropiedadId as number | null | undefined) ?? actual?.copropiedadId ?? null;
+    const apto = ((datos.apartamento as string | undefined) ?? actual?.apartamento ?? "")?.trim();
+    const coef = (datos.coeficiente as number | null | undefined) ?? actual?.coeficiente ?? null;
+    if (idFicha && apto) {
+      if (coef != null) {
+        await prisma.coeficienteApartamento.upsert({
+          where: { copropiedadId_apartamento: { copropiedadId: idFicha, apartamento: apto } },
+          create: { copropiedadId: idFicha, apartamento: apto, coeficiente: coef },
+          update: { coeficiente: coef },
+        });
+      } else if (datos.coeficiente === undefined) {
+        const guardado = await prisma.coeficienteApartamento.findUnique({
+          where: { copropiedadId_apartamento: { copropiedadId: idFicha, apartamento: apto } },
+          select: { coeficiente: true },
+        });
+        if (guardado) datos.coeficiente = guardado.coeficiente;
+      }
+    }
   }
 
   try {

@@ -75,7 +75,10 @@ export default async function EndososPage() {
       },
       orderBy: { creadoEn: "desc" },
     }),
-    prisma.copropiedad.findMany({ orderBy: { nombre: "asc" } }),
+    prisma.copropiedad.findMany({
+      orderBy: { nombre: "asc" },
+      include: { coeficientes: { select: { apartamento: true, coeficiente: true } } },
+    }),
     prisma.revisionBuzon.findFirst({ orderBy: { ejecutadaEn: "desc" } }),
   ]);
 
@@ -98,6 +101,7 @@ export default async function EndososPage() {
     admiteEndosos: boolean;
     motivoBloqueo: string | null;
     nota: string | null;
+    coeficientes: { apartamento: string; coeficiente: number }[];
   }): CopropiedadVista => ({
     id: c.id,
     nombre: c.nombre,
@@ -113,6 +117,7 @@ export default async function EndososPage() {
     admiteEndosos: c.admiteEndosos,
     motivoBloqueo: c.motivoBloqueo,
     nota: c.nota,
+    coeficientes: Object.fromEntries(c.coeficientes.map((x) => [x.apartamento, x.coeficiente])),
   });
 
   const vista: EndosoVista[] = endosos.map((e) => {

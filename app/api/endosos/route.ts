@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
-import { ESTADOS_ENDOSO, normalizar, normalizarAseguradora, type EstadoEndoso } from "@/lib/endosos";
+import {
+  ESTADOS_ENDOSO,
+  buscarBanco,
+  normalizar,
+  normalizarAseguradora,
+  type EstadoEndoso,
+} from "@/lib/endosos";
 
 export const runtime = "nodejs";
 
@@ -150,28 +156,40 @@ export async function POST(req: NextRequest) {
   const numeroPoliza = texto(b, "numeroPoliza") ?? ficha?.numeroPoliza ?? null;
 
   /*
-   * La calle y la ciudad también son del edificio: los cien apartamentos de
-   * Marsella comparten las dos. Se heredan de la ficha para no volver a
-   * teclearlas —y para que salgan idénticas en todos los casos, que es lo que
-   * el banco compara contra la escritura del crédito.
+   * La dirección la manda el CLIENTE en su correo y es la que el banco compara
+   * contra la escritura del crédito, así que la del caso manda siempre. La de
+   * la ficha solo entra si el correo no la trajo, y la ciudad igual: que falte
+   * la ciudad es la causa nº 1 de devolución, y el edificio sí la sabe.
    */
-  const direccion = texto(b, "direccion") ?? ficha?.direccion ?? null;
+  const direccion = texto(b, "direccion") ?? null;
   const ciudad = texto(b, "ciudad") ?? ficha?.ciudad ?? null;
 
   /*
-   * El coeficiente no cambia: es la participación del apartamento en el
-   * edificio y sirve año tras año. Si este mismo apartamento ya tuvo endoso,
-   * se reutiliza el que se averiguó entonces en vez de volver a buscarlo.
+   * El NIT del banco lo pone la lista oficial a partir del nombre. Lo hacía
+   * solo el formulario, así que un caso creado al leer un correo se quedaba
+   * sin él —y el NIT del beneficiario mal o ausente es de lo que más devuelve
+   * un endoso—. También se corrige la escritura del banco a la canónica, que
+   * es lo que evita confundir Davivienda con DAVIbank.
+   */
+  const bancoPedido = texto(b, "banco");
+  const bancoConocido = buscarBanco(bancoPedido);
+  const banco = bancoConocido?.nombre ?? bancoPedido;
+  const bancoNit = texto(b, "bancoNit") ?? bancoConocido?.nit ?? null;
+
+  /*
+   * El coeficiente sale de la tabla del edificio: es la participación del
+   * apartamento en la copropiedad, está en el reglamento y no cambia. Se
+   * averigua una vez por apartamento y sirve para siempre, también el año que
+   * viene cuando toque renovar el endoso.
    */
   const apartamento = texto(b, "apartamento");
   let coeficiente = porcentaje(b, "coeficiente");
   if (coeficiente == null && apartamento && copropiedadId) {
-    const previo = await prisma.endoso.findFirst({
-      where: { copropiedadId, apartamento, coeficiente: { not: null } },
-      orderBy: { creadoEn: "desc" },
+    const guardado = await prisma.coeficienteApartamento.findUnique({
+      where: { copropiedadId_apartamento: { copropiedadId, apartamento } },
       select: { coeficiente: true },
     });
-    coeficiente = previo?.coeficiente ?? null;
+    coeficiente = guardado?.coeficiente ?? null;
   }
 
   const fechaEnvio = texto(b, "fechaEnvioAseguradora");
@@ -194,8 +212,8 @@ export async function POST(req: NextRequest) {
       parqueadero: texto(b, "parqueadero"),
       coeficiente,
       valorSolicitado: numero(b, "valorSolicitado"),
-      banco: texto(b, "banco"),
-      bancoNit: texto(b, "bancoNit"),
+      banco,
+      bancoNit,
       tipoCredito: texto(b, "tipoCredito"),
       aseguradora: normalizarAseguradora(aseguradora),
       numeroPoliza,
@@ -210,6 +228,20 @@ export async function POST(req: NextRequest) {
       policyId: typeof b.policyId === "number" ? b.policyId : null,
     },
   });
+
+  /*
+   * La tabla de coeficientes del edificio aprende de cada endoso. Así, el día
+   * que alguien averigüe el coeficiente de un apartamento nuevo, queda puesto
+   * para todos los endosos que ese apartamento pida en adelante sin que nadie
+   * tenga que acordarse de guardarlo en otro sitio.
+   */
+  if (coeficiente != null && apartamento && copropiedadId) {
+    await prisma.coeficienteApartamento.upsert({
+      where: { copropiedadId_apartamento: { copropiedadId, apartamento } },
+      create: { copropiedadId, apartamento, coeficiente },
+      update: { coeficiente },
+    });
+  }
 
   return NextResponse.json({ ok: true, id: creado.id, copropiedadId });
 }
