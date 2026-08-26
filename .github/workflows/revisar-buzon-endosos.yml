@@ -1,0 +1,90 @@
+# Dispara cada hora la revisión del buzón de endosos.
+#
+# POR QUÉ AQUÍ Y NO EN VERCEL: el plan Hobby de Vercel solo admite cron
+# DIARIO — con `0 * * * *` en vercel.json el despliegue entero se rechaza con
+# deploy_failed. GitHub Actions da cron horario sin coste, así que el
+# disparador vive aquí y el trabajo lo sigue haciendo la ruta del CRM.
+#
+# POR QUÉ NO EN UNA RUTINA DE LA NUBE DE CLAUDE: se probó, y la política de
+# red de ese entorno bloquea la salida hacia el CRM (403 en el CONNECT del
+# proxy, tanto a crm-cuantico.vercel.app como a cuanticoseguros.com.co).
+# Leía el correo pero no podía escribir ni una línea.
+#
+# QUÉ HACE FALTA PARA QUE ESTO FUNCIONE (todo lo pone una persona, una vez):
+#   · En Vercel  → MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID,
+#                  MICROSOFT_CLIENT_SECRET, ANTHROPIC_API_KEY y CRON_SECRET.
+#   · En GitHub  → el mismo CRON_SECRET, en Settings ▸ Secrets and variables
+#                  ▸ Actions ▸ New repository secret.
+# Sin CRON_SECRET la ruta responde 503 a propósito y este flujo falla avisando.
+
+name: Revisar buzón de endosos
+
+on:
+  schedule:
+    # Cada hora en punto (UTC). GitHub puede retrasarlo unos minutos si hay
+    # cola; da igual, la ruta mira una ventana de 90 minutos hacia atrás y no
+    # duplica nada porque cada correo queda marcado como procesado.
+    - cron: "0 * * * *"
+  # Para poder dispararlo a mano desde la pestaña Actions y comprobar que va.
+  workflow_dispatch:
+
+# Si una corrida se atrasa y se solapa con la siguiente, se cancela la vieja:
+# dos revisiones a la vez sobre el mismo buzón no aportan nada.
+concurrency:
+  group: revisar-buzon-endosos
+  cancel-in-progress: false
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Llamar a la revisión del buzón
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Falta el secreto CRON_SECRET en este repositorio."
+            echo "Ponlo en Settings ▸ Secrets and variables ▸ Actions, con el"
+            echo "mismo valor que tiene la variable CRON_SECRET en Vercel."
+            exit 1
+          fi
+
+          URL="https://crm-cuantico.vercel.app/funcionarios/api/cron/procesar-endosos"
+
+          # El cuerpo se guarda aparte para poder enseñarlo pase lo que pase:
+          # cuando algo falla, el detalle está en la respuesta, no en el código.
+          CODIGO=$(curl -sS -X GET "$URL" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            --max-time 540 \
+            -o respuesta.json \
+            -w "%{http_code}")
+
+          echo "HTTP $CODIGO"
+          echo "--- respuesta ---"
+          cat respuesta.json || true
+          echo
+
+          case "$CODIGO" in
+            200)
+              echo "::notice::Revisión completada."
+              ;;
+            503)
+              echo "::error::El CRM responde 503: le faltan variables de entorno en Vercel (CRON_SECRET, MICROSOFT_* o ANTHROPIC_API_KEY)."
+              exit 1
+              ;;
+            401)
+              echo "::error::401: el CRON_SECRET de GitHub no coincide con el de Vercel."
+              exit 1
+              ;;
+            502)
+              echo "::error::502: el CRM no pudo leer el buzón. Revisa las credenciales de Microsoft Graph."
+              exit 1
+              ;;
+            *)
+              echo "::error::Respuesta inesperada del CRM: HTTP $CODIGO"
+              exit 1
+              ;;
+          esac
