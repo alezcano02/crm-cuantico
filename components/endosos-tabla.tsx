@@ -200,7 +200,7 @@ function normalizarTxt(v: string): string {
  * marcado se ven todos los endosos.
  */
 const SITUACIONES = [
-  "Sin mirar",
+  "Sin gestionar",
   "Abiertos",
   "Listos para enviar",
   "Con problema",
@@ -216,7 +216,7 @@ function cumpleSituacion(e: EndosoVista, s: Situacion): boolean {
   switch (s) {
     // Lo que entró por correo y nadie ha abierto, más lo que cambió desde la
     // última vez que se miró. Es la bandeja de entrada del día.
-    case "Sin mirar":
+    case "Sin gestionar":
       return e.novedad != null;
     case "Abiertos":
       return abierto;
@@ -371,7 +371,18 @@ export function EndososTabla({
      * pantalla: lo que acaba de entrar por correo, que antes quedaba enterrado
      * al fondo detrás de casos de hace meses que llevaban más días esperando.
      */
-    return [...lista].sort((a, b) => b.creadoEn.localeCompare(a.creadoEn));
+    /*
+     * Y por delante de todo, lo que la revisión del correo dejó sin gestionar.
+     *
+     * Que salga avisado no basta si está en la página siete: un caso nuevo de
+     * un edificio con histórico largo se hundía entre casos viejos y había que
+     * ir a buscarlo. Arriba se ve al abrir la pantalla, que es cuando se
+     * decide qué hacer con el día.
+     */
+    return [...lista].sort((a, b) => {
+      const nov = (e: EndosoVista) => (e.novedad === "nuevo" ? 0 : e.novedad === "actualizado" ? 1 : 2);
+      return nov(a) - nov(b) || b.creadoEn.localeCompare(a.creadoEn);
+    });
   }, [endosos, q, selSituacion, selEstado, selAseguradora, selCopropiedad, desde, hasta, aseguradoras, urbanizaciones]);
 
   const totales = useMemo(() => {
@@ -379,6 +390,8 @@ export function EndososTabla({
     const hoy = new Date();
     return {
       sinMirar: endosos.filter((e) => e.novedad != null).length,
+      nuevos: endosos.filter((e) => e.novedad === "nuevo").length,
+      actualizados: endosos.filter((e) => e.novedad === "actualizado").length,
       abiertos: abiertos.length,
       listos: abiertos.filter((e) => e.revision.estado === "listo").length,
       represados: endosos.filter((e) => (e.diasEsperando ?? 0) > DIAS_ALERTA_ASEGURADORA).length,
@@ -458,24 +471,68 @@ export function EndososTabla({
     }
   };
 
+  /*
+   * Lo que la revisión del correo acaba de dejar sin gestionar, dicho con
+   * palabras y no con un número suelto.
+   *
+   * Con la tarjeta y las etiquetas sola había que atar cabos: ver un «2», ver
+   * unas insignias pequeñas y deducir que eso era lo recién llegado. Esta
+   * banda lo dice y además LLEVA a esos casos, que es lo que se quiere hacer
+   * justo después de leerla.
+   */
+  const bandaNovedades = totales.sinMirar > 0 && (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-brand/30 bg-brand-50 px-4 py-3">
+      <span className="text-sm text-ink">
+        <strong className="font-semibold">La revisión del correo dejó trabajo sin gestionar:</strong>{" "}
+        {totales.nuevos > 0 && (
+          <>
+            entró{" "}
+            <strong className="font-semibold">
+              {totales.nuevos} caso{totales.nuevos === 1 ? "" : "s"} nuevo
+              {totales.nuevos === 1 ? "" : "s"}
+            </strong>
+          </>
+        )}
+        {totales.nuevos > 0 && totales.actualizados > 0 && " y "}
+        {totales.actualizados > 0 && (
+          <>
+            actualizó{" "}
+            <strong className="font-semibold">
+              {totales.actualizados} caso{totales.actualizados === 1 ? "" : "s"}
+            </strong>{" "}
+            con nota nueva
+          </>
+        )}
+        . Nadie los ha abierto todavía.
+      </span>
+      <button
+        onClick={() => soloSituacion("Sin gestionar")}
+        className="ml-auto shrink-0 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark"
+      >
+        Ver {totales.sinMirar === 1 ? "el caso" : `los ${totales.sinMirar}`}
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
+      {bandaNovedades}
       {/* Cada tarjeta es el filtro que anuncia: pulsarla lo deja puesto. */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         {/* Por aquí se empieza el día: lo que entró por correo desde la última
             vez. Solo se pinta de azul cuando hay algo — una tarjeta que grita
             con un cero al lado enseña a no mirarla. */}
         <StatCard
-          etiqueta="Sin mirar"
+          etiqueta="Sin gestionar"
           valor={String(totales.sinMirar)}
           detalle={
             totales.sinMirar > 0
-              ? "Llegaron por correo y nadie los ha abierto"
-              : "Todo lo que ha llegado está revisado"
+              ? "Entraron por correo y nadie los ha abierto"
+              : "Todo lo que ha entrado por correo ya se miró"
           }
           acento={totales.sinMirar > 0 ? "marca" : undefined}
-          onClick={() => soloSituacion("Sin mirar")}
-          activo={selSituacion.length === 1 && selSituacion[0] === "Sin mirar"}
+          onClick={() => soloSituacion("Sin gestionar")}
+          activo={selSituacion.length === 1 && selSituacion[0] === "Sin gestionar"}
         />
         <StatCard
           etiqueta="Abiertos"
