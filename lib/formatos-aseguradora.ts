@@ -44,6 +44,8 @@ export interface DatosEndosoFormato {
 export interface DatosCopropiedadFormato {
   nombre?: string | null;
   nit?: string | null;
+  /** La calle del edificio. Las planillas de AXA y Zurich la piden aparte. */
+  direccion?: string | null;
   numeroPoliza?: string | null;
   vigenciaHasta?: Date | string | null;
   valorAseguradoTotal?: number | null;
@@ -170,9 +172,7 @@ const CONSTRUCTORES: Record<ClaveAseguradoraFormato, Constructor> = {
       { col: "A", valor: c?.numeroPoliza ?? null, falta: "número de póliza de la copropiedad" },
       { col: "B", valor: c?.nombre ?? null, falta: "tomador (nombre de la copropiedad)" },
       { col: "C", valor: c?.nit ?? null, falta: "NIT de la copropiedad" },
-      // La dirección del edificio no se guarda en el CRM todavía; se avisa en
-      // vez de dejar la columna vacía en silencio.
-      { col: "D", valor: null, falta: "dirección de la copropiedad" },
+      { col: "D", valor: c?.direccion ?? null, falta: "dirección de la copropiedad (ficha del edificio)" },
       { col: "E", valor: e.ciudad ?? null, falta: "ciudad" },
       { col: "F", valor: e.banco ?? null, falta: "banco beneficiario" },
       // La columna G es el NIT del beneficiario. La plantilla de la que se
@@ -198,7 +198,7 @@ const CONSTRUCTORES: Record<ClaveAseguradoraFormato, Constructor> = {
         { col: "B", valor: c?.numeroPoliza ?? null, falta: "número de póliza de la copropiedad" },
         { col: "C", valor: c?.nombre ?? null, falta: "tomador (nombre de la copropiedad)" },
         { col: "D", valor: c?.nit ?? null, falta: "NIT de la copropiedad" },
-        { col: "E", valor: null, falta: "dirección de la copropiedad" },
+        { col: "E", valor: c?.direccion ?? null, falta: "dirección de la copropiedad (ficha del edificio)" },
         { col: "F", valor: fechaCorta(new Date()) },
         // De la vigencia solo se guarda el «hasta»; el «desde» hay que ponerlo.
         { col: "G", valor: null, falta: "vigencia desde" },

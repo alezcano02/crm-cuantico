@@ -898,6 +898,9 @@ export interface CopropiedadVista {
   id: number;
   nombre: string;
   nit: string | null;
+  /** Calle y ciudad del edificio: se heredan a todos sus endosos. */
+  direccion: string | null;
+  ciudad: string | null;
   aseguradora: string | null;
   numeroPoliza: string | null;
   vigenciaHasta: string | null;

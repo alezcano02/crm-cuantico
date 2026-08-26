@@ -549,6 +549,14 @@ model Copropiedad {
   nombre String  @unique
   nit    String?
 
+  // La calle y la ciudad del edificio. Van aquí y no en cada endoso porque son
+  // del edificio: los cien apartamentos de Marsella comparten la misma
+  // nomenclatura. Escribirlas caso por caso era teclear cien veces lo mismo y
+  // de ahí salían las variantes que hacen dudar al banco. Son además la
+  // «dirección de la copropiedad» que piden las planillas de AXA y Zurich.
+  direccion String?
+  ciudad    String?
+
   aseguradora   String?
   numeroPoliza  String?
   // Hasta cuándo va la vigencia de la póliza de áreas comunes.

@@ -172,22 +172,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   /*
-   * Pasar a «Enviado al cliente» es el momento que cuenta la cifra del mes, y
-   * se sella aquí para no depender de que alguien la escriba. Solo la primera
-   * vez: si el caso vuelve a reproceso y se entrega otra vez, la entrega que
-   * vale para el histórico es la primera de este ciclo.
-   */
-  /*
-   * La aseguradora y la póliza salen de la ficha del edificio cuando el caso
-   * no las tiene: son datos de la copropiedad, no del caso, y copiarlos a mano
-   * era de donde salían las variantes de escritura y las planillas sin número
-   * de póliza. Nunca se pisa lo que ya esté puesto ni lo que venga en esta
-   * misma petición.
+   * La aseguradora, la póliza, la calle y la ciudad salen de la ficha del
+   * edificio cuando el caso no las tiene: son datos de la copropiedad, no del
+   * caso, y copiarlos a mano era de donde salían las variantes de escritura,
+   * las planillas sin número de póliza y las direcciones que no coinciden con
+   * la del crédito. Nunca se pisa lo que ya esté puesto ni lo que venga en
+   * esta misma petición.
    */
   {
     const actual = await prisma.endoso.findUnique({
       where: { id },
-      select: { urbanizacion: true, copropiedadId: true, aseguradora: true, numeroPoliza: true },
+      select: { urbanizacion: true, copropiedadId: true, aseguradora: true, numeroPoliza: true, direccion: true, ciudad: true },
     });
     if (actual) {
       const idFicha =
@@ -196,13 +191,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       let ficha = idFicha
         ? await prisma.copropiedad.findUnique({
             where: { id: idFicha },
-            select: { aseguradora: true, numeroPoliza: true },
+            select: { aseguradora: true, numeroPoliza: true, direccion: true, ciudad: true },
           })
         : null;
       // Sin ficha enlazada se busca por nombre, igual que al crear el caso.
       if (!ficha && nombre) {
         const todas = await prisma.copropiedad.findMany({
-          select: { nombre: true, aseguradora: true, numeroPoliza: true },
+          select: {
+            nombre: true,
+            aseguradora: true,
+            numeroPoliza: true,
+            direccion: true,
+            ciudad: true,
+          },
         });
         const objetivo = normalizar(nombre);
         ficha =
@@ -220,10 +221,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (datos.numeroPoliza === undefined && !actual.numeroPoliza && ficha.numeroPoliza) {
           datos.numeroPoliza = ficha.numeroPoliza;
         }
+        if (datos.direccion === undefined && !actual.direccion && ficha.direccion) {
+          datos.direccion = ficha.direccion;
+        }
+        if (datos.ciudad === undefined && !actual.ciudad && ficha.ciudad) {
+          datos.ciudad = ficha.ciudad;
+        }
       }
     }
   }
 
+  /*
+   * Pasar a «Enviado al cliente» es el momento que cuenta la cifra del mes, y
+   * se sella aquí para no depender de que alguien la escriba. Solo la primera
+   * vez: si el caso vuelve a reproceso y se entrega otra vez, la entrega que
+   * vale para el histórico es la primera de este ciclo.
+   */
   if (datos.estado === "ENVIADO_CLIENTE") {
     const actual = await prisma.endoso.findUnique({
       where: { id },

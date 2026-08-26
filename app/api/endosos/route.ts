@@ -113,7 +113,14 @@ export async function POST(req: NextRequest) {
    */
   let copropiedadId = typeof b.copropiedadId === "number" ? b.copropiedadId : null;
   const candidatas = await prisma.copropiedad.findMany({
-    select: { id: true, nombre: true, aseguradora: true, numeroPoliza: true },
+    select: {
+      id: true,
+      nombre: true,
+      aseguradora: true,
+      numeroPoliza: true,
+      direccion: true,
+      ciudad: true,
+    },
   });
   if (!copropiedadId) {
     const objetivo = normalizar(urbanizacion);
@@ -142,6 +149,31 @@ export async function POST(req: NextRequest) {
   const aseguradora = normalizarAseguradora(texto(b, "aseguradora")) ?? ficha?.aseguradora ?? null;
   const numeroPoliza = texto(b, "numeroPoliza") ?? ficha?.numeroPoliza ?? null;
 
+  /*
+   * La calle y la ciudad también son del edificio: los cien apartamentos de
+   * Marsella comparten las dos. Se heredan de la ficha para no volver a
+   * teclearlas —y para que salgan idénticas en todos los casos, que es lo que
+   * el banco compara contra la escritura del crédito.
+   */
+  const direccion = texto(b, "direccion") ?? ficha?.direccion ?? null;
+  const ciudad = texto(b, "ciudad") ?? ficha?.ciudad ?? null;
+
+  /*
+   * El coeficiente no cambia: es la participación del apartamento en el
+   * edificio y sirve año tras año. Si este mismo apartamento ya tuvo endoso,
+   * se reutiliza el que se averiguó entonces en vez de volver a buscarlo.
+   */
+  const apartamento = texto(b, "apartamento");
+  let coeficiente = porcentaje(b, "coeficiente");
+  if (coeficiente == null && apartamento && copropiedadId) {
+    const previo = await prisma.endoso.findFirst({
+      where: { copropiedadId, apartamento, coeficiente: { not: null } },
+      orderBy: { creadoEn: "desc" },
+      select: { coeficiente: true },
+    });
+    coeficiente = previo?.coeficiente ?? null;
+  }
+
   const fechaEnvio = texto(b, "fechaEnvioAseguradora");
 
   const creado = await prisma.endoso.create({
@@ -154,13 +186,13 @@ export async function POST(req: NextRequest) {
       cedula2: texto(b, "cedula2"),
       correoSolicitante: texto(b, "correoSolicitante"),
       celular: texto(b, "celular"),
-      direccion: texto(b, "direccion"),
-      ciudad: texto(b, "ciudad"),
+      direccion,
+      ciudad,
       torre: texto(b, "torre"),
-      apartamento: texto(b, "apartamento"),
+      apartamento,
       cuartoUtil: texto(b, "cuartoUtil"),
       parqueadero: texto(b, "parqueadero"),
-      coeficiente: porcentaje(b, "coeficiente"),
+      coeficiente,
       valorSolicitado: numero(b, "valorSolicitado"),
       banco: texto(b, "banco"),
       bancoNit: texto(b, "bancoNit"),

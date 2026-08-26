@@ -87,6 +87,8 @@ export default async function EndososPage() {
     id: number;
     nombre: string;
     nit: string | null;
+    direccion: string | null;
+    ciudad: string | null;
     aseguradora: string | null;
     numeroPoliza: string | null;
     vigenciaHasta: Date | null;
@@ -100,6 +102,8 @@ export default async function EndososPage() {
     id: c.id,
     nombre: c.nombre,
     nit: c.nit,
+    direccion: c.direccion,
+    ciudad: c.ciudad,
     aseguradora: c.aseguradora,
     numeroPoliza: c.numeroPoliza,
     vigenciaHasta: c.vigenciaHasta?.toISOString() ?? null,

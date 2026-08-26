@@ -1263,16 +1263,76 @@ function BotonNoAplica({ valor, onPoner }: { valor: string; onPoner: () => void 
   );
 }
 
+/**
+ * Ficha del edificio en pequeño, dentro del formulario del caso.
+ *
+ * Lo que sale aquí NO se teclea en cada endoso: la aseguradora, la póliza, la
+ * calle y la ciudad son del edificio y las heredan todos sus casos. Se enseñan
+ * para poder comprobarlas de un vistazo, y se corrigen en un solo sitio —la
+ * ficha— con efecto sobre todos los endosos de esa copropiedad.
+ */
+function ResumenFicha({
+  ficha,
+  onEditar,
+}: {
+  ficha: CopropiedadVista | null;
+  onEditar?: () => void;
+}) {
+  if (!ficha) {
+    return (
+      <div className="rounded-lg border border-status-warning/40 bg-status-warning/5 p-2.5 text-xs text-[#8a6100]">
+        Sin ficha del edificio. Créala en «Copropiedades» y sus datos —aseguradora, póliza,
+        dirección y ciudad— se aplicarán solos a todos sus endosos.
+      </div>
+    );
+  }
+  const dato = (etq: string, v: string | null | undefined) => (
+    <div className="min-w-0">
+      <div className="etiqueta-marca text-[10px] text-ink-muted">{etq}</div>
+      <div className="truncate text-ink-secondary" title={v ?? ""}>
+        {v?.trim() ? v : <span className="text-ink-muted">—</span>}
+      </div>
+    </div>
+  );
+  return (
+    <div className="rounded-lg border border-line-grid bg-surface-page/60 p-2.5 text-xs">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-semibold">Datos del edificio</span>
+        {onEditar && (
+          <button
+            type="button"
+            onClick={onEditar}
+            className="rounded border border-line-axis bg-surface px-1.5 py-0.5 text-[11px] font-medium text-ink-secondary hover:border-brand-300 hover:text-brand"
+          >
+            Editar ficha
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {dato("Aseguradora", ficha.aseguradora)}
+        {dato("Póliza", ficha.numeroPoliza)}
+        {dato("Dirección", ficha.direccion)}
+        {dato("Ciudad", ficha.ciudad)}
+      </div>
+      <p className="mt-2 text-[11px] text-ink-muted">
+        Se aplican a todos los endosos de {ficha.nombre}. Cambiarlos aquí los cambia para todos.
+      </p>
+    </div>
+  );
+}
+
 function CamposEndoso({
   f,
   set,
   copropiedad,
   copropiedades,
+  onEditarFicha,
 }: {
   f: DatosForm;
   set: (k: keyof DatosForm, v: string) => void;
   copropiedad: CopropiedadVista | null;
   copropiedades: CopropiedadVista[];
+  onEditarFicha?: () => void;
 }) {
   /**
    * Al elegir el banco de la lista se rellena su NIT oficial.
@@ -1297,52 +1357,56 @@ function CamposEndoso({
       : null;
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className="space-y-4">
+      {/* --- El edificio ---------------------------------------------- */}
+      <div className="space-y-2">
         <label className="block text-sm">
           <span className="text-ink-secondary">Copropiedad *</span>
-          <input
+          {/*
+            Desplegable y no texto libre: escribirla a mano es de donde salían
+            «Cantapiedra» y «Canta Piedra» como dos edificios distintos. Solo
+            se admite texto cuando el edificio todavía no tiene ficha.
+          */}
+          <select
             id="campo-urbanizacion"
             className={CLASE_INPUT}
-            value={f.urbanizacion}
-            onChange={(e) => set("urbanizacion", e.target.value)}
-            list="lista-copropiedades"
-            placeholder="Ej: Marsella"
-          />
-          <datalist id="lista-copropiedades">
-            {copropiedades.map((c) => (
-              <option key={c.id} value={c.nombre} />
-            ))}
-          </datalist>
-          {copropiedad ? (
-            <span className="mt-1 block text-[11px] text-status-good">
-              Enlazado a la ficha de {copropiedad.nombre}.
-            </span>
-          ) : (
-            <span className="mt-1 block text-[11px] text-ink-muted">
-              Sin ficha. Créala en “Copropiedades” para poder verificar paz y salvo y coeficiente.
-            </span>
-          )}
-        </label>
-        <label className="block text-sm">
-          <span className="text-ink-secondary">Tipo de crédito</span>
-          <select
-            id="campo-tipoCredito"
-            className={CLASE_INPUT}
-            value={f.tipoCredito}
-            onChange={(e) => set("tipoCredito", e.target.value)}
+            value={
+              copropiedades.some((c) => c.nombre === f.urbanizacion) ? f.urbanizacion : "__otra__"
+            }
+            onChange={(e) => {
+              if (e.target.value === "__otra__") {
+                set("copropiedadId", "");
+                return;
+              }
+              const c = copropiedades.find((x) => x.nombre === e.target.value);
+              set("urbanizacion", e.target.value);
+              set("copropiedadId", c ? String(c.id) : "");
+              // Los datos del edificio se rellenan solos desde su ficha.
+              if (c?.direccion) set("direccion", c.direccion);
+              if (c?.ciudad) set("ciudad", c.ciudad);
+            }}
           >
-            <option value="">Sin definir</option>
-            {TIPOS_CREDITO.map((t) => (
-              <option key={t} value={t}>
-                {t === "HIPOTECARIO" ? "Hipotecario" : "Leasing habitacional"}
+            <option value="__otra__">— Otra (escribirla) —</option>
+            {copropiedades.map((c) => (
+              <option key={c.id} value={c.nombre}>
+                {c.nombre}
               </option>
             ))}
           </select>
+          {!copropiedades.some((c) => c.nombre === f.urbanizacion) && (
+            <input
+              className={clsx(CLASE_INPUT, "mt-1")}
+              value={f.urbanizacion}
+              onChange={(e) => set("urbanizacion", e.target.value)}
+              placeholder="Nombre del edificio, si aún no tiene ficha"
+            />
+          )}
         </label>
+        <ResumenFicha ficha={copropiedad} onEditar={onEditarFicha} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* --- Quién pide ------------------------------------------------ */}
+      <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
         <label className="block text-sm">
           <span className="text-ink-secondary">Deudor principal *</span>
           <input
@@ -1362,29 +1426,104 @@ function CamposEndoso({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="text-ink-secondary">Segundo deudor / locatario</span>
+          <span className="text-ink-secondary">Correo del cliente</span>
           <input
+            id="campo-correoSolicitante"
+            type="email"
             className={CLASE_INPUT}
-            value={f.cliente2}
-            onChange={(e) => set("cliente2", e.target.value)}
+            value={f.correoSolicitante}
+            onChange={(e) => set("correoSolicitante", e.target.value)}
           />
         </label>
         <label className="block text-sm">
-          <span className="text-ink-secondary">Cédula del segundo</span>
+          <span className="text-ink-secondary">Celular</span>
           <input
             className={CLASE_INPUT}
-            value={f.cedula2}
-            onChange={(e) => set("cedula2", e.target.value)}
+            value={f.celular}
+            onChange={(e) => set("celular", e.target.value)}
           />
         </label>
       </div>
 
+      {/* El segundo deudor solo estorba en la mayoría de casos: se despliega. */}
+      <details className="rounded-lg border border-line-grid bg-surface-page/40 p-2" open={!!f.cliente2}>
+        <summary className="cursor-pointer text-xs text-ink-secondary">
+          Segundo deudor o locatario (solo si el crédito es de dos)
+        </summary>
+        <div className="mt-2 grid gap-3 sm:grid-cols-[2fr_1fr]">
+          <label className="block text-sm">
+            <span className="text-ink-secondary">Nombre</span>
+            <input
+              className={CLASE_INPUT}
+              value={f.cliente2}
+              onChange={(e) => set("cliente2", e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-ink-secondary">Cédula</span>
+            <input
+              className={CLASE_INPUT}
+              value={f.cedula2}
+              onChange={(e) => set("cedula2", e.target.value)}
+            />
+          </label>
+        </div>
+      </details>
+
+      {/* --- El inmueble ------------------------------------------------ */}
       <div className="rounded-lg border border-line-grid bg-surface-page/60 p-3">
         <p className="etiqueta-marca mb-2 text-[10px] text-ink-muted">
-          Dirección — exactamente como figura en el crédito
+          El inmueble — la calle y la ciudad vienen de la ficha del edificio
         </p>
-        <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <label className="block text-sm">
+            <span className="text-ink-secondary">Apartamento *</span>
+            <input
+              id="campo-apartamento"
+              className={CLASE_INPUT}
+              value={f.apartamento}
+              onChange={(e) => set("apartamento", e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-ink-secondary">Torre / etapa</span>
+            <input
+              id="campo-torre"
+              className={CLASE_INPUT}
+              value={f.torre}
+              onChange={(e) => set("torre", e.target.value)}
+            />
+            <BotonNoAplica valor={f.torre} onPoner={() => set("torre", "No aplica")} />
+          </label>
+          <label className="block text-sm">
+            <span className="text-ink-secondary">Cuarto útil</span>
+            <input
+              id="campo-cuartoUtil"
+              className={CLASE_INPUT}
+              value={f.cuartoUtil}
+              onChange={(e) => set("cuartoUtil", e.target.value)}
+            />
+            <BotonNoAplica valor={f.cuartoUtil} onPoner={() => set("cuartoUtil", "No aplica")} />
+          </label>
+          <label className="block text-sm">
+            <span className="text-ink-secondary">Parqueadero</span>
+            <input
+              id="campo-parqueadero"
+              className={CLASE_INPUT}
+              value={f.parqueadero}
+              onChange={(e) => set("parqueadero", e.target.value)}
+            />
+            <BotonNoAplica valor={f.parqueadero} onPoner={() => set("parqueadero", "No aplica")} />
+          </label>
+        </div>
+
+        {/* La calle y la ciudad se enseñan, pero se corrigen en la ficha. */}
+        <details className="mt-3" open={!f.direccion || !f.ciudad}>
+          <summary className="cursor-pointer text-[11px] text-ink-muted">
+            Dirección: {f.direccion || "sin poner"}
+            {f.ciudad ? ` · ${f.ciudad}` : ""} — corregir solo para este caso
+          </summary>
+          <div className="mt-2 grid gap-3 sm:grid-cols-[2fr_1fr]">
             <label className="block text-sm">
               <span className="text-ink-secondary">Nomenclatura *</span>
               <input
@@ -1392,7 +1531,7 @@ function CamposEndoso({
                 className={CLASE_INPUT}
                 value={f.direccion}
                 onChange={(e) => set("direccion", e.target.value)}
-                placeholder="Calle 54 # 86C - 66"
+                placeholder={copropiedad?.direccion ?? "Calle 54 # 86C - 66"}
               />
             </label>
             <label className="block text-sm">
@@ -1402,85 +1541,71 @@ function CamposEndoso({
                 className={CLASE_INPUT}
                 value={f.ciudad}
                 onChange={(e) => set("ciudad", e.target.value)}
-                placeholder="Medellín"
+                placeholder={copropiedad?.ciudad ?? "Medellín"}
               />
             </label>
           </div>
-          <div className="grid gap-3 sm:grid-cols-4">
-            <label className="block text-sm">
-              <span className="text-ink-secondary">Torre / etapa</span>
-              <input
-                id="campo-torre"
-                className={CLASE_INPUT}
-                value={f.torre}
-                onChange={(e) => set("torre", e.target.value)}
-              />
-              <BotonNoAplica valor={f.torre} onPoner={() => set("torre", "No aplica")} />
-            </label>
-            <label className="block text-sm">
-              <span className="text-ink-secondary">Apartamento *</span>
-              <input
-                id="campo-apartamento"
-                className={CLASE_INPUT}
-                value={f.apartamento}
-                onChange={(e) => set("apartamento", e.target.value)}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="text-ink-secondary">Cuarto útil</span>
-              <input
-                id="campo-cuartoUtil"
-                className={CLASE_INPUT}
-                value={f.cuartoUtil}
-                onChange={(e) => set("cuartoUtil", e.target.value)}
-              />
-              <BotonNoAplica valor={f.cuartoUtil} onPoner={() => set("cuartoUtil", "No aplica")} />
-            </label>
-            <label className="block text-sm">
-              <span className="text-ink-secondary">Parqueadero</span>
-              <input
-                id="campo-parqueadero"
-                className={CLASE_INPUT}
-                value={f.parqueadero}
-                onChange={(e) => set("parqueadero", e.target.value)}
-              />
-              <BotonNoAplica
-                valor={f.parqueadero}
-                onPoner={() => set("parqueadero", "No aplica")}
-              />
-            </label>
-          </div>
-        </div>
+          <p className="mt-1 text-[11px] text-ink-muted">
+            Si está mal para TODO el edificio, corrígela en la ficha con «Editar ficha»: así queda
+            bien en todos sus endosos y no solo en este.
+          </p>
+        </details>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="block text-sm sm:col-span-2">
+      {/* --- El crédito -------------------------------------------------- */}
+      <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+        <label className="block text-sm">
           <span className="text-ink-secondary">Banco / entidad</span>
-          <input
+          {/* Desplegable: el NIT se rellena solo y no hay forma de escribir
+              «Davivienda» donde iba DAVIbank, que es la confusión que más
+              endosos devuelve. */}
+          <select
             id="campo-banco"
             className={CLASE_INPUT}
-            value={f.banco}
-            onChange={(e) => elegirBanco(e.target.value)}
-            list="lista-bancos"
-          />
-          <datalist id="lista-bancos">
+            value={BANCOS.some((b) => b.nombre === f.banco) ? f.banco : "__otro__"}
+            onChange={(e) => {
+              if (e.target.value === "__otro__") {
+                set("banco", "");
+                set("bancoNit", "");
+                return;
+              }
+              elegirBanco(e.target.value);
+            }}
+          >
+            <option value="__otro__">— Otra entidad (escribirla) —</option>
             {BANCOS.map((b) => (
-              <option key={b.nit + b.nombre} value={b.nombre} />
+              <option key={b.nit + b.nombre} value={b.nombre}>
+                {b.nombre}
+              </option>
             ))}
-          </datalist>
+          </select>
+          {!BANCOS.some((b) => b.nombre === f.banco) && (
+            <input
+              className={clsx(CLASE_INPUT, "mt-1")}
+              value={f.banco}
+              onChange={(e) => elegirBanco(e.target.value)}
+              placeholder="Nombre de la entidad"
+            />
+          )}
         </label>
         <label className="block text-sm">
           <span className="text-ink-secondary">NIT</span>
           <input
             id="campo-bancoNit"
-            className={CLASE_INPUT}
+            className={clsx(CLASE_INPUT, BANCOS.some((b) => b.nombre === f.banco) && "bg-surface-page")}
             value={f.bancoNit}
             onChange={(e) => set("bancoNit", e.target.value)}
+            readOnly={BANCOS.some((b) => b.nombre === f.banco)}
+            title={
+              BANCOS.some((b) => b.nombre === f.banco)
+                ? "Lo pone la lista oficial de entidades"
+                : undefined
+            }
           />
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <label className="block text-sm">
           <span className="text-ink-secondary">Valor que pide el banco</span>
           {/*
@@ -1499,7 +1624,7 @@ function CamposEndoso({
           />
         </label>
         <label className="block text-sm">
-          <span className="text-ink-secondary">Coeficiente del apto (%)</span>
+          <span className="text-ink-secondary">Coeficiente (%)</span>
           <input
             id="campo-coeficiente"
             className={CLASE_INPUT}
@@ -1509,56 +1634,25 @@ function CamposEndoso({
           />
           <span className="mt-1 block text-[11px] text-ink-muted">
             {corresponde != null
-              ? `Le corresponden ${fmtCOP(Math.round(corresponde))} del edificio.`
-              : "Queda guardado para la próxima vez que este apartamento pida endoso."}
+              ? `Le corresponden ${fmtCOP(Math.round(corresponde))}.`
+              : "Si este apartamento ya tuvo endoso, se reutiliza el suyo."}
           </span>
         </label>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="text-ink-secondary">Correo del cliente</span>
-          <input
-            id="campo-correoSolicitante"
+          <span className="text-ink-secondary">Tipo de crédito</span>
+          <select
+            id="campo-tipoCredito"
             className={CLASE_INPUT}
-            value={f.correoSolicitante}
-            onChange={(e) => set("correoSolicitante", e.target.value)}
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-ink-secondary">Celular</span>
-          <input
-            className={CLASE_INPUT}
-            value={f.celular}
-            onChange={(e) => set("celular", e.target.value)}
-          />
-        </label>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className="text-ink-secondary">Aseguradora</span>
-          <input
-            className={CLASE_INPUT}
-            value={f.aseguradora}
-            onChange={(e) => set("aseguradora", e.target.value)}
-            placeholder={copropiedad?.aseguradora ?? "Previsora, Zurich, AXA Colpatria…"}
-            list="lista-aseguradoras"
-          />
-          <datalist id="lista-aseguradoras">
-            {ASEGURADORAS.map((a) => (
-              <option key={a} value={a} />
+            value={f.tipoCredito}
+            onChange={(e) => set("tipoCredito", e.target.value)}
+          >
+            <option value="">Sin definir</option>
+            {TIPOS_CREDITO.map((t) => (
+              <option key={t} value={t}>
+                {t === "HIPOTECARIO" ? "Hipotecario" : "Leasing habitacional"}
+              </option>
             ))}
-          </datalist>
-        </label>
-        <label className="block text-sm">
-          <span className="text-ink-secondary">Número de póliza</span>
-          <input
-            className={CLASE_INPUT}
-            value={f.numeroPoliza}
-            onChange={(e) => set("numeroPoliza", e.target.value)}
-            placeholder={copropiedad?.numeroPoliza ?? ""}
-          />
+          </select>
         </label>
       </div>
     </div>
@@ -1673,6 +1767,12 @@ function PanelEndoso({
   const [tab, setTab] = useState<"datos" | "seguimiento">("datos");
   const [f, setF] = useState<DatosForm>(() => datosIniciales(endoso));
   const set = (k: keyof DatosForm, v: string) => setF((x) => ({ ...x, [k]: v }));
+  /*
+   * La ficha del edificio se edita sin salir del caso. Es lo que hace que
+   * corregir una dirección mal escrita valga para los cien endosos de ese
+   * edificio y no solo para el que se tiene delante.
+   */
+  const [editandoFicha, setEditandoFicha] = useState<CopropiedadVista | null>(null);
 
   const [nota, setNota] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
@@ -1852,7 +1952,13 @@ function PanelEndoso({
           </div>
 
           {tab === "datos" ? (
-            <CamposEndoso f={f} set={set} copropiedad={ficha} copropiedades={copropiedades} />
+            <CamposEndoso
+              f={f}
+              set={set}
+              copropiedad={ficha}
+              copropiedades={copropiedades}
+              onEditarFicha={ficha ? () => setEditandoFicha(ficha) : undefined}
+            />
           ) : (
             <div className="space-y-3">
               <label className="block text-sm">
@@ -1969,6 +2075,18 @@ function PanelEndoso({
           </button>
         )}
       </div>
+
+      {editandoFicha && (
+        <FormCopropiedad
+          copropiedad={editandoFicha}
+          onCerrar={() => setEditandoFicha(null)}
+          onGuardar={async (url, metodo, cuerpo) => {
+            const ok = await onGuardar(url, metodo, cuerpo);
+            if (ok) setEditandoFicha(null);
+            return ok;
+          }}
+        />
+      )}
     </Marco>
   );
 }
@@ -2117,6 +2235,8 @@ function FormCopropiedad({
   const [f, setF] = useState({
     nombre: copropiedad?.nombre ?? "",
     nit: copropiedad?.nit ?? "",
+    direccion: copropiedad?.direccion ?? "",
+    ciudad: copropiedad?.ciudad ?? "",
     aseguradora: copropiedad?.aseguradora ?? "",
     numeroPoliza: copropiedad?.numeroPoliza ?? "",
     vigenciaHasta: copropiedad?.vigenciaHasta?.slice(0, 10) ?? "",
@@ -2157,6 +2277,32 @@ function FormCopropiedad({
             <label className="block text-sm">
               <span className="text-ink-secondary">NIT</span>
               <input className={CLASE_INPUT} value={f.nit} onChange={(e) => set("nit", e.target.value)} />
+            </label>
+          </div>
+
+          {/* La calle y la ciudad viven aquí y no en cada endoso: son del
+              edificio, y puestas una vez quedan bien en todos sus casos. */}
+          <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+            <label className="block text-sm">
+              <span className="text-ink-secondary">Dirección del edificio</span>
+              <input
+                className={CLASE_INPUT}
+                value={f.direccion}
+                onChange={(e) => set("direccion", e.target.value)}
+                placeholder="Calle 54 # 86C - 66"
+              />
+              <span className="mt-1 block text-[11px] text-ink-muted">
+                La heredan todos los endosos de esta copropiedad.
+              </span>
+            </label>
+            <label className="block text-sm">
+              <span className="text-ink-secondary">Ciudad</span>
+              <input
+                className={CLASE_INPUT}
+                value={f.ciudad}
+                onChange={(e) => set("ciudad", e.target.value)}
+                placeholder="Medellín"
+              />
             </label>
           </div>
 

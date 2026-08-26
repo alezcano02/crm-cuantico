@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
       data: {
         nombre,
         nit: texto(b, "nit"),
+        direccion: texto(b, "direccion"),
+        ciudad: texto(b, "ciudad"),
         aseguradora: normalizarAseguradora(texto(b, "aseguradora")),
         numeroPoliza: texto(b, "numeroPoliza"),
         vigenciaHasta: vig ? new Date(vig) : null,
