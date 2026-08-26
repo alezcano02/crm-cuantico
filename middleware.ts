@@ -54,10 +54,20 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Se excluyen el login, sus rutas de API, los recursos de Next, el favicon y
-  // el logo. El logo tiene que salir en la pantalla de ingreso, donde todavía
-  // no hay sesión: sin excluirlo, pedirlo devolvía un 307 hacia /login.
+  // Se excluyen el login, sus rutas de API, los recursos de Next, el favicon,
+  // el logo y el cron. El logo tiene que salir en la pantalla de ingreso,
+  // donde todavía no hay sesión: sin excluirlo, pedirlo devolvía un 307 hacia
+  // /login. El cron (api/cron/*) lo dispara Vercel sin cookie de sesión —
+  // se autentica con CRON_SECRET dentro de la propia ruta, no con este
+  // middleware.
+  //
+  // Los íconos y el manifest de la PWA (apple-icon, icon-*, manifest.webmanifest)
+  // también se piden sin sesión: el navegador los busca al añadir el
+  // acceso directo a la pantalla de inicio, momento en que puede no haber
+  // cookie todavía. Sin excluirlos, «Añadir a inicio» pedía el ícono, recibía
+  // el 307 al login en vez de una imagen, y el acceso directo se quedaba sin
+  // logo — que es justo lo que reportó el usuario.
   matcher: [
-    "/((?!login|api/auth|_next/static|_next/image|icon.svg|favicon.ico|logo-cuantico.png).*)",
+    "/((?!login|api/auth|api/cron|_next/static|_next/image|icon.svg|favicon.ico|logo-cuantico.png|apple-icon|icon-192|icon-512|icon-512-maskable|manifest.webmanifest).*)",
   ],
 };

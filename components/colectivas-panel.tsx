@@ -636,7 +636,7 @@ function FormInclusion({
 }) {
   const [f, setF] = useState({
     polizaNumero: "",
-    ramo: "VIDA GRUPO",
+    ramo: "COLECTIVA VIDA",
     plan: "",
     docEmpleado: "",
     nombreEmpleado: "",
@@ -693,9 +693,10 @@ function FormInclusion({
         <label className="block text-sm">
           <span className="text-ink-secondary">Ramo</span>
           <select className={claseCampo} value={f.ramo} onChange={(e) => set("ramo", e.target.value)}>
-            <option>VIDA GRUPO</option>
-            <option>COLECTIVA</option>
-            <option>SALUD</option>
+            <option>COLECTIVA VIDA</option>
+            <option>COLECTIVA SALUD</option>
+            <option>COLECTIVA AUTOS</option>
+            <option>COLECTIVA AP</option>
           </select>
         </label>
         <label className="block text-sm">

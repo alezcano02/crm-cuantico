@@ -60,7 +60,6 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
     enlaces: [
       { href: "/", etiqueta: "Dashboard", Icono: IconDashboard },
       { href: "/seguimiento", etiqueta: "Seguimiento", Icono: IconTendencia },
-      { href: "/asesores", etiqueta: "Asesores", Icono: IconPersonas },
     ],
   },
   {

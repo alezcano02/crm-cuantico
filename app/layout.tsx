@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed, Cormorant_Garamond } from "next/font/google";
+import { BASE_PATH } from "@/lib/rutas";
 import "./globals.css";
 
 // Las mismas tres tipografías de cuanticoseguros.com.co: Barlow para el texto,
@@ -30,7 +31,22 @@ export const metadata: Metadata = {
   title: "Cuántico Seguros — CRM de cartera y producción",
   description:
     "Seguimiento de cartera, vencimientos y cumplimiento de metas de producción — Cuántico Agencia de Seguros",
+  // Con esto, «Añadir a inicio» en iPhone abre el CRM en su propia ventana
+  // (sin la barra de Safari) con este nombre corto bajo el ícono, en vez del
+  // título largo de la pestaña.
+  appleWebApp: {
+    capable: true,
+    title: "Cuántico CRM",
+    statusBarStyle: "black-translucent",
+  },
+  // El <link rel="manifest"> que genera Next por convención de archivo
+  // (app/manifest.ts) no le antepone el basePath a su href: salía apuntando a
+  // /manifest.webmanifest, que en el sitio público cae fuera de /funcionarios
+  // y devuelve 404. Declarándolo aquí a mano se sirve con la ruta completa.
+  manifest: `${BASE_PATH}/manifest.webmanifest`,
 };
+
+export const viewport = { themeColor: "#132240" };
 
 /**
  * Layout raíz: solo el documento. La barra lateral y la comprobación de

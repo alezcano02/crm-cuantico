@@ -6,6 +6,7 @@ import { Card, EstadoVacio, PageHeader, StatCard } from "@/components/ui";
 import { IconDescargar } from "@/components/icons";
 import { exigirSesionPagina } from "@/lib/auth";
 import { api } from "@/lib/rutas";
+import { PanelFiltros } from "@/components/panel-filtros";
 
 export const dynamic = "force-dynamic";
 
@@ -118,71 +119,80 @@ export default async function InformeCarteraPage({
         </a>
       </PageHeader>
 
-      {/* Selector de asesor */}
-      <div className="no-imprimir flex flex-wrap items-center gap-2">
-        <span className="text-sm text-ink-secondary">Asesor:</span>
-        <Link
-          href={(() => {
-            const q = new URLSearchParams();
-            for (const r of ramosParam) q.append("ramo", r);
-            return `/cartera/informe${q.toString() ? "?" + q : ""}`;
-          })()}
-          className={`rounded-lg border px-2.5 py-1.5 text-sm ${
-            !asesorParam
-              ? "border-brand bg-brand text-white"
-              : "border-line-axis text-ink-secondary hover:bg-surface-page"
-          }`}
-        >
-          Toda la cartera
-        </Link>
-        {asesores.map((a) => (
-          <Link
-            key={a}
-              href={(() => {
-              const q = new URLSearchParams();
-              q.set("asesor", a);
-              for (const r of ramosParam) q.append("ramo", r);
-              return `/cartera/informe?${q}`;
-            })()}
-            className={`rounded-lg border px-2.5 py-1.5 text-sm ${
-              asesorParam === a
-                ? "border-brand bg-brand text-white"
-                : "border-line-axis text-ink-secondary hover:bg-surface-page"
-            }`}
-          >
-            {a}
-          </Link>
-        ))}
-      </div>
+      <PanelFiltros activos={(asesorParam ? 1 : 0) + ramosParam.length}>
+        <div className="no-imprimir space-y-3 rounded-lg border border-line-axis bg-surface-page p-3">
+          <div>
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+              Asesor
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              <Link
+                href={(() => {
+                  const q = new URLSearchParams();
+                  for (const r of ramosParam) q.append("ramo", r);
+                  return `/cartera/informe${q.toString() ? "?" + q : ""}`;
+                })()}
+                className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+                  !asesorParam
+                    ? "border-brand bg-brand text-white"
+                    : "border-line-axis bg-surface text-ink-secondary hover:bg-surface-page"
+                }`}
+              >
+                Toda la cartera
+              </Link>
+              {asesores.map((a) => (
+                <Link
+                  key={a}
+                  href={(() => {
+                    const q = new URLSearchParams();
+                    q.set("asesor", a);
+                    for (const r of ramosParam) q.append("ramo", r);
+                    return `/cartera/informe?${q}`;
+                  })()}
+                  className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+                    asesorParam === a
+                      ? "border-brand bg-brand text-white"
+                      : "border-line-axis bg-surface text-ink-secondary hover:bg-surface-page"
+                  }`}
+                >
+                  {a}
+                </Link>
+              ))}
+            </div>
+          </div>
 
-      {/* Selector de ramo. Se acumulan: el informe de una copropiedad se arma
-          con ZONA COMUN y RC ZC juntos, que es como se le presenta. */}
-      <div className="no-imprimir flex flex-wrap items-center gap-2">
-        <span className="text-sm text-ink-secondary">Ramo:</span>
-        <Link
-          href={urlConRamo(null)}
-          className={`rounded-lg border px-2.5 py-1.5 text-sm ${
-            ramosParam.length === 0
-              ? "border-brand bg-brand text-white"
-              : "border-line-axis text-ink-secondary hover:bg-surface-page"
-          }`}
-        >
-          Todos
-        </Link>
-        {ramosDisponibles.map((r) => (
-          <Link
-            key={r}
-            href={urlConRamo(r)}
-            className={`rounded-lg border px-2.5 py-1.5 text-sm ${
-              ramosParam.includes(r)
-                ? "border-brand bg-brand text-white"
-                : "border-line-axis text-ink-secondary hover:bg-surface-page"
-            }`}
-          >
-            {r}
-          </Link>
-        ))}
-      </div>
+          <div>
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+              Ramo · se pueden combinar varios
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              <Link
+                href={urlConRamo(null)}
+                className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+                  ramosParam.length === 0
+                    ? "border-brand bg-brand text-white"
+                    : "border-line-axis bg-surface text-ink-secondary hover:bg-surface-page"
+                }`}
+              >
+                Todos
+              </Link>
+              {ramosDisponibles.map((r) => (
+                <Link
+                  key={r}
+                  href={urlConRamo(r)}
+                  className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+                    ramosParam.includes(r)
+                      ? "border-brand bg-brand text-white"
+                      : "border-line-axis bg-surface text-ink-secondary hover:bg-surface-page"
+                  }`}
+                >
+                  {r}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </PanelFiltros>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         <StatCard
