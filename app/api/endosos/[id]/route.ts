@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
-import { ESTADOS_ENDOSO, normalizarAseguradora, selloBitacora, type EstadoEndoso } from "@/lib/endosos";
+import {
+  ESTADOS_ENDOSO,
+  normalizar,
+  normalizarAseguradora,
+  selloBitacora,
+  type EstadoEndoso,
+} from "@/lib/endosos";
 
 export const runtime = "nodejs";
 
@@ -171,6 +177,53 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
    * vez: si el caso vuelve a reproceso y se entrega otra vez, la entrega que
    * vale para el histórico es la primera de este ciclo.
    */
+  /*
+   * La aseguradora y la póliza salen de la ficha del edificio cuando el caso
+   * no las tiene: son datos de la copropiedad, no del caso, y copiarlos a mano
+   * era de donde salían las variantes de escritura y las planillas sin número
+   * de póliza. Nunca se pisa lo que ya esté puesto ni lo que venga en esta
+   * misma petición.
+   */
+  {
+    const actual = await prisma.endoso.findUnique({
+      where: { id },
+      select: { urbanizacion: true, copropiedadId: true, aseguradora: true, numeroPoliza: true },
+    });
+    if (actual) {
+      const idFicha =
+        (datos.copropiedadId as number | null | undefined) ?? actual.copropiedadId ?? null;
+      const nombre = (datos.urbanizacion as string | undefined) ?? actual.urbanizacion;
+      let ficha = idFicha
+        ? await prisma.copropiedad.findUnique({
+            where: { id: idFicha },
+            select: { aseguradora: true, numeroPoliza: true },
+          })
+        : null;
+      // Sin ficha enlazada se busca por nombre, igual que al crear el caso.
+      if (!ficha && nombre) {
+        const todas = await prisma.copropiedad.findMany({
+          select: { nombre: true, aseguradora: true, numeroPoliza: true },
+        });
+        const objetivo = normalizar(nombre);
+        ficha =
+          todas.find((c) => normalizar(c.nombre) === objetivo) ??
+          todas.find(
+            (c) =>
+              normalizar(c.nombre).includes(objetivo) || objetivo.includes(normalizar(c.nombre))
+          ) ??
+          null;
+      }
+      if (ficha) {
+        if (datos.aseguradora === undefined && !actual.aseguradora && ficha.aseguradora) {
+          datos.aseguradora = normalizarAseguradora(ficha.aseguradora);
+        }
+        if (datos.numeroPoliza === undefined && !actual.numeroPoliza && ficha.numeroPoliza) {
+          datos.numeroPoliza = ficha.numeroPoliza;
+        }
+      }
+    }
+  }
+
   if (datos.estado === "ENVIADO_CLIENTE") {
     const actual = await prisma.endoso.findUnique({
       where: { id },

@@ -41,7 +41,7 @@ export default async function EndososPage() {
    * cuando se abre. Entre las dos cosas la consulta baja de 418 a 279 ms y el
    * envío a la mitad.
    */
-  const [endosos, copropiedades] = await Promise.all([
+  const [endosos, copropiedades, ultimaRevision] = await Promise.all([
     prisma.endoso.findMany({
       select: {
         id: true,
@@ -76,6 +76,7 @@ export default async function EndososPage() {
       orderBy: { creadoEn: "desc" },
     }),
     prisma.copropiedad.findMany({ orderBy: { nombre: "asc" } }),
+    prisma.revisionBuzon.findFirst({ orderBy: { ejecutadaEn: "desc" } }),
   ]);
 
   const fichas = new Map(copropiedades.map((c) => [c.id, c]));
@@ -149,12 +150,45 @@ export default async function EndososPage() {
     };
   });
 
+  /*
+   * La hora se compone en Bogotá a propósito. El servidor de Vercel corre en
+   * UTC, así que dejar que el navegador o el servidor la formateen a su manera
+   * enseñaría una hora cinco horas corrida, justo en el dato que se mira para
+   * saber si el tablero está al día.
+   */
+  const enBogota = (d: Date) =>
+    new Intl.DateTimeFormat("es-CO", {
+      timeZone: "America/Bogota",
+      day: "2-digit",
+      month: "long",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d);
+
+  const descripcion = (
+    <>
+      Solicitudes de endoso ante bancos y leasing. Cada caso se revisa contra lo que hace que el
+      banco lo devuelva, antes de radicarlo ante la aseguradora.
+      <br />
+      {ultimaRevision ? (
+        <span className="text-ink-secondary">
+          Última revisión del correo: <strong>{enBogota(ultimaRevision.ejecutadaEn)}</strong> (hora
+          de Colombia)
+          {ultimaRevision.correosNuevos > 0
+            ? ` · ${ultimaRevision.correosNuevos} correo(s) nuevo(s), ${ultimaRevision.casosTocados} caso(s) actualizado(s)`
+            : " · sin novedades"}
+          {ultimaRevision.modelo ? ` · ${ultimaRevision.modelo}` : ""}
+        </span>
+      ) : (
+        <span className="text-ink-muted">Todavía no se ha registrado ninguna revisión del correo.</span>
+      )}
+    </>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        titulo="Endosos"
-        descripcion="Solicitudes de endoso ante bancos y leasing. Cada caso se revisa contra lo que hace que el banco lo devuelva, antes de radicarlo ante la aseguradora."
-      />
+      <PageHeader titulo="Endosos" descripcion={descripcion} />
       <EndososTabla endosos={vista} copropiedades={copropiedades.map(aVistaCopropiedad)} />
     </div>
   );

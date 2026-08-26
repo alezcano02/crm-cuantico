@@ -112,8 +112,10 @@ export async function POST(req: NextRequest) {
    * alta la copropiedad, y perderla por eso sería absurdo.
    */
   let copropiedadId = typeof b.copropiedadId === "number" ? b.copropiedadId : null;
+  const candidatas = await prisma.copropiedad.findMany({
+    select: { id: true, nombre: true, aseguradora: true, numeroPoliza: true },
+  });
   if (!copropiedadId) {
-    const candidatas = await prisma.copropiedad.findMany({ select: { id: true, nombre: true } });
     const objetivo = normalizar(urbanizacion);
     const exacta = candidatas.find((c) => normalizar(c.nombre) === objetivo);
     const parcial =
@@ -123,6 +125,22 @@ export async function POST(req: NextRequest) {
       );
     copropiedadId = parcial?.id ?? null;
   }
+
+  /*
+   * La aseguradora y el número de póliza salen de la ficha del edificio.
+   *
+   * No son datos del caso sino de la copropiedad: todos los endosos de
+   * Marsella van a Zurich con la misma póliza. Pedírselos a quien crea el caso
+   * —o dejar que los escriba quien lee el correo— era pedir que copiara a mano
+   * algo que el CRM ya sabe, y de ahí salían las variantes de escritura y las
+   * planillas generadas sin número de póliza.
+   *
+   * Lo que venga en la petición manda: si alguien tramita un caso concreto por
+   * otra aseguradora, su dato no se pisa.
+   */
+  const ficha = copropiedadId ? candidatas.find((c) => c.id === copropiedadId) : undefined;
+  const aseguradora = normalizarAseguradora(texto(b, "aseguradora")) ?? ficha?.aseguradora ?? null;
+  const numeroPoliza = texto(b, "numeroPoliza") ?? ficha?.numeroPoliza ?? null;
 
   const fechaEnvio = texto(b, "fechaEnvioAseguradora");
 
@@ -147,8 +165,8 @@ export async function POST(req: NextRequest) {
       banco: texto(b, "banco"),
       bancoNit: texto(b, "bancoNit"),
       tipoCredito: texto(b, "tipoCredito"),
-      aseguradora: normalizarAseguradora(texto(b, "aseguradora")),
-      numeroPoliza: texto(b, "numeroPoliza"),
+      aseguradora: normalizarAseguradora(aseguradora),
+      numeroPoliza,
       radicado: texto(b, "radicado"),
       fechaEnvioAseguradora: fechaEnvio ? new Date(fechaEnvio) : null,
       estado: estado ?? "NUEVA_SOLICITUD",

@@ -580,6 +580,27 @@ model Copropiedad {
   @@index([admiteEndosos])
 }
 
+// Cada pasada de la revisión automática del buzón de endosos.
+//
+// Sirve para una pregunta que se hace a diario mirando el tablero: «¿esto que
+// estoy viendo está al día?». Sin el registro no hay forma de distinguir un
+// buzón tranquilo de una revisión que dejó de correr, y la diferencia entre
+// las dos cosas es justo la que importa.
+model RevisionBuzon {
+  id          Int      @id @default(autoincrement())
+  ejecutadaEn DateTime @default(now())
+
+  // Correos mirados en la pasada y casos que de verdad cambiaron.
+  correosNuevos Int @default(0)
+  casosTocados  Int @default(0)
+
+  // Qué modelo la hizo, y un resumen en una línea de lo que encontró.
+  modelo  String?
+  resumen String?
+
+  @@index([ejecutadaEn])
+}
+
 model Endoso {
   id Int @id @default(autoincrement())
 
