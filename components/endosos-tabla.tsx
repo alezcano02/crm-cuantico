@@ -14,6 +14,7 @@ import { FiltroSeleccion, FichasFiltros } from "@/components/filtro-seleccion";
 import {
   ASEGURADORAS,
   BANCOS,
+  agruparOpciones,
   CASOS_POR_ARCHIVO,
   DIAS_ALERTA_ASEGURADORA,
   DIAS_AVISO_RENOVACION,
@@ -160,11 +161,6 @@ function formatearMiles(v: string | number): string {
 function normalizarTxt(v: string): string {
   return v.trim().replace(/\s+/g, " ");
 }
-function opciones(valores: (string | null)[]): string[] {
-  return Array.from(
-    new Set(valores.filter((v): v is string => !!v).map(normalizarTxt).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b, "es"));
-}
 
 /**
  * Las situaciones en que puede estar un caso.
@@ -179,6 +175,7 @@ const SITUACIONES = [
   "Abiertos",
   "Listos para enviar",
   "Con problema",
+  "Pendientes de paz y salvo",
   "Represados",
   "En reproceso",
   "Por renovar",
@@ -194,6 +191,11 @@ function cumpleSituacion(e: EndosoVista, s: Situacion): boolean {
       return abierto && e.revision.estado === "listo";
     case "Con problema":
       return abierto && (e.revision.estado === "no-enviar" || e.revision.estado === "revisar");
+    // Sin certificado de pago al día la aseguradora no emite: son los casos
+    // que están parados esperando a la administración del edificio, no a
+    // nosotros ni al banco.
+    case "Pendientes de paz y salvo":
+      return abierto && e.pazSalvoPendiente;
     case "Represados":
       return (e.diasEsperando ?? 0) > DIAS_ALERTA_ASEGURADORA;
     case "En reproceso":
@@ -201,6 +203,16 @@ function cumpleSituacion(e: EndosoVista, s: Situacion): boolean {
     case "Por renovar":
       return e.diasParaRenovar != null && e.diasParaRenovar <= DIAS_AVISO_RENOVACION;
   }
+}
+
+/** Los endosos entregados al cliente dentro de un mes o de un año concretos. */
+function entregadosEn(endosos: EndosoVista[], anio: number, mes?: number): number {
+  return endosos.filter((e) => {
+    if (!e.fechaEnvioCliente) return false;
+    const f = new Date(e.fechaEnvioCliente);
+    if (f.getFullYear() !== anio) return false;
+    return mes == null || f.getMonth() === mes;
+  }).length;
 }
 
 export function EndososTabla({
@@ -232,8 +244,24 @@ export function EndososTabla({
 
   const abierto = abiertoId != null ? (endosos.find((e) => e.id === abiertoId) ?? null) : null;
 
-  const aseguradoras = useMemo(() => opciones(endosos.map((e) => e.aseguradora)), [endosos]);
-  const urbanizaciones = useMemo(() => opciones(endosos.map((e) => e.urbanizacion)), [endosos]);
+  /*
+   * Las opciones se agrupan por su forma normalizada: «Cantapiedra» y «Canta
+   * Piedra» son una sola entrada, y marcarla trae los casos de las dos
+   * grafías. Sin esto, filtrar por una perdía en silencio los de la otra.
+   */
+  const aseguradoras = useMemo(() => agruparOpciones(endosos.map((e) => e.aseguradora)), [endosos]);
+  const urbanizaciones = useMemo(
+    () => agruparOpciones(endosos.map((e) => e.urbanizacion)),
+    [endosos]
+  );
+  /** De la etiqueta que se ve, todas las grafías que trae detrás. */
+  const variantesDe = (grupos: ReturnType<typeof agruparOpciones>, elegidas: string[]) => {
+    const set = new Set<string>();
+    for (const g of grupos) {
+      if (elegidas.includes(g.etiqueta)) for (const v of g.variantes) set.add(normalizarTxt(v));
+    }
+    return set;
+  };
   /*
    * Las fichas se buscan por id en vez de viajar copiadas dentro de cada
    * endoso: con casi dos mil casos históricos, repetir la ficha del edificio en
@@ -251,12 +279,14 @@ export function EndososTabla({
     if (selSituacion.length)
       lista = lista.filter((e) => selSituacion.some((s) => cumpleSituacion(e, s as Situacion)));
     if (selEstado.length) lista = lista.filter((e) => selEstado.includes(e.estado));
-    if (selAseguradora.length)
-      lista = lista.filter(
-        (e) => e.aseguradora && selAseguradora.includes(normalizarTxt(e.aseguradora))
-      );
-    if (selCopropiedad.length)
-      lista = lista.filter((e) => selCopropiedad.includes(normalizarTxt(e.urbanizacion)));
+    if (selAseguradora.length) {
+      const acepta = variantesDe(aseguradoras, selAseguradora);
+      lista = lista.filter((e) => e.aseguradora && acepta.has(normalizarTxt(e.aseguradora)));
+    }
+    if (selCopropiedad.length) {
+      const acepta = variantesDe(urbanizaciones, selCopropiedad);
+      lista = lista.filter((e) => acepta.has(normalizarTxt(e.urbanizacion)));
+    }
 
     if (q.trim()) {
       const t = q.trim().toLowerCase();
@@ -276,33 +306,35 @@ export function EndososTabla({
     if (selSituacion.length === 1 && selSituacion[0] === "Por renovar") {
       return [...lista].sort((a, b) => (a.diasParaRenovar ?? 9999) - (b.diasParaRenovar ?? 9999));
     }
+    // Y con «Represados», lo que lleva más tiempo esperando a la aseguradora.
+    if (selSituacion.length === 1 && selSituacion[0] === "Represados") {
+      return [...lista].sort((a, b) => (b.diasEsperando ?? -1) - (a.diasEsperando ?? -1));
+    }
 
     /*
-     * En el resto manda lo que lleva más tiempo esperando a la aseguradora: es
-     * lo que se está enfriando y por lo que llama el cliente. Lo que aún no se
-     * ha radicado va después, ordenado por lo más reciente.
+     * En todo lo demás mandan los más nuevos. Es lo que se busca al abrir la
+     * pantalla: lo que acaba de entrar por correo, que antes quedaba enterrado
+     * al fondo detrás de casos de hace meses que llevaban más días esperando.
      */
-    return [...lista].sort((a, b) => {
-      const da = a.diasEsperando ?? -1;
-      const db = b.diasEsperando ?? -1;
-      if (da !== db) return db - da;
-      return b.creadoEn.localeCompare(a.creadoEn);
-    });
-  }, [endosos, q, selSituacion, selEstado, selAseguradora, selCopropiedad]);
+    return [...lista].sort((a, b) => b.creadoEn.localeCompare(a.creadoEn));
+  }, [endosos, q, selSituacion, selEstado, selAseguradora, selCopropiedad, aseguradoras, urbanizaciones]);
 
   const totales = useMemo(() => {
     const abiertos = endosos.filter((e) => ESTADOS_ABIERTOS.includes(e.estado as EstadoEndoso));
+    const hoy = new Date();
     return {
       abiertos: abiertos.length,
       listos: abiertos.filter((e) => e.revision.estado === "listo").length,
       represados: endosos.filter((e) => (e.diasEsperando ?? 0) > DIAS_ALERTA_ASEGURADORA).length,
       reprocesos: endosos.filter((e) => e.estado === "REPROCESO").length,
-      conProblema: abiertos.filter(
-        (e) => e.revision.estado === "no-enviar" || e.revision.estado === "revisar"
-      ).length,
+      pazSalvo: abiertos.filter((e) => e.pazSalvoPendiente).length,
       porRenovar: endosos.filter(
         (e) => e.diasParaRenovar != null && e.diasParaRenovar <= DIAS_AVISO_RENOVACION
       ).length,
+      entregadosMes: entregadosEn(endosos, hoy.getFullYear(), hoy.getMonth()),
+      entregadosAnio: entregadosEn(endosos, hoy.getFullYear()),
+      mes: hoy.toLocaleDateString("es-CO", { month: "long" }),
+      anio: hoy.getFullYear(),
     };
   }, [endosos]);
 
@@ -381,13 +413,18 @@ export function EndososTabla({
           onClick={() => soloSituacion("Abiertos")}
           activo={selSituacion.length === 1 && selSituacion[0] === "Abiertos"}
         />
+        {/* Lo único que no es una cola de trabajo sino lo ya hecho: cuántos
+            endosos se le entregaron al cliente. En grande el mes, que es el
+            ritmo con el que se mide; debajo, el acumulado del año. */}
         <StatCard
-          etiqueta="Con problema"
-          valor={String(totales.conProblema)}
-          detalle="La revisión encontró algo que los devolvería"
-          acento={totales.conProblema > 0 ? "rojo" : "verde"}
-          onClick={() => soloSituacion("Con problema")}
-          activo={selSituacion.length === 1 && selSituacion[0] === "Con problema"}
+          etiqueta="Entregados"
+          valor={String(totales.entregadosMes)}
+          detalle={
+            <>
+              en {totales.mes} · <span className="tabla-num">{totales.entregadosAnio}</span> en{" "}
+              {totales.anio}
+            </>
+          }
         />
         <StatCard
           etiqueta="Represados"
@@ -430,14 +467,14 @@ export function EndososTabla({
         />
         <FiltroSeleccion
           etiqueta="Aseguradora"
-          opciones={aseguradoras}
+          opciones={aseguradoras.map((g) => g.etiqueta)}
           valores={selAseguradora}
           onCambiar={setSelAseguradora}
           plural="todas"
         />
         <FiltroSeleccion
           etiqueta="Copropiedad"
-          opciones={urbanizaciones}
+          opciones={urbanizaciones.map((g) => g.etiqueta)}
           valores={selCopropiedad}
           onCambiar={setSelCopropiedad}
           plural="todas"

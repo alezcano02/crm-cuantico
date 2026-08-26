@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
-import { ESTADOS_ENDOSO, normalizarAseguradora, type EstadoEndoso } from "@/lib/endosos";
+import { ESTADOS_ENDOSO, normalizarAseguradora, selloBitacora, type EstadoEndoso } from "@/lib/endosos";
 
 export const runtime = "nodejs";
 
@@ -80,11 +80,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!actual) {
       return NextResponse.json({ error: "El endoso no existe." }, { status: 404 });
     }
-    const cuando = t("fechaSeguimiento") ? new Date(t("fechaSeguimiento")!) : new Date();
-    const sello = `${String(cuando.getUTCDate()).padStart(2, "0")}/${String(
-      cuando.getUTCMonth() + 1
-    ).padStart(2, "0")}/${cuando.getUTCFullYear()}`;
-    datos.historia = `${sello} · ${notaSeguimiento}${actual.historia ? `\n\n${actual.historia}` : ""}`;
+    const texto = t("fechaSeguimiento");
+    const cuando = texto ? new Date(texto) : new Date();
+    datos.historia = `${selloBitacora(cuando, !texto || texto.includes("T"))} · ${notaSeguimiento}${
+      actual.historia ? `\n\n${actual.historia}` : ""
+    }`;
     datos.ultimoSeguimiento = cuando;
   }
 
@@ -163,6 +163,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       select: { fechaEnvioAseguradora: true },
     });
     if (actual && !actual.fechaEnvioAseguradora) datos.fechaEnvioAseguradora = new Date();
+  }
+
+  /*
+   * Pasar a «Enviado al cliente» es el momento que cuenta la cifra del mes, y
+   * se sella aquí para no depender de que alguien la escriba. Solo la primera
+   * vez: si el caso vuelve a reproceso y se entrega otra vez, la entrega que
+   * vale para el histórico es la primera de este ciclo.
+   */
+  if (datos.estado === "ENVIADO_CLIENTE") {
+    const actual = await prisma.endoso.findUnique({
+      where: { id },
+      select: { fechaEnvioCliente: true },
+    });
+    if (actual && !actual.fechaEnvioCliente) {
+      datos.fechaEnvioCliente = datos.ultimoSeguimiento ?? new Date();
+    }
   }
 
   if (!Object.keys(datos).length) {

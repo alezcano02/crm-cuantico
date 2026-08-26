@@ -84,6 +84,42 @@ export const ASEGURADORAS = [
   "Quálitas",
 ] as const;
 
+/**
+ * Agrupa las opciones de un desplegable de filtro para que una misma cosa
+ * escrita de dos formas no salga dos veces.
+ *
+ * «Cantapiedra» y «Canta Piedra» son el mismo edificio, pero como texto son
+ * distintos, y quien filtraba por uno perdía los casos del otro. Se comparan
+ * sin tildes, sin mayúsculas y sin espacios, y se enseña la grafía más
+ * frecuente; el filtro devuelve TODAS las variantes de cada grupo, para que
+ * marcar una traiga también las demás.
+ */
+export interface OpcionFiltro {
+  /** Lo que se ve en la lista: la grafía más usada del grupo. */
+  etiqueta: string;
+  /** Todas las formas de escribirlo que hay en los datos. */
+  variantes: string[];
+}
+
+export function agruparOpciones(valores: (string | null)[]): OpcionFiltro[] {
+  const grupos = new Map<string, Map<string, number>>();
+  for (const v of valores) {
+    const texto = v?.trim().replace(/\s+/g, " ");
+    if (!texto) continue;
+    const k = normalizar(texto).replace(/\s/g, "");
+    if (!k) continue;
+    if (!grupos.has(k)) grupos.set(k, new Map());
+    const cuenta = grupos.get(k)!;
+    cuenta.set(texto, (cuenta.get(texto) ?? 0) + 1);
+  }
+  return [...grupos.values()]
+    .map((cuenta) => {
+      const ordenadas = [...cuenta.entries()].sort((a, b) => b[1] - a[1]);
+      return { etiqueta: ordenadas[0][0], variantes: ordenadas.map(([t]) => t) };
+    })
+    .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es"));
+}
+
 /** Encuentra la escritura canónica de una aseguradora por su nombre. */
 export function normalizarAseguradora(nombre: string | null | undefined): string | null {
   const n = normalizar(nombre);
@@ -138,12 +174,11 @@ export const DIAS_ALERTA_ASEGURADORA = 5;
  * dice el propio banco en sus correos: «en todos los casos la renovación del
  * endoso deberá entregarse al vencimiento de la póliza».
  *
- * Dos meses es lo que hace falta de verdad: la agencia anuncia hasta 15 días
- * hábiles de trámite (unas tres semanas) después de 5 de recepción, y encima
- * las aseguradoras restringen la emisión en las semanas previas a renovar. Con
- * menos margen se llega tarde.
+ * Con dos meses el aviso salía tan pronto que casi todo el histórico entregado
+ * aparecía «por renovar» a la vez —318 casos—, y una lista así no se mira. A
+ * quince días la cifra vuelve a ser una lista de trabajo de la semana.
  */
-export const DIAS_AVISO_RENOVACION = 60;
+export const DIAS_AVISO_RENOVACION = 15;
 
 // ---------------------------------------------------------------------------
 // Entidades financieras
@@ -277,6 +312,26 @@ export function normalizar(texto: string | null | undefined): string {
 }
 
 /** Deja el NIT en dígitos pelados: «890.903.938-8» y «8909039388» son lo mismo. */
+/**
+ * El sello con que se encabeza cada nota de la bitácora.
+ *
+ * Lleva la hora cuando se conoce —una nota que viene de un correo o de una
+ * gestión de ahora mismo—, porque en un día con varios movimientos del mismo
+ * caso la fecha sola no dice en qué orden pasaron las cosas. Cuando la fecha
+ * se escribió a mano en el formulario, que solo pide el día, se deja sin hora
+ * para no inventar un «00:00» que parecería de madrugada.
+ *
+ * La hora se pasa a la de Colombia (UTC-5), que es la que reconoce quien lee.
+ */
+export function selloBitacora(cuando: Date, conHora: boolean): string {
+  const d = conHora ? new Date(cuando.getTime() - 5 * 60 * 60 * 1000) : cuando;
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const fecha = `${dd}/${mm}/${d.getUTCFullYear()}`;
+  if (!conHora) return fecha;
+  return `${fecha} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
 export function soloDigitos(nit: string | null | undefined): string {
   return (nit ?? "").replace(/\D/g, "");
 }
@@ -805,6 +860,14 @@ export interface EndosoVista {
   numeroPoliza: string | null;
   radicado: string | null;
   fechaEnvioAseguradora: string | null;
+  /** Cuándo se le entregaron los documentos al cliente. Es la cifra del mes. */
+  fechaEnvioCliente: string | null;
+  /**
+   * Si el edificio de este caso tiene el paz y salvo vencido, sin fecha o
+   * marcado como no vigente. Se calcula en el servidor, que es donde está la
+   * ficha; la tabla solo lo filtra.
+   */
+  pazSalvoPendiente: boolean;
   estado: string;
   /**
    * La bitácora NO viaja en el listado: es el campo que más crece —una línea
@@ -875,6 +938,30 @@ export function diasEsperando(
  * Solo aplica a los que ya se entregaron: un caso todavía en trámite ya está
  * en la cola, y meterlo aquí lo contaría dos veces.
  */
+/**
+ * Si al edificio le falta el paz y salvo para poder tramitar.
+ *
+ * Sin certificado de pago al día la aseguradora no emite el endoso, así que
+ * esto frena el caso entero por mucho que sus datos estén completos.
+ *
+ * «No se sabe» NO cuenta como pendiente. Hoy ninguna ficha tiene la fecha
+ * puesta, así que contarlo daría los 42 casos abiertos y un filtro que
+ * devuelve todo no dice nada. Aquí «pendiente» significa que consta que está
+ * vencido o que no lo hay; que falte el dato es otra cosa, y de eso ya avisa
+ * la revisión del caso.
+ */
+export function pazSalvoPendiente(
+  copropiedad: DatosCopropiedad | null,
+  hoy: Date = new Date()
+): boolean {
+  if (!copropiedad) return false;
+  const estado = normalizar(copropiedad.pazSalvoEstado);
+  if (estado.includes("vencido") || estado.includes("sin paz")) return true;
+  const f = aFecha(copropiedad.pazSalvoVigenteHasta);
+  if (!f) return false;
+  return dias(hoy, f) < 0;
+}
+
 export function diasParaRenovar(
   estado: string,
   vigenciaHasta: Date | string | null | undefined,

@@ -627,6 +627,12 @@ model Endoso {
   radicado              String?
   fechaEnvioAseguradora DateTime?
 
+  // Cuándo se le entregaron los documentos al cliente. Es la cifra con la que
+  // se mide el trabajo del mes, así que vive en su propio campo y no se deduce
+  // del estado: un caso puede volver a reproceso y seguir siendo cierto que
+  // ese día se entregó.
+  fechaEnvioCliente DateTime?
+
   estado String @default("NUEVA_SOLICITUD")
 
   // Bitácora, mismo formato que Prospecto.historia y Siniestro: cada nota se

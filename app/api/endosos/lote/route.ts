@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exigirSesion } from "@/lib/auth";
-import { ESTADOS_ENDOSO, type EstadoEndoso } from "@/lib/endosos";
+import { ESTADOS_ENDOSO, selloBitacora, type EstadoEndoso } from "@/lib/endosos";
 
 export const runtime = "nodejs";
 
@@ -52,13 +52,12 @@ export async function PATCH(req: NextRequest) {
   if (isNaN(cuando.getTime())) {
     return NextResponse.json({ error: "La fecha no es válida." }, { status: 400 });
   }
-  const sello = `${String(cuando.getUTCDate()).padStart(2, "0")}/${String(
-    cuando.getUTCMonth() + 1
-  ).padStart(2, "0")}/${cuando.getUTCFullYear()}`;
+  const textoFecha = t("fechaSeguimiento");
+  const marca = selloBitacora(cuando, !textoFecha || textoFecha.includes("T"));
 
   const actuales = await prisma.endoso.findMany({
     where: { id: { in: ids } },
-    select: { id: true, historia: true, fechaEnvioAseguradora: true },
+    select: { id: true, historia: true, fechaEnvioAseguradora: true, fechaEnvioCliente: true },
   });
 
   /*
@@ -71,12 +70,14 @@ export async function PATCH(req: NextRequest) {
     if (estado) datos.estado = estado;
     if (radicado) datos.radicado = radicado;
     if (nota) {
-      datos.historia = `${sello} · ${nota}${a.historia ? `\n\n${a.historia}` : ""}`;
+      datos.historia = `${marca} · ${nota}${a.historia ? `\n\n${a.historia}` : ""}`;
       datos.ultimoSeguimiento = cuando;
     }
     // Radicar arranca el reloj de los días de espera. Si nadie dijo la fecha y
     // el caso aún no tenía una, se pone la de la gestión.
     if (radicado && !a.fechaEnvioAseguradora) datos.fechaEnvioAseguradora = cuando;
+    // Entregar al cliente es lo que cuenta la cifra del mes; se sella una vez.
+    if (estado === "ENVIADO_CLIENTE" && !a.fechaEnvioCliente) datos.fechaEnvioCliente = cuando;
     return prisma.endoso.update({ where: { id: a.id }, data: datos });
   });
 
