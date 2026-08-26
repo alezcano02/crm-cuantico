@@ -581,7 +581,7 @@ export function EndososTabla({
                   className="h-3.5 w-3.5 cursor-pointer accent-brand"
                 />
               </Th>
-              <Th>Revisión</Th>
+              <Th>Recibido</Th>
               <Th>Caso</Th>
               <Th>Banco y valor</Th>
               <Th>Estado</Th>
@@ -611,8 +611,11 @@ export function EndososTabla({
                       className="h-3.5 w-3.5 cursor-pointer accent-brand"
                     />
                   </Td>
-                  <Td>
-                    <DistintivoRevision revision={e.revision} />
+                  <Td
+                    className={e.fechaRecepcion ? "text-ink-secondary" : "text-ink-muted"}
+                    title={e.fechaRecepcion ? "Cuándo entró la solicitud del cliente" : "No se sabe cuándo entró: no se pudo recuperar del correo ni del histórico"}
+                  >
+                    {fmtFecha(e.fechaRecepcion)}
                   </Td>
                   {/* Cliente y ubicación en una sola celda: son la misma
                       pregunta —«¿de quién es este caso?»— y separarlas gastaba
