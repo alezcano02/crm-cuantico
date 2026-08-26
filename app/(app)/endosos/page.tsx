@@ -6,6 +6,7 @@ import {
   diasEsperando,
   diasParaRenovar,
   evaluarRevision,
+  novedadDe,
   pazSalvoPendiente,
   revisarEndoso,
   type CopropiedadVista,
@@ -72,6 +73,7 @@ export default async function EndososPage() {
         fechaEnvioCliente: true,
         estado: true,
         ultimoSeguimiento: true,
+        vistoEn: true,
         creadoEn: true,
       },
       orderBy: { creadoEn: "desc" },
@@ -158,6 +160,7 @@ export default async function EndososPage() {
     diasEsperando: diasEsperando(e.fechaEnvioAseguradora, e.estado, hoy),
     diasParaRenovar: diasParaRenovar(e.estado, ficha?.vigenciaHasta ?? null, hoy),
     revision: evaluarRevision(chequeos),
+    novedad: novedadDe(e),
     };
   });
 

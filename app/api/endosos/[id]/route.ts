@@ -29,6 +29,20 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!endoso) {
     return NextResponse.json({ error: "El endoso no existe." }, { status: 404 });
   }
+
+  /*
+   * Abrir el caso es haberlo visto, y aquí es donde se sabe: la ventana pide
+   * esta ruta justo al abrirse y en ningún otro momento. Por eso el sello va
+   * en el GET y no en el PATCH — la pregunta que responde el aviso es «¿lo
+   * miré?», no «¿lo cambié?», y la mayoría de lo que llega se lee sin tocar
+   * nada.
+   *
+   * Se responde con el endoso tal como estaba ANTES de sellarlo, para que la
+   * ventana pueda enseñar «¡Nuevo!» esa última vez; el aviso desaparece al
+   * refrescar la tabla, que es cuando ya se leyó.
+   */
+  await prisma.endoso.update({ where: { id }, data: { vistoEn: new Date() } });
+
   return NextResponse.json({ ok: true, endoso });
 }
 

@@ -703,6 +703,18 @@ model Endoso {
   // sin buscarlo a mano.
   origenCorreoId String?
 
+  /// Cuándo se abrió este caso por última vez.
+  ///
+  /// Es lo que permite avisar de lo que llegó sin haberse mirado: en blanco
+  /// significa que nadie lo ha abierto nunca (¡Nuevo!), y si `ultimoSeguimiento`
+  /// es posterior, es que entró una nota después de la última mirada
+  /// (¡Actualizado!). Se pone al abrir la ventana del caso, no al editarlo:
+  /// la pregunta que responde es «¿lo vi?», no «¿lo cambié?».
+  ///
+  /// Es de todos y no por persona a propósito: de los endosos se ocupa Juan.
+  /// Una tabla de vistos por usuario sería más correcta y no la mira nadie.
+  vistoEn DateTime?
+
   // Póliza de la cartera con la que se emparejó, si se encontró. Es opcional y
   // se confirma a mano: el nombre del cliente en un correo rara vez coincide
   // letra por letra con el asegurado del informe.

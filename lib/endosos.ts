@@ -62,6 +62,31 @@ export const ETIQUETA_ESTADO_ENDOSO: Record<EstadoEndoso, string> = {
  * entrega, el estado correcto es ENVIADO_CLIENTE, no este.
  */
 
+/**
+ * Lo que ha llegado sin que nadie lo haya mirado.
+ *
+ *  · «nuevo»       — el caso no se ha abierto nunca. Lo creó la revisión del
+ *                    correo y todavía no ha pasado por ojo humano.
+ *  · «actualizado» — sí se abrió, pero después entró una nota: el banco lo
+ *                    devolvió, la aseguradora contestó, el cliente escribió.
+ *
+ * Devuelve null cuando no hay nada que avisar, que es el caso de la inmensa
+ * mayoría. Ese es justamente el punto: el aviso solo sirve si es raro. Por eso
+ * al encender esto se marcaron como vistos los 1.889 casos que ya existían —
+ * si no, habrían salido todos en amarillo a la vez y el aviso habría nacido
+ * muerto, igual que pasó con el rojo de la revisión.
+ */
+export type Novedad = "nuevo" | "actualizado";
+
+export function novedadDe(e: {
+  vistoEn: Date | string | null;
+  ultimoSeguimiento: Date | string | null;
+}): Novedad | null {
+  if (!e.vistoEn) return "nuevo";
+  if (!e.ultimoSeguimiento) return null;
+  return new Date(e.ultimoSeguimiento) > new Date(e.vistoEn) ? "actualizado" : null;
+}
+
 /** Estados en los que el caso sigue vivo y consume atención. */
 export const ESTADOS_ABIERTOS: EstadoEndoso[] = [
   "NUEVA_SOLICITUD",
@@ -927,6 +952,11 @@ export interface EndosoVista {
    * texto renderizado podría no coincidir con el del servidor.
    */
   revision: ResumenRevision;
+  /**
+   * Si el caso trae algo por mirar: recién llegado o con nota nueva desde la
+   * última vez que se abrió. Null cuando no hay nada que avisar.
+   */
+  novedad: Novedad | null;
 }
 
 export interface CopropiedadVista {

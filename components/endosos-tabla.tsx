@@ -104,6 +104,34 @@ const REVISION: Record<
   },
 };
 
+/**
+ * El aviso de lo que acaba de llegar.
+ *
+ * Usa el azul de la marca y no el semáforo a propósito: no dice si el caso
+ * está bien o mal —de eso ya se ocupa la revisión—, dice que hay algo por
+ * mirar. Mezclarlo con el rojo y el ámbar haría que dos cosas distintas
+ * compitieran por el mismo golpe de vista.
+ */
+function AvisoNovedad({ novedad }: { novedad: EndosoVista["novedad"] }) {
+  if (!novedad) return null;
+  const nuevo = novedad === "nuevo";
+  return (
+    <span
+      title={
+        nuevo
+          ? "Entró por correo y todavía no se ha abierto"
+          : "Tiene una nota nueva desde la última vez que se abrió"
+      }
+      className={clsx(
+        "etiqueta-marca inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+        nuevo ? "bg-brand text-white" : "bg-brand-100 text-brand"
+      )}
+    >
+      {nuevo ? "¡Nuevo!" : "¡Actualizado!"}
+    </span>
+  );
+}
+
 /** El texto del distintivo: el estado más el número que de verdad importa. */
 function etiquetaRevision(r: EndosoVista["revision"]): string {
   const base = REVISION[r.estado].etiqueta;
@@ -172,6 +200,7 @@ function normalizarTxt(v: string): string {
  * marcado se ven todos los endosos.
  */
 const SITUACIONES = [
+  "Sin mirar",
   "Abiertos",
   "Listos para enviar",
   "Con problema",
@@ -185,6 +214,10 @@ type Situacion = (typeof SITUACIONES)[number];
 function cumpleSituacion(e: EndosoVista, s: Situacion): boolean {
   const abierto = ESTADOS_ABIERTOS.includes(e.estado as EstadoEndoso);
   switch (s) {
+    // Lo que entró por correo y nadie ha abierto, más lo que cambió desde la
+    // última vez que se miró. Es la bandeja de entrada del día.
+    case "Sin mirar":
+      return e.novedad != null;
     case "Abiertos":
       return abierto;
     case "Listos para enviar":
@@ -345,6 +378,7 @@ export function EndososTabla({
     const abiertos = endosos.filter((e) => ESTADOS_ABIERTOS.includes(e.estado as EstadoEndoso));
     const hoy = new Date();
     return {
+      sinMirar: endosos.filter((e) => e.novedad != null).length,
       abiertos: abiertos.length,
       listos: abiertos.filter((e) => e.revision.estado === "listo").length,
       represados: endosos.filter((e) => (e.diasEsperando ?? 0) > DIAS_ALERTA_ASEGURADORA).length,
@@ -427,7 +461,22 @@ export function EndososTabla({
   return (
     <div className="space-y-4">
       {/* Cada tarjeta es el filtro que anuncia: pulsarla lo deja puesto. */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
+        {/* Por aquí se empieza el día: lo que entró por correo desde la última
+            vez. Solo se pinta de azul cuando hay algo — una tarjeta que grita
+            con un cero al lado enseña a no mirarla. */}
+        <StatCard
+          etiqueta="Sin mirar"
+          valor={String(totales.sinMirar)}
+          detalle={
+            totales.sinMirar > 0
+              ? "Llegaron por correo y nadie los ha abierto"
+              : "Todo lo que ha llegado está revisado"
+          }
+          acento={totales.sinMirar > 0 ? "marca" : undefined}
+          onClick={() => soloSituacion("Sin mirar")}
+          activo={selSituacion.length === 1 && selSituacion[0] === "Sin mirar"}
+        />
         <StatCard
           etiqueta="Abiertos"
           valor={String(totales.abiertos)}
@@ -678,8 +727,11 @@ export function EndososTabla({
                       pregunta —«¿de quién es este caso?»— y separarlas gastaba
                       un ancho que obligaba a desplazar la tabla de lado. */}
                   <Td>
-                    <div className="max-w-[260px] truncate font-medium" title={e.cliente}>
-                      {e.cliente}
+                    <div className="flex max-w-[260px] items-center gap-1.5">
+                      <span className="truncate font-medium" title={e.cliente}>
+                        {e.cliente}
+                      </span>
+                      <AvisoNovedad novedad={e.novedad} />
                     </div>
                     <div
                       className="max-w-[260px] truncate text-xs text-ink-muted"
@@ -768,7 +820,16 @@ export function EndososTabla({
           endoso={abierto}
           copropiedad={fichaDe(abierto)}
           copropiedades={copropiedades}
-          onCerrar={() => setAbiertoId(null)}
+          onCerrar={() => {
+            setAbiertoId(null);
+            /*
+             * Abrir el caso ya lo selló como visto en el servidor. Sin este
+             * refresco el «¡Nuevo!» seguiría en la fila hasta recargar la
+             * página a mano, y el contador de «Sin mirar» no bajaría — que es
+             * justo la señal de que se está avanzando.
+             */
+            router.refresh();
+          }}
           onGuardar={guardar}
         />
       )}
