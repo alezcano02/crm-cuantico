@@ -72,6 +72,13 @@ $encargo = Get-Content $prompt -Raw -Encoding utf8
 # revisar-buzon-endosos.md. Ese archivo es la superficie de riesgo real — quien
 # lo edite decide lo que hace la tarea. El conector de correo es de solo
 # lectura (Mail.Read), así que por ahí no se puede mandar nada.
+#
+# --model FIJO A PROPÓSITO. La configuración global del CLI tiene el modelo
+# declarado dos veces con valores distintos (claude-opus-4-7 en un sitio,
+# claude-sonnet-5 en otro) — sin fijarlo aquí, cada corrida horaria podía
+# terminar sola en Opus, que para clasificar un correo cuesta mucho más que
+# Sonnet sin que la tarea sea más difícil. Se fija el mismo modelo que ya se
+# usaba al delegar esto manualmente.
 $anterior = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 $codigo = 0
@@ -80,7 +87,7 @@ try {
     # y se volcaba al final, así que una corrida matada a mitad no dejaba ni
     # una pista de por dónde iba.
     $encargo |
-        & $claude -p --tools default --permission-mode bypassPermissions 2>&1 |
+        & $claude -p --model claude-sonnet-5 --tools default --permission-mode bypassPermissions 2>&1 |
         ForEach-Object {
             $linea = $_.ToString()
             Add-Content -Path $log -Value $linea -Encoding utf8
