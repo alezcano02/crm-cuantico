@@ -27,6 +27,15 @@ export interface ContadoresNav {
   vencidas: number;
   /** Pólizas con el pago vencido */
   mora: number;
+  /**
+   * Endosos que la revisión del correo dejó sin gestionar: entraron nuevos, o
+   * les llegó una nota, y nadie los ha abierto todavía.
+   *
+   * Vive en el menú porque el correo entra solo cada hora: sin un aviso que se
+   * vea desde CUALQUIER pantalla, había que acordarse de pasar por Endosos a
+   * mirar si había llegado algo.
+   */
+  endososSinGestionar: number;
 }
 
 type Enlace = {
@@ -34,6 +43,12 @@ type Enlace = {
   etiqueta: string;
   Icono: (p: { className?: string }) => JSX.Element;
   contador?: keyof ContadoresNav;
+  /**
+   * De qué habla el contador. «alerta» (por omisión) es rojo: algo se pasó de
+   * plazo. «novedad» es azul de marca: algo acaba de llegar y hay que mirarlo.
+   * Pintar de rojo lo que solo es trabajo nuevo enseña a ignorar el rojo.
+   */
+  tonoContador?: "alerta" | "novedad";
   /** true = solo para quien puede importar. */
   soloImportador?: boolean;
   /** true = solo para quien ve comisiones. */
@@ -74,7 +89,13 @@ const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
       { href: "/cartera", etiqueta: "Cartera", Icono: IconCartera, contador: "mora" },
       { href: "/cancelaciones", etiqueta: "Cancelaciones", Icono: IconHistorial },
       { href: "/siniestros", etiqueta: "Siniestros", Icono: IconSiniestro },
-      { href: "/endosos", etiqueta: "Endosos", Icono: IconEndoso },
+      {
+        href: "/endosos",
+        etiqueta: "Endosos",
+        Icono: IconEndoso,
+        contador: "endososSinGestionar",
+        tonoContador: "novedad",
+      },
       { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconRegalo },
       {
         href: "/colectivas",
@@ -182,6 +203,7 @@ export function AppShell({
   const enlaceNav = (e: Enlace, compacto = false) => {
     const activo = esActivo(e.href);
     const n = e.contador ? contadores[e.contador] : 0;
+    const novedad = e.tonoContador === "novedad";
     return (
       <Link
         key={e.href}
@@ -213,7 +235,7 @@ export function AppShell({
             <span
               className={clsx(
                 "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
-                activo ? "bg-white" : "bg-status-critical"
+                activo ? "bg-white" : novedad ? "bg-brand-acento" : "bg-status-critical"
               )}
               aria-hidden
             />
@@ -221,9 +243,13 @@ export function AppShell({
             <span
               className={clsx(
                 "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabla-num",
-                activo ? "bg-white/25 text-white" : "bg-status-critical/85 text-white"
+                activo
+                  ? "bg-white/25 text-white"
+                  : novedad
+                    ? "bg-brand-acento text-white"
+                    : "bg-status-critical/85 text-white"
               )}
-              title={`${n} requieren atención`}
+              title={novedad ? `${n} sin gestionar: llegaron por correo y nadie los ha abierto` : `${n} requieren atención`}
             >
               {n > 999 ? "999+" : n}
             </span>

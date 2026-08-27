@@ -120,7 +120,31 @@ export const contadoresNav = cachearCartera(["contadores-nav"], async () => {
     prisma.policy.count({ where: { vencimiento: { lt: hoy }, colectivaDe: null, ...SIN_ANEXOS } }),
     prisma.policy.count({ where: { estadoPago: "PENDIENTE", fechaMaxPago: { lt: hoy } } }),
   ]);
-  return { vencidas, mora };
+
+  /*
+   * Endosos que llegaron por correo y nadie ha abierto.
+   *
+   * Sin ver nunca (vistoEn en blanco) o con una nota posterior a la última
+   * mirada. Es la misma cuenta que hace la tarjeta «Sin gestionar» del tablero
+   * de endosos, pero aquí sirve para enterarse SIN estar en esa pantalla: el
+   * correo entra solo cada hora y nadie va a estar recargando Endosos por si
+   * acaso.
+   */
+  const [nuevos, actualizados] = await Promise.all([
+    prisma.endoso.count({ where: { vistoEn: null } }),
+    prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT COUNT(*)::bigint AS n FROM "Endoso"
+      WHERE "vistoEn" IS NOT NULL
+        AND "ultimoSeguimiento" IS NOT NULL
+        AND "ultimoSeguimiento" > "vistoEn"
+    `,
+  ]);
+
+  return {
+    vencidas,
+    mora,
+    endososSinGestionar: nuevos + Number(actualizados[0]?.n ?? 0),
+  };
 });
 
 /**

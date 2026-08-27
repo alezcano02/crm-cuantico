@@ -21,7 +21,7 @@ async function contadores(): Promise<ContadoresNav> {
     // son dos COUNT sobre la cartera entera. Ver lib/cache.ts.
     return await contadoresNav();
   } catch {
-    return { vencidas: 0, mora: 0 };
+    return { vencidas: 0, mora: 0, endososSinGestionar: 0 };
   }
 }
 
