@@ -51,12 +51,30 @@ if (-not (Test-Path $prompt)) {
 Set-Location $raiz
 $encargo = Get-Content $prompt -Raw -Encoding utf8
 
+# OJO con $ErrorActionPreference aquí.
+#
+# En PowerShell 5.1, redirigir la salida de error de un ejecutable nativo con
+# `2>&1` envuelve cada línea en un ErrorRecord (NativeCommandError). Con la
+# preferencia en "Stop" eso es un error TERMINANTE aunque el programa haya
+# devuelto 0 — y el script moría justo aquí, dejando el registro con la línea
+# de «Arranca» y nada más. Se baja a Continue solo para esta llamada.
+$anterior = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 try {
     # --permission-mode acceptEdits para que no se quede esperando una
     # confirmación que nadie va a dar: esto corre sin nadie delante.
-    $salida = $encargo | & $claude -p --permission-mode acceptEdits 2>&1 | Out-String
+    # --tools default para que tenga las herramientas del conector y el shell.
+    $salida = ($encargo | & $claude -p --permission-mode acceptEdits --tools default 2>&1 | Out-String)
+    $codigo = $LASTEXITCODE
 } catch {
-    Escribir "ERROR al ejecutar el CLI: $_"
+    $salida = "ERROR al ejecutar el CLI: $_"
+    $codigo = 1
+} finally {
+    $ErrorActionPreference = $anterior
+}
+
+if ([string]::IsNullOrWhiteSpace($salida)) {
+    Escribir "ERROR: el CLI no devolvió nada (código $codigo). Revisa que esté autenticado y que el conector de Microsoft 365 siga conectado: claude mcp list"
     exit 1
 }
 
