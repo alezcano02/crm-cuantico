@@ -2,9 +2,10 @@
  * Genera la guía «Endosos, paso a paso» en Word.
  *
  * Es un documento INTERNO, así que sigue la paleta de documentación de la
- * marca (tinta sobre papel, sin el azul corporativo) y la estructura que fija
- * el skill cuantico-brand para una guía de proceso: para qué sirve, quién
- * interviene, el paso a paso, qué se necesita y dónde se atasca.
+ * marca (tinta sobre papel, sin el azul corporativo). La sección de apertura
+ * sigue el formato de «Qué cambió» de GUÍA DE GESTIÓN DE CARTERA.docx: qué
+ * hacía falta a mano antes y qué automatiza ahora el CRM, y qué sigue igual.
+ * Después va el paso a paso, qué se necesita y dónde se atasca.
  *
  * Está escrita para alguien en su primera semana. La versión anterior contaba
  * el trámite entero —siete pasos, nueve revisiones, la cuenta del coeficiente—
@@ -147,85 +148,92 @@ cuerpo.push(
 
 // 1 --------------------------------------------------------------------------
 cuerpo.push(
-  seccion("1.  Para qué sirve"),
+  seccion("1.  Qué cambió"),
   parrafo(
     "Cuando un propietario saca un crédito, el banco exige ser beneficiario del seguro del " +
-      "apartamento. No se hace una póliza nueva: el apartamento ya está cubierto por la del " +
-      "edificio, así que se emite un ENDOSO, un certificado que pone a favor del banco la parte " +
-      "de esa póliza que le corresponde al apartamento."
+      "apartamento. Como ese apartamento ya está cubierto por la póliza del edificio, no se hace " +
+      "una póliza nueva: se emite un ENDOSO, un certificado que pone a favor del banco la parte de " +
+      "esa póliza que le corresponde. Uno de cada diez se devolvía por errores que se podían ver " +
+      "antes de enviarlo."
   ),
   parrafo(
-    "Uno de cada diez se devolvía por errores que se podían ver antes de enviarlo. Evitar eso es " +
-      "el trabajo."
+    "Antes, cada solicitud había que copiarla a mano al Excel del correo, revisar en otra hoja si " +
+      "la copropiedad tenía el paz y salvo al día, y acordarse de las manías de cada banco. El CRM " +
+      "ya hace la primera parte solo: lee endosos@cuanticoseguros.com cada hora, crea el caso o le " +
+      "añade la respuesta que llegó, y completa la aseguradora, el número de póliza, la ciudad, el " +
+      "coeficiente y el NIT del banco. Eso ya no se teclea. También revisa cada caso contra las " +
+      "nueve cosas que hacen que el banco lo devuelva, y avisa antes de radicar."
+  ),
+  parrafo(
+    "Lo que no cambió: tú sigues decidiendo, llenando a mano el formato propio de cada aseguradora " +
+      "— esas fórmulas no se tocan — y enviando tú mismo el correo, tanto a la aseguradora como al " +
+      "cliente. El CRM NUNCA manda correos. Eso lo haces tú siempre."
   )
 );
 
 // 2 --------------------------------------------------------------------------
 cuerpo.push(
-  seccion("2.  Quién hace qué"),
-  vineta(
-    "El CRM lee el correo solo, cada hora. ",
-    "Crea los casos nuevos, añade las respuestas a los que ya existen, y completa la aseguradora, " +
-      "el número de póliza, la ciudad, el coeficiente y el NIT del banco. Eso ya no se teclea."
+  seccion("2.  El día a día"),
+  parrafo(
+    "Esto es todo el ciclo, desde que llega la solicitud hasta que el caso queda cerrado. Si " +
+      "algún día no hay número azul en el menú, no hay nada pendiente de tu parte."
   ),
-  vineta(
-    "El CRM revisa cada caso ",
-    "contra las nueve cosas que hacen que el banco lo devuelva, y avisa antes de radicar."
-  ),
-  vineta(
-    "Tú decides y envías. ",
-    "El CRM NUNCA manda correos: ni a la aseguradora ni al cliente. Eso lo haces tú siempre."
-  )
-);
-
-// 3 --------------------------------------------------------------------------
-cuerpo.push(
-  seccion("3.  El día a día"),
-  parrafo("Esto es todo. Si algún día no hay número azul en el menú, no hay nada que hacer."),
-  paso(1, "Mira el menú. ", "Si «Endosos» tiene un número azul al lado, llegó algo por correo."),
-  paso(2, "Entra y pulsa «Ver los N». ", "Deja en pantalla solo lo que llegó y nadie ha abierto."),
   paso(
-    3,
+    1,
+    "El cliente envía el endoso con la información. ",
+    "Llega a endosos@cuanticoseguros.com — del propietario, del administrador del edificio o de " +
+      "otro corredor — con la dirección exacta, el valor que pide el banco, el banco beneficiario " +
+      "y el paz y salvo. Esto es lo que arranca todo lo demás."
+  ),
+  paso(
+    2,
+    "Mira el menú. ",
+    "El CRM lee ese correo solo, cada hora. Si «Endosos» tiene un número azul al lado, ya creó o " +
+      "actualizó el caso y te está esperando."
+  ),
+  paso(3, "Entra y pulsa «Ver los N». ", "Deja en pantalla solo lo que llegó y nadie ha abierto."),
+  paso(
+    4,
     "Abre cada caso. ",
     "«¡Nuevo!» es una solicitud recién llegada. «¡Actualizado!» es un caso que ya conocías y al " +
       "que le entró una nota: el banco lo devolvió, la aseguradora contestó o el cliente escribió. " +
       "Abrirlo quita el aviso."
   ),
   paso(
-    4,
+    5,
     "Lee la revisión. ",
     "Rojo: tal como está, el banco lo devuelve — corrígelo. Ámbar: hay algo que mirar. Gris: solo " +
       "falta un dato por llenar."
   ),
   paso(
-    5,
+    6,
     "Marca los que estén «Listos» y descarga la planilla. ",
     "El CRM la llena con los casos marcados, hasta 60 por archivo, y te dice qué columnas quedaron " +
       "en blanco."
   ),
   paso(
-    6,
+    7,
     "Completa a mano lo que falta y envíala a la aseguradora. ",
     "La tasa, el tipo de documento y el tipo de propiedad los pones tú. Nunca toques las celdas de " +
       "fórmulas."
   ),
   paso(
-    7,
+    8,
     "Cuando la aseguradora responda, envíale al cliente los cuatro documentos: ",
     "endoso, carátula de la póliza, certificado de pago y clausulado. Con eso el caso QUEDA " +
       "CERRADO — no hay que marcar nada más."
   ),
   paso(
-    8,
+    9,
     "Si el banco lo devuelve, ",
     "el caso vuelve solo a «Reproceso» y aparece otra vez con aviso. Se corrige y se repite desde " +
-      "el paso 4."
+      "el paso 5."
   )
 );
 
-// 4 --------------------------------------------------------------------------
+// 3 --------------------------------------------------------------------------
 cuerpo.push(
-  seccion("4.  Qué se necesita para radicar"),
+  seccion("3.  Qué se necesita para radicar"),
   vineta(
     "La dirección exacta del crédito. ",
     "La manda el cliente en su correo y el banco la compara letra por letra contra la escritura. " +
@@ -240,9 +248,9 @@ cuerpo.push(
   )
 );
 
-// 5 --------------------------------------------------------------------------
+// 4 --------------------------------------------------------------------------
 cuerpo.push(
-  seccion("5.  Dónde se atasca"),
+  seccion("4.  Dónde se atasca"),
   tabla(
     ["Si ves esto", "Qué significa"],
     [
