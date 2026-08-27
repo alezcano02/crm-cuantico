@@ -1,4 +1,4 @@
-<#
+﻿<#
     Revisión horaria del buzón de endosos, sin sesión interactiva.
 
     La lanza el Programador de tareas de Windows. Usa el CLI de Claude Code con
@@ -58,33 +58,52 @@ $encargo = Get-Content $prompt -Raw -Encoding utf8
 # preferencia en "Stop" eso es un error TERMINANTE aunque el programa haya
 # devuelto 0 — y el script moría justo aquí, dejando el registro con la línea
 # de «Arranca» y nada más. Se baja a Continue solo para esta llamada.
+# POR QUÉ NO SE USA --allowedTools.
+#
+# Parecía lo correcto —permiso mínimo, solo lo que hace falta— pero se probó y
+# rompe justo lo que veníamos a arreglar: con una lista blanca, las
+# herramientas del conector de Microsoft 365 dejan de estar registradas en la
+# sesión y ToolSearch no encuentra NINGUNA (llegan diferidas y con nombre
+# dinámico, así que la lista blanca las filtra antes de que existan). El CLI
+# concluye que no tiene con qué leer el correo y termina sin hacer nada.
+#
+# Con `bypassPermissions` sí funciona. Es un permiso amplio y conviene saberlo:
+# esta tarea corre sin nadie delante, con un encargo FIJO que vive en
+# revisar-buzon-endosos.md. Ese archivo es la superficie de riesgo real — quien
+# lo edite decide lo que hace la tarea. El conector de correo es de solo
+# lectura (Mail.Read), así que por ahí no se puede mandar nada.
 $anterior = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
+$codigo = 0
 try {
-    # --permission-mode acceptEdits para que no se quede esperando una
-    # confirmación que nadie va a dar: esto corre sin nadie delante.
-    # --tools default para que tenga las herramientas del conector y el shell.
-    $salida = ($encargo | & $claude -p --permission-mode acceptEdits --tools default 2>&1 | Out-String)
+    # La salida se va escribiendo AL VUELO en el registro. Antes se acumulaba
+    # y se volcaba al final, así que una corrida matada a mitad no dejaba ni
+    # una pista de por dónde iba.
+    $encargo |
+        & $claude -p --tools default --permission-mode bypassPermissions 2>&1 |
+        ForEach-Object {
+            $linea = $_.ToString()
+            Add-Content -Path $log -Value $linea -Encoding utf8
+            $linea
+        } | Out-Null
     $codigo = $LASTEXITCODE
 } catch {
-    $salida = "ERROR al ejecutar el CLI: $_"
+    Escribir "ERROR al ejecutar el CLI: $_"
     $codigo = 1
 } finally {
     $ErrorActionPreference = $anterior
 }
 
-if ([string]::IsNullOrWhiteSpace($salida)) {
-    Escribir "ERROR: el CLI no devolvió nada (código $codigo). Revisa que esté autenticado y que el conector de Microsoft 365 siga conectado: claude mcp list"
+$salida = if (Test-Path $log) { Get-Content $log -Raw -Encoding utf8 } else { "" }
+
+# Los dos fallos silenciosos que ya nos mordieron una vez cada uno.
+if ($salida -match "Not logged in" -or $salida -match "Please run /login") {
+    Escribir "ERROR: el CLI no está autenticado. Ejecuta 'claude' en una consola y usa /login."
+    exit 1
+}
+if ($salida -match "no hay ninguna herramienta de correo|no tengo ninguna herramienta de correo") {
+    Escribir "ERROR: el CLI no vio el conector de Microsoft 365. Comprueba con: claude mcp list"
     exit 1
 }
 
-Escribir $salida.Trim()
-
-# «Not logged in» es el fallo más probable y el más silencioso: sin este aviso
-# la tarea parecería correr bien mientras no hace absolutamente nada.
-if ($salida -match "Not logged in|Please run /login") {
-    Escribir "ERROR: el CLI no está autenticado. Ejecuta `claude` en una consola y usa /login."
-    exit 1
-}
-
-Escribir "=== Revisión terminada ==="
+Escribir "=== Revisión terminada (código $codigo) ==="
