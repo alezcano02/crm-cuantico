@@ -69,17 +69,25 @@ $encargo = Get-Content $prompt -Raw -Encoding utf8
 #
 # POR QUÉ `auto` Y NO `bypassPermissions`.
 #
-# `bypassPermissions` funcionó hasta el CLI 2.1.246. La actualización a 2.1.247
-# —automática, el 26/08 a las 22:04, cuatro minutos después de la última pasada
-# buena— dejó de registrar los conectores MCP cuando ese modo está activo. El
-# síntoma es traicionero: la tarea arranca, corre entera y termina con código 0
-# diciendo que no encontró la herramienta de correo. Comprobado por descarte
-# con la misma sonda: sin bandera carga, con --tools default carga, con
-# bypassPermissions no.
+# `auto` no pide confirmaciones —esto corre sin nadie delante— y un permiso
+# denegado vuelve al modelo como error, que puede adaptarse, en vez de colgar la
+# corrida esperando a alguien que no está. `bypassPermissions` sirve igual para
+# eso, pero es un permiso mucho más amplio sin ganar nada aquí.
 #
-# `auto` no pide confirmaciones —esto corre sin nadie delante— y sí mantiene los
-# conectores. Un permiso denegado vuelve al modelo como error y puede adaptarse,
-# en vez de colgar la corrida esperando a alguien que no está.
+# LO QUE DE VERDAD FALLA ES EL CONECTOR, Y FALLA A RATOS.
+#
+# Ojo con la tentación de culpar al modo de permisos: se creyó que
+# `bypassPermissions` era la causa porque dos corridas seguidas fallaron con él
+# y la siguiente, ya con `auto`, funcionó. No era eso. Con `auto` volvió a
+# fallar a la hora siguiente. El conector de Microsoft 365 aparece «Connected»
+# en `claude mcp list` y aun así sus herramientas no quedan registradas en la
+# sesión desatendida — a veces sí, a veces no. Ya venía descrito como «fallo
+# transitorio» antes de todo esto.
+#
+# Por eso el remedio no es una bandera, es REINTENTAR. Es una dependencia
+# remota inestable, y una segunda pasada un minuto después suele entrar. Como
+# la pasada solo se registra cuando de verdad se leyó el buzón, reintentar no
+# duplica nada: un intento fallido no deja rastro en la bitácora.
 #
 # El encargo es FIJO y vive en revisar-buzon-endosos.md. Ese archivo es la
 # superficie de riesgo real — quien lo edite decide lo que hace la tarea. El
@@ -94,33 +102,64 @@ $encargo = Get-Content $prompt -Raw -Encoding utf8
 # usaba al delegar esto manualmente.
 $anterior = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
+
+# El límite de la tarea en Windows es de 45 minutos. Se deja de reintentar a los
+# 30 para que el último intento tenga sitio de sobra para terminar y escribir su
+# veredicto, en vez de que lo maten a mitad y no se sepa qué pasó.
+$INTENTOS = 3
+$ESPERA = 60
+$TOPE = (Get-Date).AddMinutes(30)
+
+$salida = ""
 $codigo = 0
-# Solo las líneas DE ESTA corrida. Antes el veredicto se sacaba releyendo el
-# registro entero del día, así que un fallo de la mañana condenaba a todas las
-# pasadas siguientes aunque hubieran ido bien.
-$lineas = New-Object System.Collections.Generic.List[string]
-try {
-    # La salida se va escribiendo AL VUELO en el registro. Antes se acumulaba
-    # y se volcaba al final, así que una corrida matada a mitad no dejaba ni
-    # una pista de por dónde iba.
-    $encargo |
-        & $claude -p --model claude-sonnet-5 --tools default --permission-mode auto 2>&1 |
-        ForEach-Object {
-            $linea = $_.ToString()
-            Add-Content -Path $log -Value $linea -Encoding utf8
-            $lineas.Add($linea)
-        } | Out-Null
-    $codigo = $LASTEXITCODE
-} catch {
-    Escribir "ERROR al ejecutar el CLI: $_"
-    $codigo = 1
-} finally {
-    $ErrorActionPreference = $anterior
+$logueado = $true
+
+for ($intento = 1; $intento -le $INTENTOS; $intento++) {
+    if ($intento -gt 1) {
+        Escribir "--- Reintento $intento de $INTENTOS (el anterior no leyó el buzón) ---"
+    }
+
+    # Solo las líneas DE ESTE intento. Antes el veredicto se sacaba releyendo el
+    # registro entero del día, así que un fallo de la mañana condenaba a todas
+    # las pasadas siguientes aunque hubieran ido bien.
+    $lineas = New-Object System.Collections.Generic.List[string]
+    try {
+        # La salida se va escribiendo AL VUELO en el registro. Antes se
+        # acumulaba y se volcaba al final, así que una corrida matada a mitad no
+        # dejaba ni una pista de por dónde iba.
+        $encargo |
+            & $claude -p --model claude-sonnet-5 --tools default --permission-mode auto 2>&1 |
+            ForEach-Object {
+                $linea = $_.ToString()
+                Add-Content -Path $log -Value $linea -Encoding utf8
+                $lineas.Add($linea)
+            } | Out-Null
+        $codigo = $LASTEXITCODE
+    } catch {
+        Escribir "ERROR al ejecutar el CLI: $_"
+        $codigo = 1
+    }
+
+    $salida = $lineas -join "`n"
+
+    # Sin sesión no hay reintento que valga: lo arregla una persona con /login.
+    if ($salida -match "Not logged in" -or $salida -match "Please run /login") {
+        $logueado = $false
+        break
+    }
+
+    if ($salida -match "RESULTADO:\s*OK") { break }
+
+    if ($intento -lt $INTENTOS -and (Get-Date) -lt $TOPE) {
+        Start-Sleep -Seconds $ESPERA
+    } else {
+        break
+    }
 }
 
-$salida = $lineas -join "`n"
+$ErrorActionPreference = $anterior
 
-if ($salida -match "Not logged in" -or $salida -match "Please run /login") {
+if (-not $logueado) {
     Escribir "ERROR: el CLI no está autenticado. Ejecuta 'claude' en una consola y usa /login."
     exit 1
 }
