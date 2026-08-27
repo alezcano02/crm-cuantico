@@ -28,8 +28,14 @@ export const maxDuration = 300;
  *      vercel.json con `0 * * * *`), o algo externo que llame a esta URL con
  *      la cabecera Authorization: Bearer <CRON_SECRET>.
  *
- * Mientras tanto, del buzón se ocupa la rutina en la nube «Endorsement email
- * processor», que sí corre cada hora.
+ * QUIÉN SE OCUPA HOY DEL BUZÓN: la tarea de Windows «Cuantico - Revisar buzon
+ * de endosos» (scripts/revisar-buzon.ps1), cada hora de 6:23 a 22:23. Usa el
+ * CLI de Claude Code con la suscripción, así que NO gasta clave de API — que
+ * es la razón por la que esta ruta sigue apagada.
+ *
+ * La rutina en la nube «Endorsement email processor» quedó descartada: la
+ * política de red de ese entorno bloquea la salida hacia el CRM (403 en el
+ * CONNECT del proxy). Leía el correo y no podía escribir una línea.
  *
  * Ventana de 90 minutos (no 60) a propósito: si una corrida se atrasa o
  * falla, la siguiente igual cubre el hueco. El solape no duplica nada porque

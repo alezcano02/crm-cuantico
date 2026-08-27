@@ -1,4 +1,16 @@
-# Dispara cada hora la revisión del buzón de endosos.
+# APARCADO — no dispara solo. Del buzón se ocupa la tarea de Windows.
+#
+# Esta vía llama a la ruta del CRM, y esa ruta necesita ANTHROPIC_API_KEY, que
+# es justamente lo que se decidió NO usar (ver scripts/revisar-buzon.ps1). Sin
+# esa variable responde 503 siempre, así que con el cron puesto esto fallaba
+# cada hora: correo de fallo tras correo de fallo por algo que está roto a
+# propósito. Un flujo que siempre falla enseña a ignorar los fallos, así que se
+# le quita el horario y queda solo el disparo a mano.
+#
+# PARA REVIVIRLO hacen falta las variables de la cabecera de la ruta —incluida
+# la clave de API— y devolver el bloque `schedule:` de abajo.
+#
+# Lo que sigue describe cómo funcionaba cuando estaba encendido.
 #
 # POR QUÉ AQUÍ Y NO EN VERCEL: el plan Hobby de Vercel solo admite cron
 # DIARIO — con `0 * * * *` en vercel.json el despliegue entero se rechaza con
@@ -20,12 +32,8 @@
 name: Revisar buzón de endosos
 
 on:
-  schedule:
-    # Cada hora en punto (UTC). GitHub puede retrasarlo unos minutos si hay
-    # cola; da igual, la ruta mira una ventana de 90 minutos hacia atrás y no
-    # duplica nada porque cada correo queda marcado como procesado.
-    - cron: "0 * * * *"
-  # Para poder dispararlo a mano desde la pestaña Actions y comprobar que va.
+  # El `schedule:` con `- cron: "0 * * * *"` iba aquí. Retirado: ver cabecera.
+  # Solo queda el disparo a mano desde la pestaña Actions.
   workflow_dispatch:
 
 # Si una corrida se atrasa y se solapa con la siguiente, se cancela la vieja:

@@ -67,11 +67,24 @@ $encargo = Get-Content $prompt -Raw -Encoding utf8
 # dinámico, así que la lista blanca las filtra antes de que existan). El CLI
 # concluye que no tiene con qué leer el correo y termina sin hacer nada.
 #
-# Con `bypassPermissions` sí funciona. Es un permiso amplio y conviene saberlo:
-# esta tarea corre sin nadie delante, con un encargo FIJO que vive en
-# revisar-buzon-endosos.md. Ese archivo es la superficie de riesgo real — quien
-# lo edite decide lo que hace la tarea. El conector de correo es de solo
-# lectura (Mail.Read), así que por ahí no se puede mandar nada.
+# POR QUÉ `auto` Y NO `bypassPermissions`.
+#
+# `bypassPermissions` funcionó hasta el CLI 2.1.246. La actualización a 2.1.247
+# —automática, el 26/08 a las 22:04, cuatro minutos después de la última pasada
+# buena— dejó de registrar los conectores MCP cuando ese modo está activo. El
+# síntoma es traicionero: la tarea arranca, corre entera y termina con código 0
+# diciendo que no encontró la herramienta de correo. Comprobado por descarte
+# con la misma sonda: sin bandera carga, con --tools default carga, con
+# bypassPermissions no.
+#
+# `auto` no pide confirmaciones —esto corre sin nadie delante— y sí mantiene los
+# conectores. Un permiso denegado vuelve al modelo como error y puede adaptarse,
+# en vez de colgar la corrida esperando a alguien que no está.
+#
+# El encargo es FIJO y vive en revisar-buzon-endosos.md. Ese archivo es la
+# superficie de riesgo real — quien lo edite decide lo que hace la tarea. El
+# conector de correo es de solo lectura (Mail.Read), así que por ahí no se
+# puede mandar nada.
 #
 # --model FIJO A PROPÓSITO. La configuración global del CLI tiene el modelo
 # declarado dos veces con valores distintos (claude-opus-4-7 en un sitio,
@@ -82,16 +95,20 @@ $encargo = Get-Content $prompt -Raw -Encoding utf8
 $anterior = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 $codigo = 0
+# Solo las líneas DE ESTA corrida. Antes el veredicto se sacaba releyendo el
+# registro entero del día, así que un fallo de la mañana condenaba a todas las
+# pasadas siguientes aunque hubieran ido bien.
+$lineas = New-Object System.Collections.Generic.List[string]
 try {
     # La salida se va escribiendo AL VUELO en el registro. Antes se acumulaba
     # y se volcaba al final, así que una corrida matada a mitad no dejaba ni
     # una pista de por dónde iba.
     $encargo |
-        & $claude -p --model claude-sonnet-5 --tools default --permission-mode bypassPermissions 2>&1 |
+        & $claude -p --model claude-sonnet-5 --tools default --permission-mode auto 2>&1 |
         ForEach-Object {
             $linea = $_.ToString()
             Add-Content -Path $log -Value $linea -Encoding utf8
-            $linea
+            $lineas.Add($linea)
         } | Out-Null
     $codigo = $LASTEXITCODE
 } catch {
@@ -101,15 +118,35 @@ try {
     $ErrorActionPreference = $anterior
 }
 
-$salida = if (Test-Path $log) { Get-Content $log -Raw -Encoding utf8 } else { "" }
+$salida = $lineas -join "`n"
 
-# Los dos fallos silenciosos que ya nos mordieron una vez cada uno.
 if ($salida -match "Not logged in" -or $salida -match "Please run /login") {
     Escribir "ERROR: el CLI no está autenticado. Ejecuta 'claude' en una consola y usa /login."
     exit 1
 }
-if ($salida -match "no hay ninguna herramienta de correo|no tengo ninguna herramienta de correo") {
-    Escribir "ERROR: el CLI no vio el conector de Microsoft 365. Comprueba con: claude mcp list"
+
+# EL VEREDICTO SE PIDE POR ESCRITO, NO SE DEDUCE DE LA PROSA.
+#
+# Antes se buscaban dos frases concretas («no tengo ninguna herramienta de
+# correo»). El 27/08 la corrida abortó por lo mismo pero redactado distinto —y
+# una de las veces en inglés—, así que el filtro no coincidió y la tarea salió
+# con código 0: éxito aparente, buzón sin leer. Ese es el peor fallo posible,
+# porque nadie va a mirar un registro que dice que todo fue bien.
+#
+# Ahora el encargo obliga a cerrar con RESULTADO: OK o RESULTADO: FALLO. Se
+# falla CERRADO: si el marcador no está —abortó, se colgó, se quedó sin
+# contexto, la mató el límite de tiempo— es un fallo, sin importar lo bien que
+# suene el texto que haya dejado.
+if ($salida -notmatch "RESULTADO:\s*OK") {
+    $motivo = if ($salida -match "RESULTADO:\s*FALLO\s*(.+)") {
+        $Matches[1].Trim()
+    } elseif ([string]::IsNullOrWhiteSpace($salida)) {
+        "el CLI no devolvió nada (código $codigo)"
+    } else {
+        "terminó sin el marcador RESULTADO (código $codigo); mira el detalle arriba"
+    }
+    Escribir "ERROR: la pasada NO sirvió — $motivo"
+    Escribir "=== Revisión terminada CON FALLO ==="
     exit 1
 }
 
