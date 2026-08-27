@@ -25,8 +25,11 @@ CÓMO ESCRIBIR. API de producción https://crm-cuantico.vercel.app/funcionarios 
   await prisma.sesion.create({ data: { token, usuarioId: usuario.id, expira: new Date(Date.now() + 15*60*1000) } });
   const cabeceras = { "Content-Type": "application/json", Cookie: `cuantico_sesion=${token}` };
 Scripts en scripts/_tmp_*.ts, córrelos con `npx tsx` y bórralos al terminar. Consulta antes con Prisma para no duplicar.
-  - Crear:      POST  /api/endosos
-  - Actualizar: PATCH /api/endosos/<id>
+La API cuelga del basePath /funcionarios, NO de la raíz del dominio. Usa SIEMPRE la URL completa:
+  - Crear:      POST  https://crm-cuantico.vercel.app/funcionarios/api/endosos
+  - Actualizar: PATCH https://crm-cuantico.vercel.app/funcionarios/api/endosos/<id>
+  - Registrar:  POST  https://crm-cuantico.vercel.app/funcionarios/api/endosos/revision-buzon
+Un https://crm-cuantico.vercel.app/api/... devuelve 404 en silencio, y en una corrida desatendida nadie se entera.
 
 EVITA DUPLICADOS: antes de tocar un caso comprueba si su `historia` ya contiene [correo:<internetMessageId>]. Incluye SIEMPRE ese marcador al final de cada notaSeguimiento.
 
@@ -39,7 +42,8 @@ NUNCA INVENTES DATOS. Si un dato no aparece literalmente en un correo real, déj
 LÍMITE DURO: el conector solo tiene permiso de LECTURA (Mail.Read). Bajo ninguna circunstancia crees, envíes ni reenvíes un correo, ni siquiera como borrador. Si hay que mandarle documentos a un cliente, deja el mensaje redactado en la bitácora.
 
 AL TERMINAR registra la pasada SIEMPRE, aunque no encuentres nada:
-  POST /api/endosos/revision-buzon con { correosNuevos: <n>, casosTocados: <n>, modelo: "Sonnet 5", resumen: "<una línea>" }
+  POST https://crm-cuantico.vercel.app/funcionarios/api/endosos/revision-buzon
+  con { correosNuevos: <n>, casosTocados: <n>, modelo: "Sonnet 5", resumen: "<una línea>" }
 Es lo que el CRM usa para saber cuándo fue la última revisión: sin ella el tablero parece desactualizado.
 
 Termina con un informe corto: qué correos había, cómo clasificaste cada uno, qué casos tocaste con su id, y confirma que registraste la pasada.
