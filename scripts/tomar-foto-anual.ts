@@ -42,6 +42,12 @@ async function main() {
   // Producción del año N = pólizas que vencen en N+1.
   const desde = new Date(Date.UTC(ANIO + 1, 0, 1));
   const hasta = new Date(Date.UTC(ANIO + 2, 0, 1));
+  // …salvo las que llevan fecha de expedición, que cuentan en el año en que se
+  // vendieron y no en el de su vencimiento. Sin esto, una de cumplimiento
+  // expedida en 2026 y con vencimiento en 2029 se quedaba fuera de la foto de
+  // 2026 y su producción desaparecía al cerrar el año. Ver Policy.expedidaEn.
+  const expDesde = new Date(Date.UTC(ANIO, 0, 1));
+  const expHasta = new Date(Date.UTC(ANIO + 1, 0, 1));
 
   const filas = DESDE_BASE
     ? (await prisma.historicalPolicy2025.findMany()).map((h) => ({
@@ -61,9 +67,17 @@ async function main() {
         formaPago: null,
         estadoPago: null,
         vencimiento: h.vencimiento,
+        expedidaEn: null,
       }))
     : (
-        await prisma.policy.findMany({ where: { vencimiento: { gte: desde, lt: hasta } } })
+        await prisma.policy.findMany({
+          where: {
+            OR: [
+              { expedidaEn: { gte: expDesde, lt: expHasta } },
+              { expedidaEn: null, vencimiento: { gte: desde, lt: hasta } },
+            ],
+          },
+        })
       ).map((p) => ({
         anioProduccion: ANIO,
         numero: p.numero,
@@ -81,6 +95,7 @@ async function main() {
         formaPago: p.formaPago,
         estadoPago: p.estadoPago,
         vencimiento: p.vencimiento,
+        expedidaEn: p.expedidaEn,
       }));
 
   const total = filas.reduce((s, f) => s + (f.primaNeta || 0), 0);

@@ -19,6 +19,8 @@ export interface PolizaRow {
   tipoNegocio: string | null;
   primaNeta: number;
   vencimiento: Date | null;
+  /** Ver Policy.expedidaEn: con valor, manda sobre el vencimiento en producción. */
+  expedidaEn?: Date | null;
   aseguradora?: string | null;
 }
 
@@ -386,6 +388,15 @@ export function produccionAnio(
 ): MatrizRamoMes {
   const matriz: MatrizRamoMes = new Map();
   for (const p of polizas) {
+    // Con fecha de expedición manda ella y el mes es el de la venta. Sin ella
+    // se sigue deduciendo del vencimiento, que en la cartera de renovación cae
+    // un año después de venderse. Ver Policy.expedidaEn.
+    if (p.expedidaEn) {
+      if (p.expedidaEn.getUTCFullYear() !== anio) continue;
+      if (filtroTipo && !filtroTipo(normalizarTipo(p.tipoNegocio))) continue;
+      sumar(matriz, p.ramo, p.expedidaEn.getUTCMonth(), p.primaNeta || 0);
+      continue;
+    }
     if (!p.vencimiento) continue;
     if (p.vencimiento.getUTCFullYear() !== anio + 1) continue;
     if (filtroTipo && !filtroTipo(normalizarTipo(p.tipoNegocio))) continue;

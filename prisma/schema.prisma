@@ -74,6 +74,19 @@ model Policy {
   // Excel y la copia manual se retira para no duplicarla.
   manual            Boolean   @default(false)
   vencimiento       DateTime?
+  // Fecha de EXPEDICIÓN, para la producción de las pólizas que no siguen el
+  // ciclo anual.
+  //
+  // El seguimiento deduce el mes de producción del vencimiento: una póliza
+  // vendida en agosto vence en agosto del año siguiente, así que vencimiento
+  // menos un año es la venta. Con cumplimiento eso no se sostiene —se emite
+  // por obra y vence cuando la obra acaba, dos o tres años después—, y la
+  // relación entera caía en años equivocados: de 80 negocios, 45 aterrizaban
+  // en 2025, 31 en 2028 y solo 3 en 2026.
+  //
+  // Con esta fecha puesta manda ella y la póliza cuenta en su mes de
+  // expedición. En blanco (toda la cartera de renovación) no cambia nada.
+  expedidaEn        DateTime?
   mesVencimiento    String? // derivado del vencimiento al importar
   fechaNacimiento   DateTime?
   correo            String?
@@ -317,6 +330,9 @@ model FotoPoliza {
   formaPago   String?
   estadoPago  String?
   vencimiento DateTime?
+  // Ver Policy.expedidaEn: la foto tiene que conservarla o, al cerrar el año,
+  // la producción de cumplimiento volvería a deducirse del vencimiento.
+  expedidaEn  DateTime?
 
   // Sin llave única: el informe trae pólizas repetidas (mismo número y ramo en
   // dos filas, p. ej. una colectiva con dos formas de pago) y la foto debe
