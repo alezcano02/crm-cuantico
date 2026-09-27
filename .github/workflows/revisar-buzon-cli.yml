@@ -105,21 +105,41 @@ jobs:
           CRM_CUANTICO_POSTGRES_PRISMA_URL: ${{ secrets.CRM_CUANTICO_POSTGRES_PRISMA_URL }}
         run: npx prisma generate
 
-      # El script busca el CLI exactamente en $env:APPDATA\npm\claude.cmd. Se
-      # fija ese prefijo de npm para que caiga ahí y el script no cambie.
+      # El script busca el CLI exactamente en $env:APPDATA\npm\claude.cmd.
+      #
+      # `npm config set prefix` NO basta: setup-node deja el prefijo fijado por
+      # variable de entorno, que manda sobre la configuración, y el CLI caía en
+      # otra carpeta (primera corrida, 27/09). Se pasa `--prefix` en la propia
+      # orden, que manda sobre todo. Y si aun así el CLI apareciera en otro
+      # sitio, se deja en la ruta esperada un claude.cmd que lo llama: el
+      # script no cambia en ningún caso.
       - name: Instalar el CLI de Claude Code donde el script lo espera
         shell: pwsh
         run: |
           $prefijo = Join-Path $env:APPDATA "npm"
           New-Item -ItemType Directory -Force -Path $prefijo | Out-Null
-          npm config set prefix $prefijo
-          npm install -g @anthropic-ai/claude-code
+          npm install -g --prefix "$prefijo" @anthropic-ai/claude-code
           $cli = Join-Path $prefijo "claude.cmd"
+
           if (-not (Test-Path $cli)) {
-            Write-Output "::error::El CLI no quedó en $cli; el script no lo encontrará."
+            $real = Get-ChildItem -Path $prefijo, "C:\npm", "$env:ProgramFiles\nodejs" -Recurse -Include "claude.cmd", "claude.exe" -ErrorAction SilentlyContinue |
+                    Select-Object -First 1
+            if (-not $real) {
+              $cmd = Get-Command claude -ErrorAction SilentlyContinue
+              if ($cmd) { $real = Get-Item $cmd.Source }
+            }
+            if ($real) {
+              Write-Output "El CLI quedó en $($real.FullName); se deja un acceso en $cli"
+              Set-Content -Path $cli -Encoding ascii -Value "@echo off`r`n`"$($real.FullName)`" %*"
+            }
+          }
+
+          if (-not (Test-Path $cli)) {
+            Write-Output "::error::No se encontró el CLI tras instalarlo; el script no podrá lanzarlo."
             exit 1
           }
-          Write-Output "CLI en $cli"
+          & $cli --version
+          Write-Output "CLI listo en $cli"
 
       # ─────────────────────────────────────────────────────────────────────
       # SONDA. Separa los dos fallos que en el equipo local se confundían en el
