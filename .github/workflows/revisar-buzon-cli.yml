@@ -55,11 +55,20 @@
 name: Revisar buzón de endosos (CLI)
 
 on:
-  schedule:
-    # Cada dos horas. El encargo mide su ventana desde la última pasada
-    # registrada en la base, así que espaciarlo no pierde correos: solo los
-    # recoge un poco más tarde.
-    - cron: "17 */2 * * *"
+  # SIN HORARIO, A PROPÓSITO (27/09/2026).
+  #
+  # Probado en dos corridas reales, una del cron y otra a mano: el token de
+  # `claude setup-token` autentica, pero el conector de Microsoft 365 NO llega a
+  # la sesión del runner. Todo lo demás funciona —secretos, dependencias,
+  # Prisma, instalación del CLI—; lo que falta es poder leer el buzón. Con el
+  # horario puesto fallaría cada dos horas y mandaría un correo de fallo cada
+  # vez, y esos avisos acaban ignorándose.
+  #
+  # PARA REACTIVARLO hace falta que el runner tenga su propio acceso al correo
+  # (una aplicación de Azure con Mail.Read), y entonces volver a poner:
+  #   schedule:
+  #     - cron: "17 */2 * * *"
+  # Mientras tanto el buzón lo revisa la tarea de Windows del equipo de la agencia.
   workflow_dispatch:
 
 concurrency:
