@@ -1,0 +1,192 @@
+# Corre la MISMA revisión del buzón que hoy corre en el equipo de la agencia,
+# pero en un runner de GitHub, para no depender de que ese computador esté
+# encendido.
+#
+# No reimplementa nada: ejecuta tal cual `scripts/revisar-buzon.ps1` con su
+# encargo `scripts/revisar-buzon-endosos.md`. Es el mismo programa, con el mismo
+# modelo y las mismas reglas; lo único que cambia es dónde se ejecuta.
+#
+# POR QUÉ NO HACE FALTA CLAVE DE API: `claude setup-token` emite un token de
+# larga duración contra la SUSCRIPCIÓN de la agencia. El conector de correo
+# tampoco es de este equipo — es de la CUENTA (aparece en
+# `claudeAiMcpEverConnected` y ningún proyecto declara servidores propios), así
+# que un runner autenticado con la misma cuenta ve el mismo buzón.
+#
+# POR QUÉ windows-latest Y NO ubuntu: para no tocar el script. Busca el CLI en
+# `$env:APPDATA\npm\claude.cmd` y está escrito para Windows PowerShell 5.1. En
+# Linux habría que modificarlo, y la instrucción era moverlo, no cambiarlo. El
+# precio es que GitHub cuenta los minutos de Windows al DOBLE, y de ahí la
+# cadencia de dos horas.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ESTE FLUJO NO PUBLICA DATOS DE CLIENTES, Y ESO ES DELIBERADO.
+#
+# Este repositorio es PÚBLICO, así que todo lo que llegue al registro de Actions
+# o a un artefacto lo puede leer cualquiera, para siempre. La revisión lee
+# correo con nombres, cédulas, direcciones y valores de crédito.
+#
+# Lo que lo hace seguro es una propiedad del script, comprobada leyéndolo: NO
+# ESCRIBE NADA POR SALIDA ESTÁNDAR. Su función `Escribir` hace `Add-Content` al
+# archivo de registro, y la salida del modelo se consume dentro de un
+# `ForEach-Object` que termina en `| Out-Null`. En el runner ese archivo es
+# efímero y se destruye con la máquina.
+#
+# De ahí las dos reglas de este flujo, y conviene no romperlas al editarlo:
+#   1. NO se sube `scripts/registros/*.log` como artefacto. En un repo público
+#      los artefactos son públicos; subirlo sería la fuga entera.
+#   2. Al registro solo llega la línea RESULTADO cuando encaja con un patrón de
+#      SOLO CIFRAS (`correos=N casos=N revision=N`). Nunca texto libre del
+#      modelo, que podría arrastrar el contenido de un correo.
+#
+# La bitácora de verdad está donde debe: la tabla `RevisionBuzon` del CRM, que
+# es privada y guarda cada pasada con su resumen. Para diagnosticar se mira ahí,
+# no aquí.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# LO QUE HAY QUE PONER UNA VEZ, en Settings ▸ Secrets and variables ▸ Actions:
+#   · CLAUDE_CODE_OAUTH_TOKEN          → lo imprime `claude setup-token`
+#   · CRM_CUANTICO_POSTGRES_PRISMA_URL → la misma que usa Vercel (lib/prisma.ts)
+#
+# SOLO DISPARA DESDE LA RAMA POR DEFECTO. Lo dice la documentación de GitHub: los
+# flujos programados se ejecutan únicamente desde la rama por defecto. El disparo
+# a mano sí funciona desde cualquier rama. Y en repositorios públicos GitHub
+# desactiva el horario tras 60 días sin actividad en el repositorio.
+
+name: Revisar buzón de endosos (CLI)
+
+on:
+  schedule:
+    # Cada dos horas. El encargo mide su ventana desde la última pasada
+    # registrada en la base, así que espaciarlo no pierde correos: solo los
+    # recoge un poco más tarde.
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: revisar-buzon-endosos
+  cancel-in-progress: false
+
+jobs:
+  revisar:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Comprobar los secretos antes de gastar minutos
+        shell: pwsh
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          BD: ${{ secrets.CRM_CUANTICO_POSTGRES_PRISMA_URL }}
+        run: |
+          $faltan = @()
+          if (-not $env:TOKEN) { $faltan += "CLAUDE_CODE_OAUTH_TOKEN (lo imprime: claude setup-token)" }
+          if (-not $env:BD)    { $faltan += "CRM_CUANTICO_POSTGRES_PRISMA_URL (la misma que usa Vercel)" }
+          if ($faltan.Count) {
+            Write-Output "::error::Faltan secretos en este repositorio: $($faltan -join ' · ')"
+            exit 1
+          }
+          Write-Output "Secretos presentes."
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Instalar dependencias del proyecto
+        shell: pwsh
+        run: npm ci
+
+      # El encargo escribe en el CRM con scripts `npx tsx` que usan Prisma, así
+      # que el cliente tiene que estar generado antes de arrancar.
+      - name: Generar el cliente de Prisma
+        shell: pwsh
+        env:
+          CRM_CUANTICO_POSTGRES_PRISMA_URL: ${{ secrets.CRM_CUANTICO_POSTGRES_PRISMA_URL }}
+        run: npx prisma generate
+
+      # El script busca el CLI exactamente en $env:APPDATA\npm\claude.cmd. Se
+      # fija ese prefijo de npm para que caiga ahí y el script no cambie.
+      - name: Instalar el CLI de Claude Code donde el script lo espera
+        shell: pwsh
+        run: |
+          $prefijo = Join-Path $env:APPDATA "npm"
+          New-Item -ItemType Directory -Force -Path $prefijo | Out-Null
+          npm config set prefix $prefijo
+          npm install -g @anthropic-ai/claude-code
+          $cli = Join-Path $prefijo "claude.cmd"
+          if (-not (Test-Path $cli)) {
+            Write-Output "::error::El CLI no quedó en $cli; el script no lo encontrará."
+            exit 1
+          }
+          Write-Output "CLI en $cli"
+
+      # ─────────────────────────────────────────────────────────────────────
+      # SONDA. Separa los dos fallos que en el equipo local se confundían en el
+      # registro: que la sesión no autentique, y que el conector de Microsoft
+      # 365 no quede registrado. Averiguarlo a mano costó horas.
+      #
+      # NO IMPRIME la respuesta cruda, solo un veredicto de tres estados. La
+      # sonda no toca el buzón, pero un mensaje de error del CLI puede citar
+      # texto arbitrario, y esto va a un registro público.
+      # ─────────────────────────────────────────────────────────────────────
+      - name: Sonda de autenticación y de conector
+        continue-on-error: true
+        shell: powershell
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          $claude = Join-Path $env:APPDATA "npm\claude.cmd"
+          $sonda = @'
+          Carga con ToolSearch la consulta: select:mcp__claude_ai_Microsoft_365__outlook_email_search
+          Responde UNICAMENTE con una linea: CONECTOR-OK , o bien CONECTOR-AUSENTE
+          No uses ninguna otra herramienta.
+          '@
+          $ErrorActionPreference = "Continue"
+          $salida = ($sonda | & $claude -p --model claude-sonnet-5 2>&1 | Out-String)
+          if ($salida -match "OAuth session expired|Not logged in|Please run /login") {
+            Write-Output "::error::El token no autenticó. Regenéralo con 'claude setup-token' y actualiza el secreto CLAUDE_CODE_OAUTH_TOKEN."
+          } elseif ($salida -match "CONECTOR-OK") {
+            Write-Output "::notice::Autenticación y conector de correo correctos."
+          } elseif ($salida -match "CONECTOR-AUSENTE") {
+            Write-Output "::warning::Autenticó, pero el conector de Microsoft 365 no quedó registrado en esta sesión. El script reintentará hasta tres veces."
+          } else {
+            Write-Output "::warning::La sonda no devolvió un veredicto reconocible. Se continúa: el script tiene sus propios guardarraíles."
+          }
+
+      - name: Revisar el buzón
+        shell: powershell
+        env:
+          # El CLI lee este token y con él usa la SUSCRIPCIÓN, no una clave de
+          # API. Si la primera corrida a mano dice que no autentica, el otro
+          # nombre documentado para un token de portador es ANTHROPIC_AUTH_TOKEN:
+          # probar con ese antes de tocar nada más.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CRM_CUANTICO_POSTGRES_PRISMA_URL: ${{ secrets.CRM_CUANTICO_POSTGRES_PRISMA_URL }}
+        run: .\scripts\revisar-buzon.ps1
+
+      # Qué hizo la pasada, en cifras y nada más.
+      #
+      # Se extrae la línea RESULTADO del registro y se publica SOLO si encaja
+      # con el patrón de cifras. Cualquier otra cosa —incluido un
+      # «RESULTADO: FALLO <motivo>», que es texto libre del modelo— se resume
+      # sin citarla. El detalle está en la tabla RevisionBuzon del CRM.
+      - name: Resumen de la pasada (solo cifras)
+        if: always()
+        shell: powershell
+        run: |
+          $log = Get-ChildItem "scripts\registros\*.log" -ErrorAction SilentlyContinue |
+                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $log) {
+            Write-Output "::warning::La corrida no dejó registro: no llegó a arrancar."
+            exit 0
+          }
+          $texto = Get-Content $log.FullName -Raw -Encoding utf8
+          $ok = [regex]::Match($texto, 'RESULTADO:\s*OK\s+correos=(\d+)\s+casos=(\d+)(?:\s+revision=(\d+))?')
+          if ($ok.Success) {
+            Write-Output "::notice::Pasada correcta — correos=$($ok.Groups[1].Value) casos=$($ok.Groups[2].Value) revision=$($ok.Groups[3].Value)"
+          } elseif ($texto -match 'RESULTADO:\s*FALLO') {
+            Write-Output "::error::La pasada se declaró FALLIDA y no registró nada. El motivo va en la tabla RevisionBuzon del CRM; no se copia aquí porque este registro es público."
+          } else {
+            Write-Output "::error::La pasada terminó sin marcador RESULTADO — se cortó a mitad. Revisa RevisionBuzon en el CRM."
+          }
